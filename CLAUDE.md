@@ -348,7 +348,11 @@ Website ist die eigentliche Karte.
       CategoryChip, Button, LinkButton, ProjectCard, ProjectGrid, FilterBar, Nav,
       Footer. `/projects` mit Filter ist bereits live, weil FilterBar ohne Seite
       nicht prüfbar war.
-- [ ] **Phase 3 – Seiten**: `/`, `/projects`, `/projects/[slug]`, `/links`, `404`.
+- [x] **Phase 3 – Seiten** (2026-09-11): `/projects/[slug]` mit Fakten-Box,
+      Link-Buttons, Galerie, OG-Bild aus dem Cover und "More projects";
+      `/links` mit Kontakt, Socials und allen Store-Links; `404`; Startseite mit
+      Kategorie-Kacheln (CategoryStrip). Offen bis Phase 5: Updates-Sektion auf
+      der Startseite und zugehörige Updates auf der Detailseite.
 - [ ] **Phase 4 – Visitenkarte**: BusinessCard-Komponente, `/card`, `contact.vcf`.
 - [ ] **Phase 5 – Content-Hub**: Updates-Collection, `/updates`, RSS, YouTube-Feed.
 - [ ] **Phase 6 – Politur**: View Transitions, OG-Bilder, Sitemap, SEO-Meta,

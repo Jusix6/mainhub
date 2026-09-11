@@ -1,0 +1,51 @@
+---
+/**
+ * 404 page. Cloudflare Pages serves dist/404.html automatically.
+ */
+import Base from '@/layouts/Base.astro';
+import Button from '@/components/Button.astro';
+import Sticker from '@/components/Sticker.astro';
+import { UI } from '@/data/ui';
+---
+
+<Base title="404">
+  <section class="container lost">
+    <Sticker color="--c-pink" rotate={-8} class="lost__sticker">404</Sticker>
+    <h1 class="lost__title">{UI.notFound.title}</h1>
+    <p class="lost__text">{UI.notFound.text}</p>
+    <div class="lost__actions">
+      <Button href="/" icon="home" size="lg">{UI.notFound.cta}</Button>
+      <Button href="/projects" color="--surface" iconAfter="arrow" size="lg">{UI.actions.allProjects}</Button>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .lost {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: start;
+    min-height: 50vh;
+    align-content: center;
+  }
+
+  .lost :global(.lost__sticker) {
+    font-size: var(--text-2xl);
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .lost__title {
+    max-width: 14ch;
+  }
+
+  .lost__text {
+    font-size: var(--text-lg);
+    color: var(--muted);
+  }
+
+  .lost__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+</style>

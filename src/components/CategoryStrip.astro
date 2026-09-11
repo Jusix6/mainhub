@@ -1,0 +1,112 @@
+---
+/**
+ * "What I make": the six categories as big tiles linking to the filtered overview.
+ */
+import { CATEGORIES } from '@/data/categories';
+import Icon from './Icon.astro';
+---
+
+<ul class="strip">
+  {
+    CATEGORIES.map((c, i) => (
+      <li class="strip__item" style={`--tile: var(${c.color}); --i: ${i}`}>
+        <a class="tile" href={`/projects?cat=${c.slug}`}>
+          <span class="tile__icon" aria-hidden="true">
+            <Icon name={c.icon} size={28} />
+          </span>
+          <span class="tile__label">{c.label}</span>
+          <span class="tile__blurb">{c.blurb}</span>
+        </a>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .strip {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(2, 1fr);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .strip__item {
+    animation: tile-in var(--t-slow) var(--ease-out) both;
+    animation-delay: calc(var(--i) * 40ms);
+  }
+
+  .tile {
+    display: grid;
+    gap: var(--space-1);
+    height: 100%;
+    padding: var(--space-3);
+    background: var(--tile);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    text-decoration: none;
+    transition:
+      transform var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-pop);
+  }
+
+  .tile:hover {
+    transform: translate(-3px, -3px) rotate(-1deg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .tile:active {
+    transform: translate(2px, 2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .tile__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-bottom: var(--space-1);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+  }
+
+  .tile__label {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+  }
+
+  .tile__blurb {
+    font-size: var(--text-sm);
+  }
+
+  @media (min-width: 640px) {
+    .strip {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (min-width: 900px) {
+    .strip {
+      grid-template-columns: repeat(6, 1fr);
+    }
+
+    .tile__blurb {
+      display: none;
+    }
+  }
+
+  @keyframes tile-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>

@@ -1,0 +1,143 @@
+---
+/**
+ * Link hub: contact, socials and every store/platform link across projects.
+ * Meant to be the URL in social bios.
+ */
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import Button from '@/components/Button.astro';
+import LinkButton from '@/components/LinkButton.astro';
+import CategoryChip from '@/components/CategoryChip.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+
+const projects = (await getCollection('projects', ({ data }) => data.links.length > 0)).sort(
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+);
+---
+
+<Base title={UI.nav.links} description={`All the places to find ${SITE.name}: socials, stores and platforms.`}>
+  <div class="container links">
+    <header class="links__head">
+      <p class="meta">{SITE.tagline}</p>
+      <h1>
+        <span class="marker" style="--marker: var(--c-green)">{UI.nav.links}</span>
+      </h1>
+      <p>{SITE.bio}</p>
+    </header>
+
+    <section class="block" aria-labelledby="contact-heading">
+      <h2 id="contact-heading" class="block__title">Contact</h2>
+      <div class="block__buttons">
+        <Button href={`mailto:${SITE.email}`} icon="mail" size="lg">{SITE.email}</Button>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="social-heading">
+      <h2 id="social-heading" class="block__title">Follow</h2>
+      <div class="block__buttons">
+        {SITE.socials.map((s) => <LinkButton type={s.type} url={s.url} label={s.handle} size="lg" />)}
+      </div>
+    </section>
+
+    {
+      projects.length > 0 && (
+        <section class="block" aria-labelledby="stores-heading">
+          <h2 id="stores-heading" class="block__title">Get my work</h2>
+          <ul class="stores">
+            {projects.map((p) => (
+              <li class="stores__item">
+                <div class="stores__meta">
+                  <a class="stores__title" href={`/projects/${p.id}`}>
+                    {p.data.title}
+                  </a>
+                  <CategoryChip category={p.data.category} />
+                </div>
+                <div class="block__buttons">
+                  {p.data.links.map((l) => (
+                    <LinkButton type={l.type} url={l.url} label={l.label} />
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </div>
+</Base>
+
+<style>
+  .links {
+    display: grid;
+    gap: var(--space-5);
+    max-width: 720px;
+  }
+
+  .links__head {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .block {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .block__title {
+    font-size: var(--text-xl);
+  }
+
+  .block__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .block__buttons :global(.btn--lg) {
+    flex: 1 1 100%;
+  }
+
+  .stores {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .stores__item {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  .stores__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .stores__title {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    text-decoration: none;
+  }
+
+  .stores__title:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 3px;
+  }
+
+  @media (min-width: 640px) {
+    .block__buttons :global(.btn--lg) {
+      flex: 0 1 auto;
+    }
+  }
+</style>

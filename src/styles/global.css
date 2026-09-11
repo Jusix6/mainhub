@@ -132,6 +132,77 @@ pre {
   padding-inline: 0.08em;
 }
 
+/* Markdown body (project descriptions, updates) */
+.prose {
+  display: grid;
+  gap: var(--space-3);
+  font-size: var(--text-lg);
+}
+
+.prose h2,
+.prose h3 {
+  margin-top: var(--space-3);
+}
+
+.prose h2 {
+  font-size: var(--text-xl);
+}
+
+.prose h3 {
+  font-size: var(--text-lg);
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.4em;
+}
+
+.prose li + li {
+  margin-top: var(--space-1);
+}
+
+.prose a {
+  text-decoration-color: var(--c-blue);
+}
+
+.prose strong {
+  background: linear-gradient(transparent 62%, var(--c-yellow) 62%, var(--c-yellow) 92%, transparent 92%);
+}
+
+.prose img {
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.prose blockquote {
+  padding: var(--space-3);
+  border-left: 6px solid var(--c-pink);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.prose pre {
+  padding: var(--space-3);
+  overflow-x: auto;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+
+.prose :not(pre) > code {
+  padding: 1px 6px;
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+}
+
+.prose hr {
+  border: 0;
+  border-top: var(--line) dashed var(--ink);
+}
+
 /* Skip link */
 .skip-link {
   position: absolute;

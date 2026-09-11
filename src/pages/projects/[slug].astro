@@ -1,0 +1,283 @@
+---
+/**
+ * Project detail page. Everything comes from the project's markdown file;
+ * updates that reference the project are listed once phase 5 adds the routes.
+ */
+import { getCollection, render } from 'astro:content';
+import { Image, getImage } from 'astro:assets';
+import Base from '@/layouts/Base.astro';
+import CategoryChip from '@/components/CategoryChip.astro';
+import StatusBadge from '@/components/StatusBadge.astro';
+import LinkButton from '@/components/LinkButton.astro';
+import Button from '@/components/Button.astro';
+import ProjectGrid from '@/components/ProjectGrid.astro';
+import { getCategory } from '@/data/categories';
+import { UI } from '@/data/ui';
+import { formatMonth, isoDate } from '@/lib/format';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('projects');
+  return projects.map((project) => ({ params: { slug: project.id }, props: { project } }));
+}
+
+const { project } = Astro.props;
+const { title, tagline, category, status, date, updated, cover, gallery, platforms, tech, links } = project.data;
+const { Content } = await render(project);
+const cat = getCategory(category);
+
+const dateLabel = status === 'released' ? UI.meta.released : UI.meta.started;
+
+const og = await getImage({ src: cover, width: 1200, height: 750, format: 'jpg' });
+const ogUrl = new URL(og.src, Astro.site).href;
+
+const more = (await getCollection('projects', (p) => p.id !== project.id))
+  .sort((a, b) => (a.data.category === category ? -1 : 0) - (b.data.category === category ? -1 : 0) || b.data.date.valueOf() - a.data.date.valueOf())
+  .slice(0, 3);
+---
+
+<Base title={title} description={tagline} image={ogUrl}>
+  <article class="container project" style={`--accent: var(${cat.color})`}>
+    <a class="back" href="/projects">← {UI.actions.backToProjects}</a>
+
+    <header class="project__head">
+      <div class="project__labels">
+        <CategoryChip category={category} link size="md" />
+        <StatusBadge status={status} variant="badge" />
+      </div>
+      <h1 class="project__title">{title}</h1>
+      <p class="project__tagline">{tagline}</p>
+    </header>
+
+    <figure class="project__cover">
+      <Image src={cover} alt={title} widths={[640, 1100, 1600]} sizes="(min-width: 1100px) 1100px, 100vw" loading="eager" fetchpriority="high" />
+    </figure>
+
+    <div class="project__grid">
+      <aside class="project__side">
+        {
+          links.length > 0 && (
+            <div class="project__links">
+              {links.map((l) => (
+                <LinkButton type={l.type} url={l.url} label={l.label} />
+              ))}
+            </div>
+          )
+        }
+
+        <dl class="facts">
+          <div class="facts__row">
+            <dt class="meta">{dateLabel}</dt>
+            <dd>
+              <time datetime={isoDate(date)}>{formatMonth(date)}</time>
+            </dd>
+          </div>
+          {
+            updated && (
+              <div class="facts__row">
+                <dt class="meta">{UI.meta.updated}</dt>
+                <dd>
+                  <time datetime={isoDate(updated)}>{formatMonth(updated)}</time>
+                </dd>
+              </div>
+            )
+          }
+          {
+            platforms.length > 0 && (
+              <div class="facts__row">
+                <dt class="meta">{UI.meta.platforms}</dt>
+                <dd>{platforms.join(', ')}</dd>
+              </div>
+            )
+          }
+          {
+            tech.length > 0 && (
+              <div class="facts__row">
+                <dt class="meta">{UI.meta.tech}</dt>
+                <dd>{tech.join(', ')}</dd>
+              </div>
+            )
+          }
+        </dl>
+      </aside>
+
+      <div class="project__body prose">
+        <Content />
+      </div>
+    </div>
+
+    {
+      gallery.length > 0 && (
+        <section class="gallery" aria-label="Gallery">
+          {gallery.map((img, i) => (
+            <figure class="gallery__item">
+              <Image src={img} alt={`${title} – screenshot ${i + 1}`} widths={[480, 960]} sizes="(min-width: 640px) 50vw, 100vw" />
+            </figure>
+          ))}
+        </section>
+      )
+    }
+  </article>
+
+  {
+    more.length > 0 && (
+      <section class="container more" aria-labelledby="more-heading">
+        <div class="section-head">
+          <h2 id="more-heading">More projects</h2>
+          <Button href="/projects" color="--surface" iconAfter="arrow">
+            {UI.actions.allProjects}
+          </Button>
+        </div>
+        <ProjectGrid projects={more} eagerCount={0} />
+      </section>
+    )
+  }
+</Base>
+
+<style>
+  .project {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .back {
+    justify-self: start;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+  }
+
+  .back:hover {
+    text-decoration: underline;
+  }
+
+  .project__head {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .project__labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .project__tagline {
+    font-size: var(--text-xl);
+    color: var(--muted);
+    max-width: 40ch;
+  }
+
+  .project__cover {
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    background: var(--accent);
+    transform: rotate(-0.4deg);
+  }
+
+  .project__cover img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+  }
+
+  .project__grid {
+    display: grid;
+    gap: var(--space-5);
+    margin-top: var(--space-3);
+  }
+
+  .project__side {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+  }
+
+  .project__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .facts {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  .facts__row {
+    display: grid;
+    gap: 2px;
+  }
+
+  .facts dd {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .gallery {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: 1fr;
+  }
+
+  .gallery__item {
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .gallery__item:nth-child(even) {
+    transform: rotate(0.6deg);
+  }
+
+  .gallery__item:nth-child(odd) {
+    transform: rotate(-0.6deg);
+  }
+
+  .more {
+    margin-top: var(--space-6);
+  }
+
+  .section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  @media (min-width: 640px) {
+    .gallery {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 900px) {
+    /* Wider crop on desktop so the cover does not swallow the whole viewport */
+    .project__cover img {
+      aspect-ratio: 21 / 10;
+    }
+
+    .project__grid {
+      grid-template-columns: 300px 1fr;
+      align-items: start;
+    }
+
+    .project__side {
+      position: sticky;
+      top: calc(64px + var(--space-4));
+    }
+  }
+</style>

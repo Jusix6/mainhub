@@ -1,11 +1,12 @@
 ---
 /**
- * Home page. Interim version until phases 3 and 4 add the business card hero
- * and the remaining sections.
+ * Home page. The text hero is replaced by the business card in phase 4;
+ * latest updates and the YouTube block arrive in phase 5.
  */
 import { getCollection } from 'astro:content';
 import Base from '@/layouts/Base.astro';
 import ProjectGrid from '@/components/ProjectGrid.astro';
+import CategoryStrip from '@/components/CategoryStrip.astro';
 import Button from '@/components/Button.astro';
 import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
@@ -24,7 +25,12 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
     <p class="hero__bio">{SITE.bio}</p>
   </section>
 
-  <section class="container" aria-labelledby="featured-heading">
+  <section class="container section" aria-labelledby="make-heading">
+    <h2 id="make-heading" class="section-title">What I make</h2>
+    <CategoryStrip />
+  </section>
+
+  <section class="container section" aria-labelledby="featured-heading">
     <div class="section-head">
       <h2 id="featured-heading">{UI.sections.featured}</h2>
       <Button href="/projects" color="--surface" iconAfter="arrow">{UI.actions.allProjects}</Button>
@@ -37,11 +43,18 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
   .hero {
     display: grid;
     gap: var(--space-3);
-    margin-bottom: var(--space-6);
   }
 
   .hero__bio {
     font-size: var(--text-lg);
+  }
+
+  .section {
+    margin-top: var(--space-6);
+  }
+
+  .section-title {
+    margin-bottom: var(--space-4);
   }
 
   .section-head {
