@@ -21,8 +21,7 @@ export const SITE = {
     'Apps, games, music, videos and digital products by Justin, a creative from Switzerland.',
   bio: 'I make apps, games, music, videos and digital products. This is where all of it lands.',
   location: 'Switzerland',
-  // TODO: real contact e-mail
-  email: 'hello@example.com',
+  email: 'contactjxsi@gmail.com',
   // Keep in sync with `site` in astro.config.mjs
   url: 'https://www.jxsi.ch',
   socials: [
