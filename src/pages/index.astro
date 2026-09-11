@@ -27,9 +27,21 @@ const featured = projects
 
 const updates = (await getPublishedUpdates()).slice(0, 2);
 const video = await getLatestVideo();
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: SITE.fullName,
+  url: Astro.site?.href ?? SITE.url,
+  email: SITE.email,
+  jobTitle: SITE.tagline,
+  address: { '@type': 'PostalAddress', addressCountry: 'CH' },
+  sameAs: SITE.socials.map((s) => s.url),
+};
 ---
 
 <Base>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   <section class="container hero">
     <BusinessCard class="hero__card" />
     <div class="hero__intro">

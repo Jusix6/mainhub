@@ -19,7 +19,7 @@ const projects = (await getCollection('projects')).sort(
       <span class="marker" style="--marker: var(--c-pink)">{UI.sections.projects}</span>
     </h1>
     <FilterBar />
-    <ProjectGrid projects={projects} eagerCount={2} />
+    <ProjectGrid projects={projects} eagerCount={2} heading="h2" />
   </section>
 </Base>
 

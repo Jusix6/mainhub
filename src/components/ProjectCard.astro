@@ -14,9 +14,12 @@ interface Props {
   eager?: boolean;
   /** Stagger index for the entrance animation. */
   index?: number;
+  /** Heading level, so the document outline stays sequential (h2 directly under a page h1). */
+  heading?: 'h2' | 'h3';
 }
 
-const { project, eager = false, index = 0 } = Astro.props;
+const { project, eager = false, index = 0, heading = 'h3' } = Astro.props;
+const Heading = heading;
 const { title, tagline, category, status, cover, date } = project.data;
 const cat = getCategory(category);
 ---
@@ -37,12 +40,13 @@ const cat = getCategory(category);
         sizes="(min-width: 900px) 33vw, (min-width: 640px) 50vw, 100vw"
         loading={eager ? 'eager' : 'lazy'}
         fetchpriority={eager ? 'high' : undefined}
+        transition:name={`cover-${project.id}`}
       />
       <StatusBadge status={status} variant="auto" class="card__sticker" />
     </div>
     <div class="card__body">
       <CategoryChip category={category} />
-      <h3 class="card__title">{title}</h3>
+      <Heading class="card__title">{title}</Heading>
       <p class="card__tagline">{tagline}</p>
     </div>
   </a>

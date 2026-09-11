@@ -13,9 +13,11 @@ interface Props {
   /** Resolved project entry, if the update references one. */
   project?: CollectionEntry<'projects'>;
   index?: number;
+  heading?: 'h2' | 'h3';
 }
 
-const { update, project, index = 0 } = Astro.props;
+const { update, project, index = 0, heading = 'h3' } = Astro.props;
+const Heading = heading;
 const type = getUpdateType(update.data.type);
 ---
 
@@ -25,7 +27,7 @@ const type = getUpdateType(update.data.type);
       <span class="ucard__type">{type.label}</span>
       <time class="meta" datetime={isoDate(update.data.date)}>{formatDate(update.data.date)}</time>
     </div>
-    <h3 class="ucard__title">{update.data.title}</h3>
+    <Heading class="ucard__title">{update.data.title}</Heading>
   </a>
   {
     project && (

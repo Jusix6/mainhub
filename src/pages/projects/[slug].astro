@@ -53,7 +53,15 @@ const more = (await getCollection('projects', (p) => p.id !== project.id))
     </header>
 
     <figure class="project__cover">
-      <Image src={cover} alt={title} widths={[640, 1100, 1600]} sizes="(min-width: 1100px) 1100px, 100vw" loading="eager" fetchpriority="high" />
+      <Image
+        src={cover}
+        alt={title}
+        widths={[640, 1100, 1600]}
+        sizes="(min-width: 1100px) 1100px, 100vw"
+        loading="eager"
+        fetchpriority="high"
+        transition:name={`cover-${project.id}`}
+      />
     </figure>
 
     <div class="project__grid">

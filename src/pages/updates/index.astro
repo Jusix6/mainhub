@@ -44,7 +44,7 @@ const referenced = projects.filter((p) => updates.some((u) => u.data.project?.id
     }
 
     <ul class="updates__list" data-update-list>
-      {updates.map((u, i) => <UpdateCard update={u} project={u.data.project ? projectById.get(u.data.project.id) : undefined} index={i} />)}
+      {updates.map((u, i) => <UpdateCard update={u} project={u.data.project ? projectById.get(u.data.project.id) : undefined} index={i} heading="h2" />)}
     </ul>
     <p class="updates__empty" data-filter-empty hidden>{UI.filters.noResults}</p>
   </section>

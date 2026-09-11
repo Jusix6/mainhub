@@ -9,7 +9,7 @@
   /* Signal colors – text on these is always --ink */
   --c-yellow: #ffd23f;
   --c-pink: #ff5da2;
-  --c-blue: #2f6bff;
+  --c-blue: #4d8dff; /* lightened from #2f6bff so --ink text passes AA (5.9:1) */
   --c-purple: #9b5de5;
   --c-orange: #ff7a1a;
   --c-green: #3ddc84;

@@ -26,13 +26,13 @@ const { standalone = false, class: className } = Astro.props;
 <div class:list={['scene', { 'scene--standalone': standalone }, className]} data-business-card>
   <div class="tilt" data-tilt>
     <div class="card" data-card>
-      <button class="face face--front" type="button" data-flip aria-label={UI.card.flip}>
+      <button class="face face--front" type="button" data-flip>
         <span class="front__mark" aria-hidden="true">
           <Icon name="star" size={22} />
         </span>
         <span class="front__tagline">{SITE.tagline}</span>
         <span class="front__name">{SITE.name}</span>
-        <span class="front__hint" aria-hidden="true">
+        <span class="front__hint">
           {UI.actions.tapToFlip}
           <Icon name="arrow" size={16} />
         </span>
@@ -110,7 +110,8 @@ const { standalone = false, class: className } = Astro.props;
 
   .card {
     display: grid;
-    aspect-ratio: 85 / 55;
+    /* 85:55 card ratio as a minimum; grows if the back face needs more room */
+    min-height: calc(100cqw * 55 / 85);
     transform: rotateY(var(--flip, 0deg));
     transform-style: preserve-3d;
     transition: transform var(--t-slow) var(--ease-pop);
@@ -165,7 +166,7 @@ const { standalone = false, class: className } = Astro.props;
   .front__tagline {
     align-self: end;
     font-family: var(--font-mono);
-    font-size: clamp(11px, 3.2cqw, 16px);
+    font-size: clamp(12px, 3.2cqw, 16px);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
@@ -189,7 +190,7 @@ const { standalone = false, class: className } = Astro.props;
     border: 2px solid var(--ink);
     border-radius: 999px;
     font-family: var(--font-mono);
-    font-size: clamp(10px, 2.8cqw, 13px);
+    font-size: clamp(12px, 2.8cqw, 13px);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     animation: hint-nudge 1.8s var(--ease-pop) 1.2s 2;
@@ -237,7 +238,7 @@ const { standalone = false, class: className } = Astro.props;
     align-items: center;
     gap: var(--space-1);
     font-family: var(--font-mono);
-    font-size: clamp(11px, 3cqw, 14px);
+    font-size: clamp(12px, 3cqw, 14px);
     text-decoration: none;
     overflow-wrap: anywhere;
   }
@@ -264,7 +265,7 @@ const { standalone = false, class: className } = Astro.props;
     border: 2px solid var(--ink);
     border-radius: 999px;
     font-family: var(--font-mono);
-    font-size: clamp(9px, 2.6cqw, 12px);
+    font-size: clamp(12px, 2.8cqw, 13px);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -335,29 +336,29 @@ const { standalone = false, class: className } = Astro.props;
     transform: rotate(180deg) scale(1.1);
   }
 
-  /* No JS: render both faces stacked, no 3D */
-  .scene:not([data-js]) .tilt,
-  .scene:not([data-js]) .card {
+  /* No JS (html.js is set inline in <head> before first paint): both faces stacked, no 3D */
+  :global(html:not(.js)) .tilt,
+  :global(html:not(.js)) .card {
     transform: none;
     transform-style: flat;
   }
 
-  .scene:not([data-js]) .card {
+  :global(html:not(.js)) .card {
     gap: var(--space-4);
-    aspect-ratio: auto;
+    min-height: 0;
   }
 
-  .scene:not([data-js]) .face {
+  :global(html:not(.js)) .face {
     grid-area: auto;
     transform: none;
   }
 
-  .scene:not([data-js]) .face--front {
+  :global(html:not(.js)) .face--front {
     aspect-ratio: 85 / 55;
   }
 
-  .scene:not([data-js]) .front__hint,
-  .scene:not([data-js]) .back__flip {
+  :global(html:not(.js)) .front__hint,
+  :global(html:not(.js)) .back__flip {
     display: none;
   }
 

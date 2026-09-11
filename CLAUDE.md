@@ -36,6 +36,7 @@ npm install          # Abhängigkeiten
 npm run dev          # Dev-Server auf http://localhost:4321
 npm run build        # Produktions-Build nach dist/ (führt astro check mit aus)
 npm run preview      # dist/ lokal ansehen
+npm run og           # Standard-OG-Bild neu erzeugen (nach Änderung von Name/Tagline)
 npx astro check      # Typen und Content-Schemas prüfen
 ```
 
@@ -54,7 +55,8 @@ dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild).
 
 ```
 F:\MAINHUB\
-├─ public/                    # favicon, robots.txt, sonst nichts
+├─ public/                    # favicon.svg, _headers (Cloudflare), sonst nichts
+├─ scripts/og-default.mjs     # erzeugt src/assets/og-default.png
 ├─ src/
 │  ├─ content.config.ts       # Collections: projects, updates
 │  ├─ content/
@@ -84,6 +86,7 @@ F:\MAINHUB\
 │  │  ├─ card.astro           # Visitenkarte im Vollbild (QR-Ziel)
 │  │  ├─ contact.vcf.ts       # vCard aus site.ts
 │  │  ├─ rss.xml.ts
+│  │  ├─ robots.txt.ts       # Sitemap-URL aus `site` in astro.config
 │  │  └─ 404.astro
 │  ├─ lib/                    # youtube.ts (Feed beim Build), helpers
 │  └─ styles/
@@ -111,6 +114,12 @@ Komponenten-Code wird dafür nie angefasst.
 | `/card`            | nur die Visitenkarte, ohne Nav. Gedruckter QR zeigt auf `/card?src=print` |
 | `/contact.vcf`     | vCard-Download |
 | `/rss.xml`         | Feed der Updates |
+| `/robots.txt`      | generiert, Sitemap-Link aus `site` |
+
+**SEO/Social:** Jede Seite hat Canonical, OG- und Twitter-Tags (`Head.astro`).
+OG-Bild: Projekt-Cover auf Detailseiten, Update-Cover falls vorhanden, sonst
+`src/assets/og-default.png`. Startseite trägt JSON-LD `Person`. Cover-Bilder
+morphen per `transition:name="cover-<slug>"` von der Karte zur Detailseite.
 
 Alle Routen auf Englisch, kleingeschrieben, keine Trailing-Slashes.
 
@@ -209,7 +218,7 @@ Schatten, knallige Flächen auf cremeweissem Grund. Kein Template-Look.
   /* Signalfarben */
   --c-yellow:  #FFD23F;
   --c-pink:    #FF5DA2;
-  --c-blue:    #2F6BFF;
+  --c-blue:    #4D8DFF;   /* heller als klassisches Elektroblau, damit Ink-Text AA schafft */
   --c-purple:  #9B5DE5;
   --c-orange:  #FF7A1A;
   --c-green:   #3DDC84;
@@ -284,7 +293,12 @@ Kombinationen mindestens AA prüfen.
   verkleinern, sie sind Teil des Looks.
 - Nav auf Mobile: unten fixiert oder als Vollbild-Overlay, kein winziges
   Burger-Menü oben rechts.
-- Ziel: Lighthouse Mobile ≥ 95 in allen vier Kategorien.
+- Ziel: Lighthouse Mobile ≥ 95 in allen vier Kategorien. Prüfen mit
+  `npm run build && npm run preview` und dann
+  `npx lighthouse@12 http://127.0.0.1:4321/ --form-factor=mobile --chrome-flags="--headless=new"`
+  (`CHROME_PATH` auf Chrome oder Edge setzen). Kleinste Schriftgrösse 12px.
+- Fallbacks, die nur ohne JS gelten, hängen an `html:not(.js)`; die Klasse
+  `js` wird inline im `<head>` gesetzt, damit nichts vor dem ersten Paint springt.
 
 ## Die 3D-Visitenkarte
 
@@ -366,8 +380,13 @@ Website ist die eigentliche Karte.
       `/updates/[slug]` mit Älter/Neuer-Navigation, `/rss.xml`, YouTube-Block als
       Click-to-play-Facade (Thumbnail beim Build optimiert), Twitch-Karte,
       "Latest updates" auf `/`, zugehörige Updates auf der Projekt-Detailseite.
-- [ ] **Phase 6 – Politur**: View Transitions, OG-Bilder, Sitemap, SEO-Meta,
-      Lighthouse-Mobile-Runde.
+- [x] **Phase 6 – Politur** (2026-09-11): Standard-OG-Bild + `npm run og`,
+      Cover-Morph per View Transition, JSON-LD Person, generierte robots.txt,
+      Cloudflare `_headers`, Twitter-Tags. Lighthouse Mobile auf allen Seiten
+      99–100 in allen Kategorien. Fixes dabei: `html.js` wird inline im Head
+      gesetzt (kein Layout-Sprung der Karte), Blau aufgehellt für AA-Kontrast,
+      Karten-Überschriften per `heading`-Prop auf h2 unter Seiten-h1, Mindest-
+      Schriftgrösse 12px auf der Kartenrückseite.
 - [ ] **Phase 7 – Deploy**: Cloudflare Pages, Domain, QR-Ziel `/card?src=print`
       testen.
 - [ ] **Später / offen**: deutsche Sprachversion mit Umschalter, Twitch-Live-Status,

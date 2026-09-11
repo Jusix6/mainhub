@@ -10,15 +10,16 @@ interface Props {
   projects: CollectionEntry<'projects'>[];
   /** Number of covers loaded eagerly (above the fold). */
   eagerCount?: number;
+  heading?: 'h2' | 'h3';
   class?: string;
 }
 
-const { projects, eagerCount = 1, class: className } = Astro.props;
+const { projects, eagerCount = 1, heading = 'h3', class: className } = Astro.props;
 ---
 
 <div class:list={['grid-wrap', className]}>
   <ul class="grid" data-project-grid>
-    {projects.map((p, i) => <ProjectCard project={p} eager={i < eagerCount} index={i} />)}
+    {projects.map((p, i) => <ProjectCard project={p} eager={i < eagerCount} index={i} heading={heading} />)}
   </ul>
   <p class="empty" data-filter-empty hidden>
     {UI.filters.noResults}
