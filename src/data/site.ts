@@ -25,17 +25,17 @@ export const SITE = {
   // Keep in sync with `site` in astro.config.mjs
   url: 'https://www.jxsi.ch',
   socials: [
-    // TODO: replace placeholder URLs and handles
-    { type: 'youtube', url: 'https://www.youtube.com/@justin', handle: '@justin' },
-    { type: 'twitch', url: 'https://www.twitch.tv/justin', handle: 'justin' },
-    { type: 'github', url: 'https://github.com/justin', handle: 'justin' },
+    { type: 'youtube', url: 'https://www.youtube.com/@jusidroppop69', handle: '@jusidroppop69' },
+    { type: 'youtube', url: 'https://www.youtube.com/@jusix69', handle: '@jusix69 · Gaming' },
+    { type: 'twitch', url: 'https://www.twitch.tv/jusidroppop', handle: 'jusidroppop' },
+    { type: 'github', url: 'https://github.com/Jusix6', handle: 'Jusix6' },
   ] satisfies SocialLink[],
   youtube: {
-    // TODO: channel ID (starts with "UC..."), used to read the public RSS feed at build time
-    channelId: '',
+    // Main channel @jusidroppop69 (JusiDroppop). Gaming channel @jusix69 is UC8vN5zk8Ge_b6B5goaNX14g.
+    channelId: 'UCWHDPzJa99zS3XHaetPjdig',
   },
   twitch: {
-    url: 'https://www.twitch.tv/justin',
+    url: 'https://www.twitch.tv/jusidroppop',
     // Free text shown next to the Twitch link, leave empty to hide
     schedule: '',
   },
