@@ -2,8 +2,8 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 
-// TODO: replace with the real domain before deploying (used for sitemap, RSS, OG URLs)
-const SITE = 'https://example.com';
+// Canonical origin (sitemap, RSS, OG URLs, robots.txt). Apex jxsi.ch should redirect here.
+const SITE = 'https://www.jxsi.ch';
 
 export default defineConfig({
   site: SITE,

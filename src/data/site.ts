@@ -23,8 +23,8 @@ export const SITE = {
   location: 'Switzerland',
   // TODO: real contact e-mail
   email: 'hello@example.com',
-  // TODO: real domain (also update `site` in astro.config.mjs)
-  url: 'https://example.com',
+  // Keep in sync with `site` in astro.config.mjs
+  url: 'https://www.jxsi.ch',
   socials: [
     // TODO: replace placeholder URLs and handles
     { type: 'youtube', url: 'https://www.youtube.com/@justin', handle: '@justin' },

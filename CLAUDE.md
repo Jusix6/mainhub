@@ -27,6 +27,8 @@ Kommentare und Code auf Englisch.
 - **Kein Tracking-Script.** Falls Statistik gewünscht: Cloudflare Web Analytics,
   sonst nichts.
 - **Deployment**: Cloudflare Pages, Build-Command `npm run build`, Output `dist/`.
+- **Domain**: `https://www.jxsi.ch` (kanonisch, in `astro.config.mjs` und
+  `src/data/site.ts`). Apex `jxsi.ch` soll per Redirect auf www zeigen.
 - Paketmanager: **npm**. Lockfile committen.
 
 ## Befehle

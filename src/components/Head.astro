@@ -21,7 +21,9 @@ interface Props {
 
 const { title, description = SITE.description, image, noIndex = false } = Astro.props;
 const fullTitle = title ? `${title} · ${SITE.title}` : `${SITE.title} · ${SITE.name}, ${SITE.tagline}`;
-const canonical = new URL(Astro.url.pathname, Astro.site);
+// build.format 'file' makes pathname "/card.html" at build time; the public URL is "/card".
+const cleanPath = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+const canonical = new URL(cleanPath, Astro.site);
 const ogImage = image ?? new URL(ogDefault.src, Astro.site).href;
 ---
 
