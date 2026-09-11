@@ -1,0 +1,174 @@
+---
+/**
+ * Home page. Phase 1 version: proves the content pipeline (collections, images,
+ * tokens) end to end. The business card hero and full sections come in phases 3 and 4.
+ */
+import { getCollection } from 'astro:content';
+import { Image } from 'astro:assets';
+import Base from '@/layouts/Base.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import { getCategory } from '@/data/categories';
+import { getStatus } from '@/data/statuses';
+
+const projects = (await getCollection('projects')).sort(
+  (a, b) => Number(b.data.featured) - Number(a.data.featured) || b.data.date.valueOf() - a.data.date.valueOf(),
+);
+---
+
+<Base>
+  <section class="container hero">
+    <p class="meta">{SITE.tagline}</p>
+    <h1>
+      Hi, I'm <span class="marker">{SITE.name}</span>.
+    </h1>
+    <p class="hero__bio">{SITE.bio}</p>
+  </section>
+
+  <section class="container" aria-labelledby="featured-heading">
+    <h2 id="featured-heading" class="section-title">{UI.sections.featured}</h2>
+    <ul class="grid">
+      {
+        projects.map((project) => {
+          const category = getCategory(project.data.category);
+          const status = getStatus(project.data.status);
+          return (
+            <li class="card" style={`--accent: var(${category.color})`}>
+              <a class="card__link" href={`/projects/${project.id}`}>
+                <div class="card__media">
+                  <Image src={project.data.cover} alt={project.data.title} widths={[400, 800, 1200]} sizes="(min-width: 900px) 33vw, (min-width: 640px) 50vw, 100vw" />
+                  {status.sticker && (
+                    <span class="sticker" style={`--sticker: var(${status.color})`}>
+                      {status.label}
+                    </span>
+                  )}
+                </div>
+                <div class="card__body">
+                  <span class="chip">{category.label}</span>
+                  <h3>{project.data.title}</h3>
+                  <p>{project.data.tagline}</p>
+                </div>
+              </a>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+
+  .hero__bio {
+    font-size: var(--text-lg);
+  }
+
+  .section-title {
+    margin-bottom: var(--space-4);
+  }
+
+  .grid {
+    display: grid;
+    gap: var(--space-4);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 640px) {
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 900px) {
+    .grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .card {
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    transition:
+      transform var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-pop);
+  }
+
+  .card:hover {
+    transform: translate(-3px, -3px) rotate(-0.6deg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .card:active {
+    transform: translate(2px, 2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .card__link {
+    display: block;
+    height: 100%;
+    text-decoration: none;
+  }
+
+  .card__media {
+    position: relative;
+    overflow: hidden;
+    border-bottom: var(--line) solid var(--ink);
+    border-radius: calc(var(--radius-lg) - var(--line)) calc(var(--radius-lg) - var(--line)) 0 0;
+    background: var(--accent);
+  }
+
+  .card__media img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+  }
+
+  .sticker {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    padding: var(--space-1) var(--space-2);
+    background: var(--sticker);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    transform: rotate(-6deg);
+  }
+
+  .card__body {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .card__body h3 {
+    font-size: var(--text-xl);
+  }
+
+  .chip {
+    justify-self: start;
+    padding: 2px var(--space-2);
+    background: var(--accent);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+</style>

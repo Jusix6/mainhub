@@ -1,0 +1,46 @@
+---
+/**
+ * Shared <head> content for every layout.
+ */
+import { ClientRouter } from 'astro:transitions';
+import '@fontsource/archivo-black';
+import '@fontsource-variable/space-grotesk';
+import '@fontsource-variable/jetbrains-mono';
+import '@/styles/tokens.css';
+import '@/styles/global.css';
+import { SITE } from '@/data/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Absolute URL of a social preview image; falls back to the default OG image (phase 6). */
+  image?: string;
+  noIndex?: boolean;
+}
+
+const { title, description = SITE.description, image, noIndex = false } = Astro.props;
+const fullTitle = title ? `${title} · ${SITE.title}` : `${SITE.title} · ${SITE.name}, ${SITE.tagline}`;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<meta name="theme-color" content="#fff8e7" />
+{noIndex && <meta name="robots" content="noindex" />}
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content={SITE.title} />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+{image && <meta property="og:image" content={image} />}
+<meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+
+<link rel="alternate" type="application/rss+xml" title={`${SITE.title} updates`} href="/rss.xml" />
+<link rel="sitemap" href="/sitemap-index.xml" />
+
+<ClientRouter />

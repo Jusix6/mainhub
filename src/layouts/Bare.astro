@@ -1,0 +1,36 @@
+---
+/**
+ * Minimal layout without nav and footer. Used for /card (the QR code target).
+ */
+import Head from '@/components/Head.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  noIndex?: boolean;
+}
+
+const { title, description, image, noIndex } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <Head title={title} description={description} image={image} noIndex={noIndex} />
+  </head>
+  <body>
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  main {
+    display: grid;
+    place-items: center;
+    min-height: 100dvh;
+    padding: var(--gutter);
+  }
+</style>

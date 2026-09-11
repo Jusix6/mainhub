@@ -1,0 +1,62 @@
+/* Design tokens – Neo-Brutalist Playground. See CLAUDE.md for the rules. */
+:root {
+  /* Ground */
+  --bg: #fff8e7;
+  --surface: #ffffff;
+  --ink: #111111;
+  --muted: #5a5a5a;
+
+  /* Signal colors – text on these is always --ink */
+  --c-yellow: #ffd23f;
+  --c-pink: #ff5da2;
+  --c-blue: #2f6bff;
+  --c-purple: #9b5de5;
+  --c-orange: #ff7a1a;
+  --c-green: #3ddc84;
+
+  /* Type */
+  --font-display: 'Archivo Black', 'Arial Black', Impact, sans-serif;
+  --font-body: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  /* Lines, shadows, corners */
+  --line: 3px;
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-lg: 8px 8px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+  --radius: 8px;
+  --radius-lg: 16px;
+
+  /* Motion */
+  --ease-pop: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 150ms;
+  --t-base: 250ms;
+  --t-slow: 600ms;
+
+  /* Spacing and layout */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+  --space-6: 64px;
+  --container: 1100px;
+  --gutter: var(--space-3);
+
+  /* Type scale (fluid) */
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: clamp(1.25rem, 1rem + 1.2vw, 1.6rem);
+  --text-2xl: clamp(1.6rem, 1.2rem + 2vw, 2.4rem);
+  --text-3xl: clamp(2.2rem, 1.4rem + 4vw, 4rem);
+
+  color-scheme: light;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --gutter: var(--space-4);
+  }
+}
