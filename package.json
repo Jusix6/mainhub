@@ -8,7 +8,7 @@
     "build": "astro check && astro build",
     "preview": "astro preview",
     "og": "node scripts/og-default.mjs",
-    "deploy": "npm run build && npx wrangler@4 pages deploy dist --project-name mainhub",
+    "deploy": "npm run build && npx wrangler@4 deploy",
     "astro": "astro"
   },
   "dependencies": {

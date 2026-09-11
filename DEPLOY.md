@@ -1,94 +1,78 @@
-# Deploy auf Cloudflare Pages
+# Deploy auf Cloudflare Workers (statische Assets)
 
-Die Seite ist rein statisch (`dist/`). Zwei Wege, beide gratis. Weg A ist der
-Standard: jeder Push auf `main` deployt automatisch. Weg B braucht kein
-GitHub und eignet sich für einen schnellen ersten Test.
+Die Seite ist rein statisch (`dist/`) und läuft als Cloudflare Worker mit
+Static Assets. Das ist Cloudflares aktueller Standardweg (Pages geht darin
+auf). Es gibt keinen Server-Code, `wrangler.jsonc` beschreibt nur das
+Asset-Verzeichnis.
 
-## Voraussetzungen (einmalig)
+Das Projekt ist per Git-Integration mit `Jusix6/mainhub` verbunden:
+**jeder Push auf `main` deployt automatisch.**
 
-- Cloudflare-Account: https://dash.cloudflare.com
-- Domain `jxsi.ch` bei Cloudflare registriert oder mit Nameservern auf
-  Cloudflare gezeigt (nötig für Custom Domains und den Apex-Redirect).
-- Vor dem ersten Deploy in `src/data/site.ts` die Platzhalter ersetzen:
-  E-Mail, Social-URLs, YouTube-Channel-ID. Danach `npm run build` prüfen.
+## Einstellungen im Cloudflare-Dashboard
 
-## Weg A: GitHub + Cloudflare Pages (empfohlen)
+Workers & Pages → Worker `mainhub` → **Settings** → **Build**:
 
-1. Leeres Repository auf GitHub anlegen, z. B. `mainhub`, ohne README.
-2. Lokal verbinden und pushen:
+| Feld             | Wert                 |
+|------------------|----------------------|
+| Build command    | `npm run build`      |
+| Deploy command   | `npx wrangler deploy`|
+| Root directory   | `/`                  |
 
-   ```bash
-   git remote add origin git@github.com:<dein-user>/mainhub.git
-   git push -u origin main
-   ```
+Die Node-Version liest Cloudflare aus `.node-version` (24). Der Worker-Name
+in `wrangler.jsonc` (`mainhub`) muss mit dem Namen im Dashboard übereinstimmen.
 
-3. Cloudflare Dashboard → **Workers & Pages** → **Create** → **Pages** →
-   **Connect to Git** → Repository `mainhub` wählen.
-4. Build-Einstellungen:
+## Domain
 
-   | Feld                   | Wert            |
-   |------------------------|-----------------|
-   | Framework preset       | Astro           |
-   | Build command          | `npm run build` |
-   | Build output directory | `dist`          |
-   | Root directory         | `/`             |
+1. `jxsi.ch` bei Cloudflare registrieren oder die Nameserver auf Cloudflare
+   zeigen lassen.
+2. Worker `mainhub` → **Settings** → **Domains & Routes** → **Add** →
+   **Custom domain** → `www.jxsi.ch`. Cloudflare legt den DNS-Eintrag an.
+3. Apex-Redirect `jxsi.ch` → `www.jxsi.ch`: In der Zone `jxsi.ch` unter
+   **Rules** → **Redirect Rules** → **Create rule**:
+   - Wenn: Hostname equals `jxsi.ch`
+   - Dann: Dynamic redirect, Ausdruck
+     `concat("https://www.jxsi.ch", http.request.uri.path)`, Status 301,
+     "Preserve query string" an.
+   Damit der Apex überhaupt antwortet, braucht `jxsi.ch` einen DNS-Eintrag mit
+   Proxy (orange Wolke), z. B. `A jxsi.ch 192.0.2.1` als Platzhalter.
 
-   Die Node-Version liest Cloudflare aus `.node-version` (24). Falls der
-   Build trotzdem mit altem Node startet, Umgebungsvariable
-   `NODE_VERSION = 24` setzen.
-5. **Save and Deploy**. Erster Build dauert etwa eine Minute. Die Seite ist
-   danach unter `https://mainhub-xxx.pages.dev` erreichbar.
-6. **Custom domains** im Pages-Projekt: zuerst `www.jxsi.ch`, dann `jxsi.ch`
-   hinzufügen. Cloudflare legt die DNS-Einträge selbst an.
-7. Der Redirect von `jxsi.ch` auf `www.jxsi.ch` kommt aus `public/_redirects`
-   und greift, sobald beide Domains am Projekt hängen.
+   `_redirects` kann das nicht: Bei Workers sind dort nur relative Ziele erlaubt.
 
-Ab jetzt: `git push` = Deploy. Pull Requests bekommen automatisch eine
-Vorschau-URL.
-
-## Weg B: Direkter Upload mit Wrangler
-
-Ohne GitHub, direkt vom Rechner:
+## Ohne Git deployen (Notfall oder Test)
 
 ```bash
 npx wrangler@4 login
-```
-
-Öffnet den Browser für die Cloudflare-Anmeldung (einmalig). Danach:
-
-```bash
 npm run deploy
 ```
 
-Das baut die Seite und lädt `dist/` ins Pages-Projekt `mainhub` hoch. Beim
-ersten Mal fragt Wrangler, ob das Projekt angelegt werden soll: Ja,
-Production branch `main`. Custom Domains wie in Weg A, Schritt 6.
+Baut lokal und lädt `dist/` in denselben Worker hoch.
 
-## Nach dem ersten Deploy prüfen
+## Vor dem ersten "richtigen" Deploy
 
-- [ ] `https://www.jxsi.ch/` lädt, Karte dreht sich, Nav funktioniert.
-- [ ] `https://jxsi.ch/projects` leitet auf `https://www.jxsi.ch/projects` um.
-- [ ] `https://www.jxsi.ch/robots.txt` zeigt die Sitemap-URL,
-      `https://www.jxsi.ch/sitemap-index.xml` listet alle Seiten.
-- [ ] `https://www.jxsi.ch/contact.vcf` auf dem iPhone öffnen: muss die
-      Kontakte-App mit "Justin" öffnen.
-- [ ] `https://www.jxsi.ch/card?src=print` zeigt die Karte mit Gruss.
-- [ ] Vorschau-Bild testen: Link in einen Chat (WhatsApp, Discord) einfügen
-      oder https://www.opengraph.xyz mit der URL füttern. Es muss die gelbe
-      Karte erscheinen, auf Projektseiten das Cover.
+In `src/data/site.ts` die Platzhalter ersetzen: E-Mail, Social-URLs,
+YouTube-Channel-ID. Danach `npm run build` lokal prüfen und pushen.
+
+## Nach dem Deploy prüfen
+
+- [ ] Worker-URL (`mainhub.<subdomain>.workers.dev`) lädt, Karte dreht sich,
+      Nav funktioniert, `/card.html` leitet auf `/card` um.
+- [ ] `/robots.txt` zeigt die Sitemap-URL, `/sitemap-index.xml` listet alle Seiten.
+- [ ] `/contact.vcf` auf dem iPhone öffnen: Kontakte-App mit "Justin".
+- [ ] `/card?src=print` zeigt die Karte mit Gruss.
+- [ ] Unbekannte URL liefert die 404-Seite mit Status 404.
+- [ ] Nach Domain-Setup: `https://jxsi.ch/projects` → `https://www.jxsi.ch/projects`.
+- [ ] Vorschau-Bild: Link in WhatsApp oder Discord einfügen oder
+      https://www.opengraph.xyz nutzen. Gelbe Karte, auf Projektseiten das Cover.
 - [ ] Lighthouse auf der Live-URL, Mobile: alle Kategorien ≥ 95.
 
 ## QR-Code für die gedruckte Karte
 
 Ziel-URL: `https://www.jxsi.ch/card?src=print`
 
-Den QR-Code mit hoher Fehlerkorrektur (Level H) erzeugen, damit er auch auf
-kleinen Karten und bei Verschmutzung lesbar bleibt. Vor dem Druck mit zwei
-verschiedenen Handys scannen. Die URL kann später ohne Neudruck auf eine
-andere Seite umgeleitet werden, weil sie auf der Website liegt.
+Fehlerkorrektur Level H, vor dem Druck mit zwei Handys scannen. Die URL kann
+später ohne Neudruck umgeleitet werden, weil sie auf der Website liegt.
 
 ## Später: Statistik
 
-Falls gewünscht: im Pages-Projekt unter **Web Analytics** aktivieren. Das ist
-Cloudflares cookiefreie Statistik und ergänzt automatisch ein kleines Script.
-Die Seite selbst enthält bewusst kein Tracking.
+Worker → **Observability** oder Cloudflare Web Analytics für die Zone. Beides
+cookiefrei. Die Seite selbst enthält bewusst kein Tracking.

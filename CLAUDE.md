@@ -26,9 +26,14 @@ Kommentare und Code auf Englisch.
   (nur über `youtube-nocookie.com`). Der YouTube-Feed wird beim Build gelesen.
 - **Kein Tracking-Script.** Falls Statistik gewünscht: Cloudflare Web Analytics,
   sonst nichts.
-- **Deployment**: Cloudflare Pages, Build-Command `npm run build`, Output `dist/`.
+- **Deployment**: Cloudflare Workers mit Static Assets (kein Server-Code,
+  kein Adapter). Git-Integration mit `Jusix6/mainhub`, Push auf `main` = Deploy.
+  Build `npm run build`, Deploy `npx wrangler deploy`, Konfig in `wrangler.jsonc`.
+  Details und Checkliste in `DEPLOY.md`. **Nie `astro add cloudflare`
+  ausführen**, die Seite bleibt statisch.
 - **Domain**: `https://www.jxsi.ch` (kanonisch, in `astro.config.mjs` und
-  `src/data/site.ts`). Apex `jxsi.ch` soll per Redirect auf www zeigen.
+  `src/data/site.ts`). Apex `jxsi.ch` → www per Redirect-Regel in der Zone,
+  nicht per `_redirects` (Workers erlauben dort nur relative Ziele).
 - Paketmanager: **npm**. Lockfile committen.
 
 ## Befehle
@@ -39,7 +44,7 @@ npm run dev          # Dev-Server auf http://localhost:4321
 npm run build        # Produktions-Build nach dist/ (führt astro check mit aus)
 npm run preview      # dist/ lokal ansehen
 npm run og           # Standard-OG-Bild neu erzeugen (nach Änderung von Name/Tagline)
-npm run deploy       # Build + direkter Upload nach Cloudflare Pages (braucht `npx wrangler login`)
+npm run deploy       # Build + direkter Upload in den Cloudflare Worker (braucht `npx wrangler login`)
 npx astro check      # Typen und Content-Schemas prüfen
 ```
 
@@ -58,7 +63,8 @@ dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild).
 
 ```
 F:\MAINHUB\
-├─ public/                    # favicon.svg, _headers + _redirects (Cloudflare), sonst nichts
+├─ public/                    # favicon.svg, _headers (Cloudflare), sonst nichts
+├─ wrangler.jsonc             # Cloudflare Worker: nur Assets aus dist/
 ├─ DEPLOY.md                  # Deploy-Anleitung und Checkliste
 ├─ scripts/og-default.mjs     # erzeugt src/assets/og-default.png
 ├─ src/
@@ -391,10 +397,10 @@ Website ist die eigentliche Karte.
       gesetzt (kein Layout-Sprung der Karte), Blau aufgehellt für AA-Kontrast,
       Karten-Überschriften per `heading`-Prop auf h2 unter Seiten-h1, Mindest-
       Schriftgrösse 12px auf der Kartenrückseite.
-- [~] **Phase 7 – Deploy** (vorbereitet 2026-09-11): `DEPLOY.md` mit beiden
-      Wegen (GitHub-Integration oder `npm run deploy` via Wrangler),
-      `public/_redirects` für Apex → www, Checkliste nach dem ersten Deploy.
-      Offen, weil es Justins Accounts braucht: GitHub-Repo + Remote,
-      Cloudflare-Pages-Projekt, Custom Domains, Live-Checks.
+- [~] **Phase 7 – Deploy** (2026-09-11): Repo auf GitHub (`Jusix6/mainhub`),
+      Cloudflare Worker `mainhub` per Git-Integration, `wrangler.jsonc` für
+      Assets-only. Erster Build scheiterte an absoluter URL in `_redirects`
+      (bei Workers nicht erlaubt), Datei entfernt. Offen: Custom Domain,
+      Apex-Redirect-Regel, Live-Checkliste aus `DEPLOY.md`.
 - [ ] **Später / offen**: deutsche Sprachversion mit Umschalter, Twitch-Live-Status,
       Cloudflare Web Analytics.

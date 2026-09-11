@@ -1,0 +1,15 @@
+// Cloudflare Workers config: static assets only, no server code.
+// With this file present, `wrangler deploy` uploads dist/ as-is and does not
+// try to auto-configure the project (which would add the SSR adapter).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mainhub",
+  "compatibility_date": "2026-09-11",
+  "assets": {
+    "directory": "./dist",
+    // Serve /card for card.html, redirect /card/ and /card.html to /card
+    "html_handling": "auto-trailing-slash",
+    // Serve dist/404.html with status 404 for unknown paths
+    "not_found_handling": "404-page"
+  }
+}
