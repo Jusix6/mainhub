@@ -1,0 +1,2 @@
+# Cloudflare Pages redirects. Apex domain → canonical www host (both must be attached as custom domains).
+https://jxsi.ch/* https://www.jxsi.ch/:splat 301

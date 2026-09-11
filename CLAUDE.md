@@ -39,6 +39,7 @@ npm run dev          # Dev-Server auf http://localhost:4321
 npm run build        # Produktions-Build nach dist/ (führt astro check mit aus)
 npm run preview      # dist/ lokal ansehen
 npm run og           # Standard-OG-Bild neu erzeugen (nach Änderung von Name/Tagline)
+npm run deploy       # Build + direkter Upload nach Cloudflare Pages (braucht `npx wrangler login`)
 npx astro check      # Typen und Content-Schemas prüfen
 ```
 
@@ -57,7 +58,8 @@ dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild).
 
 ```
 F:\MAINHUB\
-├─ public/                    # favicon.svg, _headers (Cloudflare), sonst nichts
+├─ public/                    # favicon.svg, _headers + _redirects (Cloudflare), sonst nichts
+├─ DEPLOY.md                  # Deploy-Anleitung und Checkliste
 ├─ scripts/og-default.mjs     # erzeugt src/assets/og-default.png
 ├─ src/
 │  ├─ content.config.ts       # Collections: projects, updates
@@ -389,7 +391,10 @@ Website ist die eigentliche Karte.
       gesetzt (kein Layout-Sprung der Karte), Blau aufgehellt für AA-Kontrast,
       Karten-Überschriften per `heading`-Prop auf h2 unter Seiten-h1, Mindest-
       Schriftgrösse 12px auf der Kartenrückseite.
-- [ ] **Phase 7 – Deploy**: Cloudflare Pages, Domain, QR-Ziel `/card?src=print`
-      testen.
+- [~] **Phase 7 – Deploy** (vorbereitet 2026-09-11): `DEPLOY.md` mit beiden
+      Wegen (GitHub-Integration oder `npm run deploy` via Wrangler),
+      `public/_redirects` für Apex → www, Checkliste nach dem ersten Deploy.
+      Offen, weil es Justins Accounts braucht: GitHub-Repo + Remote,
+      Cloudflare-Pages-Projekt, Custom Domains, Live-Checks.
 - [ ] **Später / offen**: deutsche Sprachversion mit Umschalter, Twitch-Live-Status,
       Cloudflare Web Analytics.
