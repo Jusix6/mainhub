@@ -23,6 +23,9 @@ export const UI = {
     featured: 'Highlights',
     latestUpdates: 'Latest updates',
     latestVideo: 'Latest video',
+    live: 'Live on Twitch',
+    liveText: 'I stream on Twitch every now and then. Follow to get notified.',
+    allUpdates: 'All updates',
     projects: 'Projects',
     relatedUpdates: 'Updates on this project',
   },
@@ -30,6 +33,7 @@ export const UI = {
     all: 'All',
     category: 'Category',
     status: 'Status',
+    project: 'Project',
     noResults: 'Nothing here yet. Try another filter.',
   },
   meta: {

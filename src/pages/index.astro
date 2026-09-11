@@ -1,20 +1,32 @@
 ---
 /**
- * Home page. Hero = the business card. Latest updates and the YouTube block
- * arrive in phase 5.
+ * Home page: business card hero, categories, featured projects,
+ * latest updates, latest YouTube video and Twitch.
  */
 import { getCollection } from 'astro:content';
 import Base from '@/layouts/Base.astro';
 import BusinessCard from '@/components/BusinessCard.astro';
 import ProjectGrid from '@/components/ProjectGrid.astro';
 import CategoryStrip from '@/components/CategoryStrip.astro';
+import UpdateCard from '@/components/UpdateCard.astro';
+import LatestVideo from '@/components/LatestVideo.astro';
+import LinkButton from '@/components/LinkButton.astro';
 import Button from '@/components/Button.astro';
 import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
+import { getPublishedUpdates } from '@/lib/updates';
+import { getLatestVideo } from '@/lib/youtube';
 
-const featured = (await getCollection('projects', ({ data }) => data.featured))
+const projects = await getCollection('projects');
+const projectById = new Map(projects.map((p) => [p.id, p]));
+
+const featured = projects
+  .filter((p) => p.data.featured)
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
   .slice(0, 4);
+
+const updates = (await getPublishedUpdates()).slice(0, 2);
+const video = await getLatestVideo();
 ---
 
 <Base>
@@ -44,6 +56,40 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
       <Button href="/projects" color="--surface" iconAfter="arrow">{UI.actions.allProjects}</Button>
     </div>
     <ProjectGrid projects={featured} />
+  </section>
+
+  <section class="container section split">
+    {
+      updates.length > 0 && (
+        <div class="split__col" aria-labelledby="updates-heading">
+          <div class="section-head">
+            <h2 id="updates-heading">{UI.sections.latestUpdates}</h2>
+            <Button href="/updates" color="--surface" iconAfter="arrow">
+              {UI.sections.allUpdates}
+            </Button>
+          </div>
+          <ul class="update-list">
+            {updates.map((u, i) => (
+              <UpdateCard update={u} project={u.data.project ? projectById.get(u.data.project.id) : undefined} index={i} />
+            ))}
+          </ul>
+        </div>
+      )
+    }
+
+    <div class="split__col" aria-labelledby="watch-heading">
+      <div class="section-head">
+        <h2 id="watch-heading">{video ? UI.sections.latestVideo : UI.sections.live}</h2>
+      </div>
+      {video && <LatestVideo video={video} />}
+      <div class="twitch">
+        <div class="twitch__text">
+          <strong>{UI.sections.live}</strong>
+          <p>{SITE.twitch.schedule || UI.sections.liveText}</p>
+        </div>
+        <LinkButton type="twitch" url={SITE.twitch.url} />
+      </div>
+    </div>
   </section>
 </Base>
 
@@ -95,6 +141,52 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
     margin-bottom: var(--space-4);
   }
 
+  .split {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  .split__col {
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+  }
+
+  .split__col .section-head {
+    margin-bottom: 0;
+  }
+
+  .update-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .twitch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--c-purple);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  .twitch__text {
+    display: grid;
+    gap: 2px;
+  }
+
+  .twitch__text strong {
+    font-family: var(--font-display);
+    font-weight: 400;
+  }
+
   @media (min-width: 900px) {
     .hero {
       grid-template-columns: 1.1fr 1fr;
@@ -103,6 +195,10 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
 
     .hero :global(.hero__card) {
       justify-self: start;
+    }
+
+    .split {
+      grid-template-columns: 1fr 1fr;
     }
   }
 </style>

@@ -1,0 +1,146 @@
+---
+/**
+ * Single update / devlog entry.
+ */
+import { getEntry, render } from 'astro:content';
+import { Image, getImage } from 'astro:assets';
+import Base from '@/layouts/Base.astro';
+import CategoryChip from '@/components/CategoryChip.astro';
+import Button from '@/components/Button.astro';
+import { getUpdateType } from '@/data/updateTypes';
+import { UI } from '@/data/ui';
+import { formatDate, isoDate } from '@/lib/format';
+import { getPublishedUpdates, updateSlug, updateUrl } from '@/lib/updates';
+
+export async function getStaticPaths() {
+  const updates = await getPublishedUpdates();
+  return updates.map((update, i) => ({
+    params: { slug: updateSlug(update) },
+    props: { update, newer: updates[i - 1], older: updates[i + 1] },
+  }));
+}
+
+const { update, newer, older } = Astro.props;
+const { title, date, type, cover } = update.data;
+const { Content } = await render(update);
+const typeDef = getUpdateType(type);
+const project = update.data.project ? await getEntry(update.data.project) : undefined;
+
+const ogUrl = cover ? new URL((await getImage({ src: cover, width: 1200, format: 'jpg' })).src, Astro.site).href : undefined;
+const description = update.body?.split('\n').find((l) => l.trim() && !l.startsWith('#'))?.slice(0, 160);
+---
+
+<Base title={title} description={description} image={ogUrl}>
+  <article class="container entry" style={`--type: var(${typeDef.color})`}>
+    <a class="back" href="/updates">← {UI.nav.updates}</a>
+
+    <header class="entry__head">
+      <div class="entry__meta">
+        <span class="entry__type">{typeDef.label}</span>
+        <time class="meta" datetime={isoDate(date)}>{formatDate(date)}</time>
+      </div>
+      <h1>{title}</h1>
+      {
+        project && (
+          <p class="entry__project">
+            <CategoryChip category={project.data.category} />
+            <a href={`/projects/${project.id}`}>{project.data.title}</a>
+          </p>
+        )
+      }
+    </header>
+
+    {
+      cover && (
+        <figure class="entry__cover">
+          <Image src={cover} alt="" widths={[640, 1100]} sizes="(min-width: 900px) 800px, 100vw" loading="eager" />
+        </figure>
+      )
+    }
+
+    <div class="prose">
+      <Content />
+    </div>
+
+    <nav class="entry__nav" aria-label="More updates">
+      {older && <Button href={updateUrl(older)} color="--surface" icon="arrow" class="entry__nav-older">{older.data.title}</Button>}
+      {newer && <Button href={updateUrl(newer)} color="--surface" iconAfter="arrow">{newer.data.title}</Button>}
+    </nav>
+  </article>
+</Base>
+
+<style>
+  .entry {
+    display: grid;
+    gap: var(--space-4);
+    max-width: 800px;
+  }
+
+  .back {
+    justify-self: start;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+  }
+
+  .back:hover {
+    text-decoration: underline;
+  }
+
+  .entry__head {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .entry__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .entry__type {
+    padding: 1px var(--space-2);
+    background: var(--type);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .entry__project {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 700;
+  }
+
+  .entry__cover {
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    transform: rotate(-0.4deg);
+  }
+
+  .entry__nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: var(--line) dashed var(--ink);
+  }
+
+  .entry__nav :global(.entry__nav-older .icon) {
+    transform: scaleX(-1);
+  }
+</style>

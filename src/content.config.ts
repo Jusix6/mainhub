@@ -41,6 +41,8 @@ const updates = defineCollection({
       type: z.enum(['devlog', 'release', 'news']).default('devlog'),
       project: reference('projects').optional(),
       cover: image().optional(),
+      /** Drafts are visible in `astro dev` only and never built for production. */
+      draft: z.boolean().default(false),
     }),
 });
 

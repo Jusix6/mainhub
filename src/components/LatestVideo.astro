@@ -1,0 +1,128 @@
+---
+/**
+ * Latest YouTube video as a click-to-play facade. The thumbnail is fetched and
+ * optimized at build time (no runtime request to YouTube); the privacy-friendly
+ * youtube-nocookie.com player is loaded only after a click.
+ */
+import { Image } from 'astro:assets';
+import type { LatestVideo } from '@/lib/youtube';
+import { formatDate, isoDate } from '@/lib/format';
+import Icon from './Icon.astro';
+
+interface Props {
+  video: LatestVideo;
+}
+
+const { video } = Astro.props;
+---
+
+<div class="video" data-video data-video-id={video.id}>
+  <button class="video__poster" type="button" data-video-play aria-label={`Play: ${video.title}`}>
+    <Image src={video.thumbnail} alt="" inferSize widths={[480, 960]} sizes="(min-width: 900px) 50vw, 100vw" />
+    <span class="video__play" aria-hidden="true">
+      <Icon name="videos" size={28} />
+    </span>
+  </button>
+  <div class="video__caption">
+    <a class="video__title" href={video.url} target="_blank" rel="noopener">{video.title}</a>
+    <time class="meta" datetime={isoDate(video.published)}>{formatDate(video.published)}</time>
+  </div>
+</div>
+
+<style>
+  .video {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .video__poster {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 0;
+    overflow: hidden;
+    background: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition:
+      transform var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-pop);
+  }
+
+  .video__poster:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .video__poster img,
+  .video iframe {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border: 0;
+  }
+
+  .video__play {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  .video__play :global(.icon) {
+    width: 72px;
+    height: 72px;
+    padding: 18px;
+    background: var(--c-orange);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    transform: rotate(-4deg);
+    transition: transform var(--t-base) var(--ease-pop);
+  }
+
+  .video__poster:hover .video__play :global(.icon) {
+    transform: rotate(4deg) scale(1.08);
+  }
+
+  .video__caption {
+    display: grid;
+    gap: 2px;
+  }
+
+  .video__title {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    text-decoration: none;
+  }
+
+  .video__title:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 3px;
+  }
+</style>
+
+<script>
+  function init() {
+    document.querySelectorAll<HTMLElement>('[data-video]').forEach((box) => {
+      const btn = box.querySelector<HTMLButtonElement>('[data-video-play]');
+      const id = box.dataset.videoId;
+      if (!btn || !id || btn.dataset.bound) return;
+      btn.dataset.bound = 'true';
+      btn.addEventListener('click', () => {
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`;
+        iframe.title = btn.getAttribute('aria-label') ?? 'YouTube video';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        iframe.className = 'video__frame';
+        iframe.style.borderRadius = 'inherit';
+        btn.replaceWith(iframe);
+      });
+    });
+  }
+  document.addEventListener('astro:page-load', init);
+</script>

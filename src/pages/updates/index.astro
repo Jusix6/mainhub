@@ -1,0 +1,164 @@
+---
+/**
+ * Devlog / updates overview. Optional ?project=<slug> filter, applied client-side.
+ */
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import UpdateCard from '@/components/UpdateCard.astro';
+import Button from '@/components/Button.astro';
+import { getPublishedUpdates } from '@/lib/updates';
+import { UI } from '@/data/ui';
+
+const updates = await getPublishedUpdates();
+const projects = await getCollection('projects');
+const projectById = new Map(projects.map((p) => [p.id, p]));
+
+const referenced = projects.filter((p) => updates.some((u) => u.data.project?.id === p.id));
+---
+
+<Base title={UI.nav.updates} description="Devlog, releases and news.">
+  <section class="container updates">
+    <div class="updates__head">
+      <h1>
+        <span class="marker" style="--marker: var(--c-blue)">{UI.nav.updates}</span>
+      </h1>
+      <Button href="/rss.xml" color="--surface" icon="rss">RSS</Button>
+    </div>
+
+    {
+      referenced.length > 0 && (
+        <div class="pfilter" data-project-filter>
+          <span class="meta">{UI.filters.project}</span>
+          <div class="pfilter__chips">
+            <button type="button" class="pchip" data-value="" aria-pressed="true">
+              {UI.filters.all}
+            </button>
+            {referenced.map((p) => (
+              <button type="button" class="pchip" data-value={p.id} aria-pressed="false">
+                {p.data.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    <ul class="updates__list" data-update-list>
+      {updates.map((u, i) => <UpdateCard update={u} project={u.data.project ? projectById.get(u.data.project.id) : undefined} index={i} />)}
+    </ul>
+    <p class="updates__empty" data-filter-empty hidden>{UI.filters.noResults}</p>
+  </section>
+</Base>
+
+<style>
+  .updates {
+    display: grid;
+    gap: var(--space-4);
+    max-width: 800px;
+  }
+
+  .updates__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .pfilter {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .pfilter__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .pchip {
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  .pchip:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .pchip[aria-pressed='true'] {
+    background: var(--c-blue);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .updates__list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .updates__empty {
+    padding: var(--space-5) var(--space-3);
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    border: var(--line) dashed var(--ink);
+    border-radius: var(--radius-lg);
+    max-width: none;
+  }
+</style>
+
+<script>
+  function init() {
+    const bar = document.querySelector<HTMLElement>('[data-project-filter]');
+    const list = document.querySelector<HTMLElement>('[data-update-list]');
+    if (!list) return;
+    const items = Array.from(list.querySelectorAll<HTMLElement>('[data-project]'));
+    const empty = document.querySelector<HTMLElement>('[data-filter-empty]');
+
+    let current = new URLSearchParams(location.search).get('project') ?? '';
+    if (bar && !bar.querySelector(`[data-value="${CSS.escape(current)}"]`)) current = '';
+
+    function apply() {
+      let visible = 0;
+      for (const item of items) {
+        const show = !current || item.dataset.project === current;
+        item.hidden = !show;
+        if (show) visible++;
+      }
+      if (empty) empty.hidden = visible > 0;
+      bar?.querySelectorAll<HTMLButtonElement>('[data-value]').forEach((b) => {
+        b.setAttribute('aria-pressed', String((b.dataset.value ?? '') === current));
+      });
+      const url = new URL(location.href);
+      if (current) url.searchParams.set('project', current);
+      else url.searchParams.delete('project');
+      history.replaceState(history.state, '', url);
+    }
+
+    bar?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-value]');
+      if (!btn) return;
+      current = btn.dataset.value ?? '';
+      apply();
+    });
+
+    apply();
+  }
+  document.addEventListener('astro:page-load', init);
+</script>

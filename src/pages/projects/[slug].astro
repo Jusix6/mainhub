@@ -11,9 +11,11 @@ import StatusBadge from '@/components/StatusBadge.astro';
 import LinkButton from '@/components/LinkButton.astro';
 import Button from '@/components/Button.astro';
 import ProjectGrid from '@/components/ProjectGrid.astro';
+import UpdateCard from '@/components/UpdateCard.astro';
 import { getCategory } from '@/data/categories';
 import { UI } from '@/data/ui';
 import { formatMonth, isoDate } from '@/lib/format';
+import { getUpdatesForProject } from '@/lib/updates';
 
 export async function getStaticPaths() {
   const projects = await getCollection('projects');
@@ -26,6 +28,8 @@ const { Content } = await render(project);
 const cat = getCategory(category);
 
 const dateLabel = status === 'released' ? UI.meta.released : UI.meta.started;
+
+const relatedUpdates = await getUpdatesForProject(project.id);
 
 const og = await getImage({ src: cover, width: 1200, height: 750, format: 'jpg' });
 const ogUrl = new URL(og.src, Astro.site).href;
@@ -113,6 +117,23 @@ const more = (await getCollection('projects', (p) => p.id !== project.id))
               <Image src={img} alt={`${title} – screenshot ${i + 1}`} widths={[480, 960]} sizes="(min-width: 640px) 50vw, 100vw" />
             </figure>
           ))}
+        </section>
+      )
+    }
+    {
+      relatedUpdates.length > 0 && (
+        <section class="related" aria-labelledby="related-heading">
+          <div class="section-head">
+            <h2 id="related-heading">{UI.sections.relatedUpdates}</h2>
+            <Button href={`/updates?project=${project.id}`} color="--surface" iconAfter="arrow">
+              {UI.sections.allUpdates}
+            </Button>
+          </div>
+          <ul class="related__list">
+            {relatedUpdates.slice(0, 3).map((u, i) => (
+              <UpdateCard update={u} index={i} />
+            ))}
+          </ul>
         </section>
       )
     }
@@ -243,6 +264,19 @@ const more = (await getCollection('projects', (p) => p.id !== project.id))
 
   .gallery__item:nth-child(odd) {
     transform: rotate(-0.6deg);
+  }
+
+  .related {
+    margin-top: var(--space-4);
+  }
+
+  .related__list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-width: 800px;
   }
 
   .more {

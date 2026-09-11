@@ -178,8 +178,13 @@ date: 2026-09-11
 type: devlog                    # devlog | release | news
 project: one-more-floor         # optional, Referenz auf projects-Collection
 cover: ../../assets/updates/omf-alpha.png   # optional
+draft: false                    # optional; true = nur in `npm run dev` sichtbar
 ---
 ```
+
+Die URL ist der Dateiname ohne Datums-Präfix (`/updates/omf-alpha`). Zwei Dateien
+mit gleichem Rest-Namen brechen den Build. Typen und Farben in
+`src/data/updateTypes.ts`.
 
 ### Erste Projekte
 
@@ -357,7 +362,10 @@ Website ist die eigentliche Karte.
       Tilt am Desktop, inert für die verdeckte Seite, No-JS- und
       Reduced-Motion-Fallback), Hero auf `/`, `/card` mit Gruss bei `?src=print`,
       `contact.vcf` als vCard 3.0.
-- [ ] **Phase 5 – Content-Hub**: Updates-Collection, `/updates`, RSS, YouTube-Feed.
+- [x] **Phase 5 – Content-Hub** (2026-09-11): `/updates` mit Projekt-Filter,
+      `/updates/[slug]` mit Älter/Neuer-Navigation, `/rss.xml`, YouTube-Block als
+      Click-to-play-Facade (Thumbnail beim Build optimiert), Twitch-Karte,
+      "Latest updates" auf `/`, zugehörige Updates auf der Projekt-Detailseite.
 - [ ] **Phase 6 – Politur**: View Transitions, OG-Bilder, Sitemap, SEO-Meta,
       Lighthouse-Mobile-Runde.
 - [ ] **Phase 7 – Deploy**: Cloudflare Pages, Domain, QR-Ziel `/card?src=print`

@@ -1,0 +1,120 @@
+---
+/**
+ * One update in a list: type sticker, date, title, optional project chip.
+ */
+import type { CollectionEntry } from 'astro:content';
+import { getUpdateType } from '@/data/updateTypes';
+import { formatDate, isoDate } from '@/lib/format';
+import { updateUrl, type UpdateEntry } from '@/lib/updates';
+import CategoryChip from './CategoryChip.astro';
+
+interface Props {
+  update: UpdateEntry;
+  /** Resolved project entry, if the update references one. */
+  project?: CollectionEntry<'projects'>;
+  index?: number;
+}
+
+const { update, project, index = 0 } = Astro.props;
+const type = getUpdateType(update.data.type);
+---
+
+<li class="ucard" style={`--type: var(${type.color}); --i: ${index}`} data-project={project?.id ?? ''}>
+  <a class="ucard__link" href={updateUrl(update)}>
+    <div class="ucard__meta">
+      <span class="ucard__type">{type.label}</span>
+      <time class="meta" datetime={isoDate(update.data.date)}>{formatDate(update.data.date)}</time>
+    </div>
+    <h3 class="ucard__title">{update.data.title}</h3>
+  </a>
+  {
+    project && (
+      <div class="ucard__project">
+        <CategoryChip category={project.data.category} />
+        <a href={`/projects/${project.id}`}>{project.data.title}</a>
+      </div>
+    )
+  }
+</li>
+
+<style>
+  .ucard {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-left-width: 10px;
+    border-left-color: var(--type);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    transition:
+      transform var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-pop);
+    animation: ucard-in var(--t-slow) var(--ease-out) both;
+    animation-delay: calc(var(--i) * 40ms);
+  }
+
+  .ucard:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .ucard[hidden] {
+    display: none;
+  }
+
+  .ucard__link {
+    display: grid;
+    gap: var(--space-1);
+    text-decoration: none;
+  }
+
+  .ucard__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .ucard__type {
+    padding: 1px var(--space-2);
+    background: var(--type);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .ucard__title {
+    font-size: var(--text-xl);
+  }
+
+  .ucard__link:hover .ucard__title {
+    text-decoration: underline;
+    text-decoration-thickness: 3px;
+    text-underline-offset: 4px;
+  }
+
+  .ucard__project {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 700;
+  }
+
+  @keyframes ucard-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>
