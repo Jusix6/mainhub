@@ -400,7 +400,9 @@ Website ist die eigentliche Karte.
 - [~] **Phase 7 – Deploy** (2026-09-11): Repo auf GitHub (`Jusix6/mainhub`),
       Cloudflare Worker `mainhub` per Git-Integration, `wrangler.jsonc` für
       Assets-only. Erster Build scheiterte an absoluter URL in `_redirects`
-      (bei Workers nicht erlaubt), Datei entfernt. Offen: Custom Domain,
-      Apex-Redirect-Regel, Live-Checkliste aus `DEPLOY.md`.
+      (bei Workers nicht erlaubt), Datei entfernt. Live unter
+      `https://mainhub.jusispielt.workers.dev`, Checkliste geprüft (Status,
+      Redirects, Header, 404, vCard, Lighthouse Mobile 98–100). Offen: Custom
+      Domain `www.jxsi.ch` + Apex-Redirect-Regel, Platzhalter in `site.ts`.
 - [ ] **Später / offen**: deutsche Sprachversion mit Umschalter, Twitch-Live-Status,
       Cloudflare Web Analytics.
