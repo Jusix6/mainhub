@@ -1,10 +1,11 @@
 ---
 /**
- * Home page. The text hero is replaced by the business card in phase 4;
- * latest updates and the YouTube block arrive in phase 5.
+ * Home page. Hero = the business card. Latest updates and the YouTube block
+ * arrive in phase 5.
  */
 import { getCollection } from 'astro:content';
 import Base from '@/layouts/Base.astro';
+import BusinessCard from '@/components/BusinessCard.astro';
 import ProjectGrid from '@/components/ProjectGrid.astro';
 import CategoryStrip from '@/components/CategoryStrip.astro';
 import Button from '@/components/Button.astro';
@@ -18,15 +19,22 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
 
 <Base>
   <section class="container hero">
-    <p class="meta">{SITE.tagline}</p>
-    <h1>
-      Hi, I'm <span class="marker">{SITE.name}</span>.
-    </h1>
-    <p class="hero__bio">{SITE.bio}</p>
+    <BusinessCard class="hero__card" />
+    <div class="hero__intro">
+      <p class="meta">{SITE.tagline}</p>
+      <h1 class="hero__title">
+        Hi, I'm <span class="marker">{SITE.name}</span>.
+      </h1>
+      <p class="hero__bio">{SITE.bio}</p>
+      <div class="hero__actions">
+        <Button href="/projects" iconAfter="arrow" size="lg">{UI.actions.seeMyWork}</Button>
+        <Button href="/links" color="--surface" icon="link" size="lg">{UI.nav.links}</Button>
+      </div>
+    </div>
   </section>
 
   <section class="container section" aria-labelledby="make-heading">
-    <h2 id="make-heading" class="section-title">What I make</h2>
+    <h2 id="make-heading" class="section-title">{UI.card.whatIMake}</h2>
     <CategoryStrip />
   </section>
 
@@ -42,11 +50,32 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
 <style>
   .hero {
     display: grid;
+    gap: var(--space-5);
+    align-items: center;
+  }
+
+  .hero :global(.hero__card) {
+    justify-self: center;
+  }
+
+  .hero__intro {
+    display: grid;
     gap: var(--space-3);
+  }
+
+  .hero__title {
+    font-size: var(--text-2xl);
   }
 
   .hero__bio {
     font-size: var(--text-lg);
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
   }
 
   .section {
@@ -64,5 +93,16 @@ const featured = (await getCollection('projects', ({ data }) => data.featured))
     justify-content: space-between;
     gap: var(--space-3);
     margin-bottom: var(--space-4);
+  }
+
+  @media (min-width: 900px) {
+    .hero {
+      grid-template-columns: 1.1fr 1fr;
+      gap: var(--space-6);
+    }
+
+    .hero :global(.hero__card) {
+      justify-self: start;
+    }
   }
 </style>

@@ -1,0 +1,40 @@
+---
+/**
+ * Standalone business card. Target of the QR code on the printed card
+ * (/card?src=print). No nav, no footer, just the card and a way into the site.
+ */
+import Bare from '@/layouts/Bare.astro';
+import BusinessCard from '@/components/BusinessCard.astro';
+import Button from '@/components/Button.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+---
+
+<Bare title={`${SITE.name}'s card`} description={`${SITE.name}, ${SITE.tagline}. Contact and links.`}>
+  <div class="card-page">
+    <BusinessCard standalone />
+    <p class="card-page__note meta" data-print-note hidden>{UI.card.scanned}</p>
+    <Button href="/" color="--surface" iconAfter="arrow">{UI.card.visit}</Button>
+  </div>
+</Bare>
+
+<style>
+  .card-page {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-4);
+    width: 100%;
+  }
+
+  .card-page__note {
+    text-align: center;
+  }
+</style>
+
+<script>
+  // Show a small greeting when someone arrives via the printed QR code.
+  document.addEventListener('astro:page-load', () => {
+    const note = document.querySelector<HTMLElement>('[data-print-note]');
+    if (note && new URLSearchParams(location.search).get('src') === 'print') note.hidden = false;
+  });
+</script>

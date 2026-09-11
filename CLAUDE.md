@@ -353,7 +353,10 @@ Website ist die eigentliche Karte.
       `/links` mit Kontakt, Socials und allen Store-Links; `404`; Startseite mit
       Kategorie-Kacheln (CategoryStrip). Offen bis Phase 5: Updates-Sektion auf
       der Startseite und zugehörige Updates auf der Detailseite.
-- [ ] **Phase 4 – Visitenkarte**: BusinessCard-Komponente, `/card`, `contact.vcf`.
+- [x] **Phase 4 – Visitenkarte** (2026-09-11): BusinessCard-Komponente (Flip,
+      Tilt am Desktop, inert für die verdeckte Seite, No-JS- und
+      Reduced-Motion-Fallback), Hero auf `/`, `/card` mit Gruss bei `?src=print`,
+      `contact.vcf` als vCard 3.0.
 - [ ] **Phase 5 – Content-Hub**: Updates-Collection, `/updates`, RSS, YouTube-Feed.
 - [ ] **Phase 6 – Politur**: View Transitions, OG-Bilder, Sitemap, SEO-Meta,
       Lighthouse-Mobile-Runde.

@@ -39,6 +39,13 @@ export const UI = {
     started: 'Started',
     updated: 'Updated',
   },
+  card: {
+    flip: 'Flip the card',
+    flipBack: 'Flip back',
+    whatIMake: 'What I make',
+    visit: 'Explore the site',
+    scanned: 'You scanned my card. Nice.',
+  },
   footer: {
     madeIn: 'Made in Switzerland',
   },

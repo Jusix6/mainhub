@@ -1,0 +1,457 @@
+---
+/**
+ * 3D business card. Front: name + tagline. Back: what I make, contact, socials.
+ * - Tap/click/Enter flips it (rotateY 180deg).
+ * - Fine pointers get a subtle tilt that follows the cursor.
+ * - Without JS both faces render stacked and fully usable.
+ * - With reduced motion the flip becomes a crossfade (see global reduced-motion rule).
+ * All content comes from src/data/site.ts and src/data/ui.ts.
+ */
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import { CATEGORIES } from '@/data/categories';
+import { getLinkType } from '@/data/linkTypes';
+import Icon from './Icon.astro';
+import Button from './Button.astro';
+
+interface Props {
+  /** Larger type and buttons, for the standalone /card page. */
+  standalone?: boolean;
+  class?: string;
+}
+
+const { standalone = false, class: className } = Astro.props;
+---
+
+<div class:list={['scene', { 'scene--standalone': standalone }, className]} data-business-card>
+  <div class="tilt" data-tilt>
+    <div class="card" data-card>
+      <button class="face face--front" type="button" data-flip aria-label={UI.card.flip}>
+        <span class="front__mark" aria-hidden="true">
+          <Icon name="star" size={22} />
+        </span>
+        <span class="front__tagline">{SITE.tagline}</span>
+        <span class="front__name">{SITE.name}</span>
+        <span class="front__hint" aria-hidden="true">
+          {UI.actions.tapToFlip}
+          <Icon name="arrow" size={16} />
+        </span>
+        <span class="front__stripe" aria-hidden="true"></span>
+      </button>
+
+      <div class="face face--back" data-back>
+        <div class="back__head">
+          <span class="back__name">{SITE.name}</span>
+          <a class="back__mail" href={`mailto:${SITE.email}`}>
+            <Icon name="mail" size={16} />
+            {SITE.email}
+          </a>
+        </div>
+
+        <ul class="back__cats" aria-label={UI.card.whatIMake}>
+          {
+            CATEGORIES.map((c) => (
+              <li style={`--chip: var(${c.color})`}>
+                <Icon name={c.icon} size={13} />
+                {c.label}
+              </li>
+            ))
+          }
+        </ul>
+
+        <ul class="back__socials" aria-label="Social links">
+          {
+            SITE.socials.map((s) => {
+              const def = getLinkType(s.type);
+              return (
+                <li>
+                  <a href={s.url} target="_blank" rel="me noopener" aria-label={`${def.label}: ${s.handle}`} style={`--c: var(${def.color})`}>
+                    <Icon name={def.icon} size={18} />
+                  </a>
+                </li>
+              );
+            })
+          }
+        </ul>
+
+        <div class="back__actions">
+          <Button href="/contact.vcf" icon="download" download="justin.vcf">
+            {UI.actions.saveContact}
+          </Button>
+          <Button href="/projects" color="--c-pink" iconAfter="arrow">
+            {UI.actions.seeMyWork}
+          </Button>
+        </div>
+
+        <button class="back__flip" type="button" data-flip aria-label={UI.card.flipBack}>
+          <Icon name="arrow" size={16} />
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .scene {
+    container-type: inline-size;
+    width: min(100%, 560px);
+    perspective: 1400px;
+  }
+
+  .scene--standalone {
+    width: min(100%, 680px);
+  }
+
+  .tilt {
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transform-style: preserve-3d;
+    transition: transform var(--t-fast) var(--ease-out);
+  }
+
+  .card {
+    display: grid;
+    aspect-ratio: 85 / 55;
+    transform: rotateY(var(--flip, 0deg));
+    transform-style: preserve-3d;
+    transition: transform var(--t-slow) var(--ease-pop);
+  }
+
+  .card.is-flipped {
+    --flip: 180deg;
+  }
+
+  .face {
+    grid-area: 1 / 1;
+    position: relative;
+    min-width: 0;
+    padding: clamp(14px, 5cqw, 28px);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    overflow: hidden;
+    color: var(--ink);
+    text-align: left;
+  }
+
+  /* Front */
+  .face--front {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    align-items: start;
+    background: var(--c-yellow);
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .front__mark {
+    display: inline-grid;
+    place-items: center;
+    width: clamp(36px, 11cqw, 52px);
+    height: clamp(36px, 11cqw, 52px);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transform: rotate(-8deg);
+    transition: transform var(--t-base) var(--ease-pop);
+  }
+
+  .face--front:hover .front__mark {
+    transform: rotate(8deg) scale(1.1);
+  }
+
+  .front__tagline {
+    align-self: end;
+    font-family: var(--font-mono);
+    font-size: clamp(11px, 3.2cqw, 16px);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .front__name {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 13cqw, 76px);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+  }
+
+  .front__hint {
+    position: absolute;
+    right: clamp(14px, 5cqw, 28px);
+    bottom: clamp(14px, 5cqw, 28px);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 3px 10px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: clamp(10px, 2.8cqw, 13px);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    animation: hint-nudge 1.8s var(--ease-pop) 1.2s 2;
+  }
+
+  .front__stripe {
+    position: absolute;
+    top: -20%;
+    right: -12%;
+    width: 22%;
+    height: 140%;
+    background: var(--c-pink);
+    border-inline: var(--line) solid var(--ink);
+    transform: rotate(14deg);
+    z-index: -1;
+  }
+
+  .face--front {
+    isolation: isolate;
+  }
+
+  /* Back */
+  .face--back {
+    display: grid;
+    gap: clamp(8px, 3cqw, 16px);
+    align-content: start;
+    background: var(--surface);
+    transform: rotateY(180deg);
+  }
+
+  .back__head {
+    display: grid;
+    gap: 2px;
+    padding-right: 44px;
+  }
+
+  .back__name {
+    font-family: var(--font-display);
+    font-size: clamp(20px, 6cqw, 30px);
+    line-height: 1;
+  }
+
+  .back__mail {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: clamp(11px, 3cqw, 14px);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .back__mail:hover {
+    text-decoration: underline;
+  }
+
+  .back__cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .back__cats li {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    background: var(--chip);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: clamp(9px, 2.6cqw, 12px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  .back__socials {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .back__socials a {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop),
+      background var(--t-fast);
+  }
+
+  .back__socials a:hover {
+    background: var(--c);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .back__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .back__actions :global(.btn) {
+    flex: 1 1 auto;
+    min-height: 40px;
+    padding-block: var(--space-1);
+    font-size: clamp(12px, 3.2cqw, 15px);
+  }
+
+  .back__flip {
+    position: absolute;
+    top: clamp(10px, 4cqw, 20px);
+    right: clamp(10px, 4cqw, 20px);
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: var(--c-yellow);
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transform: rotate(180deg);
+    transition: transform var(--t-base) var(--ease-pop);
+  }
+
+  .back__flip:hover {
+    transform: rotate(180deg) scale(1.1);
+  }
+
+  /* No JS: render both faces stacked, no 3D */
+  .scene:not([data-js]) .tilt,
+  .scene:not([data-js]) .card {
+    transform: none;
+    transform-style: flat;
+  }
+
+  .scene:not([data-js]) .card {
+    gap: var(--space-4);
+    aspect-ratio: auto;
+  }
+
+  .scene:not([data-js]) .face {
+    grid-area: auto;
+    transform: none;
+  }
+
+  .scene:not([data-js]) .face--front {
+    aspect-ratio: 85 / 55;
+  }
+
+  .scene:not([data-js]) .front__hint,
+  .scene:not([data-js]) .back__flip {
+    display: none;
+  }
+
+  /* Reduced motion: crossfade instead of rotation */
+  @media (prefers-reduced-motion: reduce) {
+    .tilt,
+    .card {
+      transform: none !important;
+    }
+
+    .face {
+      transform: none;
+      transition: opacity var(--t-base) ease;
+    }
+
+    .card:not(.is-flipped) .face--back,
+    .card.is-flipped .face--front {
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  @keyframes hint-nudge {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    30% {
+      transform: translateX(6px);
+    }
+    60% {
+      transform: translateX(-2px);
+    }
+  }
+</style>
+
+<script>
+  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function setupCard(scene: HTMLElement) {
+    if (scene.dataset.js) return;
+    scene.dataset.js = 'true';
+
+    const tilt = scene.querySelector<HTMLElement>('[data-tilt]');
+    const card = scene.querySelector<HTMLElement>('[data-card]');
+    const back = scene.querySelector<HTMLElement>('[data-back]');
+    const front = scene.querySelector<HTMLButtonElement>('.face--front');
+    const backFlip = back?.querySelector<HTMLButtonElement>('[data-flip]');
+    if (!tilt || !card || !back || !front) return;
+
+    let flipped = false;
+
+    function render() {
+      card!.classList.toggle('is-flipped', flipped);
+      // Keep the hidden face out of the tab order and the accessibility tree.
+      back!.toggleAttribute('inert', !flipped);
+      front!.toggleAttribute('inert', flipped);
+      front!.setAttribute('aria-expanded', String(flipped));
+    }
+
+    function flip(to: boolean) {
+      flipped = to;
+      render();
+      // Move focus to the face that is now visible, after the animation has started.
+      const target = flipped ? backFlip : front;
+      window.setTimeout(() => target?.focus({ preventScroll: true }), reducedMotion.matches ? 0 : 350);
+    }
+
+    scene.querySelectorAll<HTMLButtonElement>('[data-flip]').forEach((btn) => {
+      btn.addEventListener('click', () => flip(!flipped));
+    });
+
+    // Cursor tilt on devices with a mouse. Max ±8 degrees.
+    if (finePointer.matches && !reducedMotion.matches) {
+      scene.addEventListener('pointermove', (e) => {
+        const r = scene.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        tilt.style.setProperty('--ry', `${(x * 16).toFixed(2)}deg`);
+        tilt.style.setProperty('--rx', `${(-y * 16).toFixed(2)}deg`);
+      });
+      scene.addEventListener('pointerleave', () => {
+        tilt.style.removeProperty('--rx');
+        tilt.style.removeProperty('--ry');
+      });
+    }
+
+    render();
+  }
+
+  function init() {
+    document.querySelectorAll<HTMLElement>('[data-business-card]').forEach(setupCard);
+  }
+
+  document.addEventListener('astro:page-load', init);
+</script>
