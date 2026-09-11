@@ -13,6 +13,7 @@
   --c-purple: #9b5de5;
   --c-orange: #ff7a1a;
   --c-green: #3ddc84;
+  --c-grey: #e2ddd0; /* neutral fill for muted states, still passes AA with --ink */
 
   /* Type */
   --font-display: 'Archivo Black', 'Arial Black', Impact, sans-serif;

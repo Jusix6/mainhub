@@ -1,0 +1,189 @@
+---
+/**
+ * Category + status filter for the projects overview.
+ * Purely client-side: toggles [hidden] on cards inside [data-project-grid].
+ * State lives in the URL (?cat=games&status=released) via replaceState so
+ * links are shareable without polluting browser history.
+ */
+import { CATEGORIES } from '@/data/categories';
+import { STATUSES } from '@/data/statuses';
+import { UI } from '@/data/ui';
+import Icon from './Icon.astro';
+---
+
+<div class="filters" data-filter-bar>
+  <fieldset class="filters__group" data-filter-group="cat">
+    <legend class="meta">{UI.filters.category}</legend>
+    <div class="filters__chips">
+      <button type="button" class="fchip" data-value="all" aria-pressed="true" style="--chip: var(--c-yellow)">
+        {UI.filters.all}
+      </button>
+      {
+        CATEGORIES.map((c) => (
+          <button type="button" class="fchip" data-value={c.slug} aria-pressed="false" style={`--chip: var(${c.color})`}>
+            <Icon name={c.icon} size={16} />
+            {c.label}
+          </button>
+        ))
+      }
+    </div>
+  </fieldset>
+
+  <fieldset class="filters__group" data-filter-group="status">
+    <legend class="meta">{UI.filters.status}</legend>
+    <div class="filters__chips">
+      <button type="button" class="fchip" data-value="all" aria-pressed="true" style="--chip: var(--c-yellow)">
+        {UI.filters.all}
+      </button>
+      {
+        STATUSES.map((s) => (
+          <button type="button" class="fchip" data-value={s.slug} aria-pressed="false" style={`--chip: var(${s.color})`}>
+            {s.label}
+          </button>
+        ))
+      }
+    </div>
+  </fieldset>
+</div>
+
+<style>
+  .filters {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .filters__group {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .filters__group legend {
+    margin-bottom: var(--space-2);
+    padding: 0;
+  }
+
+  .filters__chips {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    padding-block: var(--space-1);
+    padding-inline: 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filters__chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fchip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop),
+      background var(--t-fast);
+  }
+
+  .fchip:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .fchip[aria-pressed='true'] {
+    background: var(--chip);
+    box-shadow: var(--shadow-sm);
+  }
+
+  @media (min-width: 640px) {
+    .filters {
+      grid-template-columns: 1fr auto;
+      align-items: start;
+    }
+
+    .filters__chips {
+      flex-wrap: wrap;
+      overflow: visible;
+    }
+  }
+</style>
+
+<script>
+  const PARAM_KEYS = { cat: 'cat', status: 'status' } as const;
+  type Group = keyof typeof PARAM_KEYS;
+
+  function init() {
+    const bar = document.querySelector<HTMLElement>('[data-filter-bar]');
+    const grid = document.querySelector<HTMLElement>('[data-project-grid]');
+    if (!bar || !grid) return;
+
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>('[data-category]'));
+    const empty = document.querySelector<HTMLElement>('[data-filter-empty]');
+    const groups = Array.from(bar.querySelectorAll<HTMLElement>('[data-filter-group]'));
+
+    const state: Record<Group, string> = { cat: 'all', status: 'all' };
+
+    const params = new URLSearchParams(location.search);
+    for (const g of ['cat', 'status'] as Group[]) {
+      const v = params.get(PARAM_KEYS[g]);
+      if (v && bar.querySelector(`[data-filter-group="${g}"] [data-value="${v}"]`)) state[g] = v;
+    }
+
+    function apply() {
+      let visible = 0;
+      for (const card of cards) {
+        const show =
+          (state.cat === 'all' || card.dataset.category === state.cat) &&
+          (state.status === 'all' || card.dataset.status === state.status);
+        card.hidden = !show;
+        if (show) visible++;
+      }
+      if (empty) empty.hidden = visible > 0;
+
+      for (const group of groups) {
+        const g = group.dataset.filterGroup as Group;
+        group.querySelectorAll<HTMLButtonElement>('[data-value]').forEach((btn) => {
+          btn.setAttribute('aria-pressed', String(btn.dataset.value === state[g]));
+        });
+      }
+
+      const url = new URL(location.href);
+      for (const g of ['cat', 'status'] as Group[]) {
+        if (state[g] === 'all') url.searchParams.delete(PARAM_KEYS[g]);
+        else url.searchParams.set(PARAM_KEYS[g], state[g]);
+      }
+      history.replaceState(history.state, '', url);
+    }
+
+    for (const group of groups) {
+      const g = group.dataset.filterGroup as Group;
+      group.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-value]');
+        if (!btn) return;
+        state[g] = btn.dataset.value ?? 'all';
+        apply();
+      });
+    }
+
+    apply();
+  }
+
+  document.addEventListener('astro:page-load', init);
+</script>

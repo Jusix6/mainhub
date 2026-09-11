@@ -1,0 +1,59 @@
+---
+/**
+ * Responsive grid of ProjectCards. Marked with data-project-grid so FilterBar can find it.
+ */
+import type { CollectionEntry } from 'astro:content';
+import ProjectCard from './ProjectCard.astro';
+import { UI } from '@/data/ui';
+
+interface Props {
+  projects: CollectionEntry<'projects'>[];
+  /** Number of covers loaded eagerly (above the fold). */
+  eagerCount?: number;
+  class?: string;
+}
+
+const { projects, eagerCount = 1, class: className } = Astro.props;
+---
+
+<div class:list={['grid-wrap', className]}>
+  <ul class="grid" data-project-grid>
+    {projects.map((p, i) => <ProjectCard project={p} eager={i < eagerCount} index={i} />)}
+  </ul>
+  <p class="empty" data-filter-empty hidden>
+    {UI.filters.noResults}
+  </p>
+</div>
+
+<style>
+  .grid {
+    display: grid;
+    gap: var(--space-4);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 640px) {
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 900px) {
+    .grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .empty {
+    padding: var(--space-5) var(--space-3);
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    border: var(--line) dashed var(--ink);
+    border-radius: var(--radius-lg);
+    max-width: none;
+  }
+</style>

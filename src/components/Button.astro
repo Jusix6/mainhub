@@ -1,0 +1,93 @@
+---
+/**
+ * Brutalist button. Renders <a> when `href` is given, otherwise <button>.
+ * `color` is a CSS custom property name for the fill (default: yellow).
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+  href?: string;
+  color?: string;
+  variant?: 'solid' | 'outline';
+  size?: 'md' | 'lg';
+  icon?: string;
+  iconAfter?: string;
+  external?: boolean;
+  type?: 'button' | 'submit';
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  href,
+  color = '--c-yellow',
+  variant = 'solid',
+  size = 'md',
+  icon,
+  iconAfter,
+  external = false,
+  type = 'button',
+  class: className,
+  ...rest
+} = Astro.props;
+
+const Tag = href ? 'a' : 'button';
+const iconSize = size === 'lg' ? 22 : 18;
+---
+
+<Tag
+  class:list={['btn', `btn--${variant}`, `btn--${size}`, className]}
+  style={`--btn: var(${color})`}
+  href={href}
+  type={href ? undefined : type}
+  target={external ? '_blank' : undefined}
+  rel={external ? 'noopener' : undefined}
+  {...rest}
+>
+  {icon && <Icon name={icon} size={iconSize} />}
+  <slot />
+  {iconAfter && <Icon name={iconAfter} size={iconSize} />}
+</Tag>
+
+<style>
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    background: var(--btn);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  .btn--outline {
+    background: var(--surface);
+  }
+
+  .btn--lg {
+    min-height: 52px;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-lg);
+  }
+
+  .btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: var(--shadow-sm);
+  }
+</style>

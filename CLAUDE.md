@@ -208,6 +208,7 @@ Schatten, knallige Flächen auf cremeweissem Grund. Kein Template-Look.
   --c-purple:  #9B5DE5;
   --c-orange:  #FF7A1A;
   --c-green:   #3DDC84;
+  --c-grey:    #E2DDD0;   /* neutrale Fläche für "Idea"/"Archived" */
 
   /* Typo */
   --font-display: 'Archivo Black', 'Arial Black', sans-serif;
@@ -252,7 +253,10 @@ Kombinationen mindestens AA prüfen.
 - **Headlines**: `--font-display`, eng gesetzt, gerne mit farbigem Unterstrich
   (Marker-Effekt über `background: linear-gradient` unten).
 - **Meta-Text** (Datum, Tech, Plattform): `--font-mono`, klein, uppercase.
-- **Icons**: inline SVG, `currentColor`, keine Icon-Fonts.
+- **Icons**: inline SVG über `<Icon name="…" />` (`src/components/Icon.astro`),
+  `currentColor`, keine Icon-Fonts. UI- und Kategorie-Icons sind handgezeichnete
+  Stroke-Pfade, Marken-Icons kommen aus `simple-icons`. Neuer Icon-Key = Eintrag
+  in `STROKE` oder `BRAND` in Icon.astro; unbekannte Keys brechen den Build.
 - **Filter-Chips** auf `/projects`: aktiver Chip gefüllt in Kategoriefarbe,
   inaktiv weiss. Zustand in der URL spiegeln, `history.replaceState`, Back-Button
   darf nicht durch Filterklicks vollgemüllt werden.
@@ -321,7 +325,7 @@ Website ist die eigentliche Karte.
    Komponenten nutzen. Optionale Felder haben Defaults im Schema.
 3. **Keine neuen Abhängigkeiten ohne Grund.** Bevor ein Paket installiert wird:
    kurz begründen. Erlaubt ohne Nachfrage: `@astrojs/sitemap`, `@astrojs/rss`,
-   `@fontsource/*`, `sharp`.
+   `@fontsource/*`, `sharp`, `simple-icons` (Marken-Icons, nur zur Build-Zeit).
 4. **Jede Seite mobil prüfen** (360px) bevor sie als fertig gilt. Bei
    UI-Änderungen Screenshot in Mobile und Desktop machen.
 5. **Barrierefreiheit ist Pflicht**: semantisches HTML, Skip-Link, sichtbarer
@@ -340,8 +344,10 @@ Website ist die eigentliche Karte.
 - [x] **Phase 1 – Fundament** (2026-09-11): Astro-Setup, Tokens, Base-Layout,
       Content-Schemas, Daten-Dateien, die zwei Beispielprojekte mit
       Platzhalter-Covers, Git init. Die Startseite ist eine Übergangsversion.
-- [ ] **Phase 2 – Komponenten**: ProjectCard, Sticker, LinkButton, StatusBadge,
-      FilterBar, Nav (mobil zuerst), Footer.
+- [x] **Phase 2 – Komponenten** (2026-09-11): Icon, Sticker, StatusBadge,
+      CategoryChip, Button, LinkButton, ProjectCard, ProjectGrid, FilterBar, Nav,
+      Footer. `/projects` mit Filter ist bereits live, weil FilterBar ohne Seite
+      nicht prüfbar war.
 - [ ] **Phase 3 – Seiten**: `/`, `/projects`, `/projects/[slug]`, `/links`, `404`.
 - [ ] **Phase 4 – Visitenkarte**: BusinessCard-Komponente, `/card`, `contact.vcf`.
 - [ ] **Phase 5 – Content-Hub**: Updates-Collection, `/updates`, RSS, YouTube-Feed.

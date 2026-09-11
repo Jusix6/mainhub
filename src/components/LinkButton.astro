@@ -1,0 +1,23 @@
+---
+/**
+ * External link button for stores and platforms (App Store, Gumroad, Spotify...).
+ * Looks up label, icon and color from the link type; `label` overrides the text.
+ */
+import { getLinkType, type LinkTypeSlug } from '@/data/linkTypes';
+import Button from './Button.astro';
+
+interface Props {
+  type: LinkTypeSlug;
+  url: string;
+  label?: string;
+  size?: 'md' | 'lg';
+  class?: string;
+}
+
+const { type, url, label, size = 'md', class: className } = Astro.props;
+const def = getLinkType(type);
+---
+
+<Button href={url} color={def.color} icon={def.icon} size={size} class={className} external>
+  {label ?? def.label}
+</Button>

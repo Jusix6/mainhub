@@ -1,0 +1,57 @@
+---
+/**
+ * Shows a project status either as a slanted sticker (for states that deserve
+ * attention on the cover) or as a plain inline badge (detail page meta).
+ */
+import { getStatus, type StatusSlug } from '@/data/statuses';
+import Sticker from './Sticker.astro';
+
+interface Props {
+  status: StatusSlug;
+  /** "auto" = sticker if the status is flagged as such, otherwise badge. */
+  variant?: 'auto' | 'sticker' | 'badge';
+  class?: string;
+}
+
+const { status, variant = 'auto', class: className } = Astro.props;
+const def = getStatus(status);
+const asSticker = variant === 'sticker' || (variant === 'auto' && def.sticker);
+---
+
+{
+  asSticker ? (
+    <Sticker color={def.color} class={className}>
+      {def.label}
+    </Sticker>
+  ) : (
+    <span class:list={['badge', className]} style={`--badge: var(${def.color})`}>
+      <span class="badge__dot" aria-hidden="true" />
+      {def.label}
+    </span>
+  )
+}
+
+<style>
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 2px var(--space-2);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .badge__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--badge);
+    border: 2px solid var(--ink);
+  }
+</style>

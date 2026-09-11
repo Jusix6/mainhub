@@ -1,0 +1,86 @@
+---
+/**
+ * Site footer: copyright line and social links with icons.
+ */
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import { getLinkType } from '@/data/linkTypes';
+import Icon from './Icon.astro';
+---
+
+<footer class="site-footer">
+  <div class="container site-footer__inner">
+    <p class="meta">
+      © {new Date().getFullYear()} {SITE.name} · {UI.footer.madeIn}
+    </p>
+    <ul class="site-footer__links" aria-label="Social links">
+      {
+        SITE.socials.map((s) => {
+          const def = getLinkType(s.type);
+          return (
+            <li>
+              <a href={s.url} rel="me noopener" target="_blank" style={`--c: var(${def.color})`}>
+                <Icon name={def.icon} size={18} />
+                <span>{s.handle}</span>
+              </a>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    border-top: var(--line) solid var(--ink);
+    padding-block: var(--space-4);
+    margin-bottom: 76px;
+  }
+
+  .site-footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .site-footer__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .site-footer__links a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font-weight: 700;
+    text-decoration: none;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop),
+      background var(--t-fast);
+  }
+
+  .site-footer__links a:hover {
+    background: var(--c);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  @media (min-width: 640px) {
+    .site-footer {
+      margin-bottom: 0;
+    }
+  }
+</style>

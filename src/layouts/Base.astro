@@ -1,10 +1,10 @@
 ---
 /**
- * Default layout: head, skip link, nav, footer.
- * The nav and footer are kept inline until phase 2 extracts them into components.
+ * Default layout: head, skip link, nav, main, footer.
  */
 import Head from '@/components/Head.astro';
-import { SITE } from '@/data/site';
+import Nav from '@/components/Nav.astro';
+import Footer from '@/components/Footer.astro';
 import { UI } from '@/data/ui';
 
 interface Props {
@@ -14,16 +14,6 @@ interface Props {
 }
 
 const { title, description, image } = Astro.props;
-
-const navItems = [
-  { href: '/', label: UI.nav.home },
-  { href: '/projects', label: UI.nav.projects },
-  { href: '/updates', label: UI.nav.updates },
-  { href: '/links', label: UI.nav.links },
-];
-
-const current = Astro.url.pathname.replace(/\/$/, '') || '/';
-const isActive = (href: string) => (href === '/' ? current === '/' : current.startsWith(href));
 ---
 
 <!doctype html>
@@ -33,190 +23,16 @@ const isActive = (href: string) => (href === '/' ? current === '/' : current.sta
   </head>
   <body>
     <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>
-
-    <header class="site-header">
-      <div class="container site-header__inner">
-        <a class="brand" href="/" aria-label={`${SITE.title} home`}>
-          <span class="brand__mark" aria-hidden="true">✦</span>
-          {SITE.title}
-        </a>
-        <nav class="nav" aria-label="Main">
-          <ul>
-            {
-              navItems.map((item) => (
-                <li>
-                  <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
-                    {item.label}
-                  </a>
-                </li>
-              ))
-            }
-          </ul>
-        </nav>
-      </div>
-    </header>
-
+    <Nav />
     <main id="main" tabindex="-1">
       <slot />
     </main>
-
-    <footer class="site-footer">
-      <div class="container site-footer__inner">
-        <p class="meta">
-          © {new Date().getFullYear()} {SITE.name} · {UI.footer.madeIn}
-        </p>
-        <ul class="site-footer__links" aria-label="Social links">
-          {
-            SITE.socials.map((s) => (
-              <li>
-                <a href={s.url} rel="me noopener" target="_blank">
-                  {s.handle}
-                </a>
-              </li>
-            ))
-          }
-        </ul>
-      </div>
-    </footer>
+    <Footer />
   </body>
 </html>
 
 <style>
-  .site-header {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background: var(--bg);
-    border-bottom: var(--line) solid var(--ink);
-  }
-
-  .site-header__inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    min-height: 64px;
-  }
-
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-family: var(--font-display);
-    font-size: var(--text-lg);
-    text-decoration: none;
-    letter-spacing: 0.02em;
-  }
-
-  .brand__mark {
-    display: inline-grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    background: var(--c-yellow);
-    border: var(--line) solid var(--ink);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    transform: rotate(-6deg);
-    transition: transform var(--t-base) var(--ease-pop);
-  }
-
-  .brand:hover .brand__mark {
-    transform: rotate(6deg) scale(1.08);
-  }
-
-  /* Mobile: bottom-fixed nav bar with big touch targets */
-  .nav ul {
-    position: fixed;
-    inset-inline: 0;
-    bottom: 0;
-    z-index: 50;
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    margin: 0;
-    padding: var(--space-2);
-    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
-    list-style: none;
-    background: var(--surface);
-    border-top: var(--line) solid var(--ink);
-  }
-
-  .nav a {
-    display: grid;
-    place-items: center;
-    min-height: 44px;
-    padding: var(--space-2);
-    font-weight: 700;
-    text-decoration: none;
-    border: var(--line) solid transparent;
-    border-radius: var(--radius);
-    transition:
-      transform var(--t-fast) var(--ease-pop),
-      box-shadow var(--t-fast) var(--ease-pop);
-  }
-
-  .nav a[aria-current='page'] {
-    background: var(--c-yellow);
-    border-color: var(--ink);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .nav a:hover {
-    border-color: var(--ink);
-    transform: translate(-2px, -2px);
-    box-shadow: var(--shadow-sm);
-  }
-
   main {
-    padding-block: var(--space-5) calc(var(--space-6) + 72px);
-  }
-
-  .site-footer {
-    border-top: var(--line) solid var(--ink);
-    padding-block: var(--space-4);
-    margin-bottom: 72px;
-  }
-
-  .site-footer__inner {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .site-footer__links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-weight: 700;
-  }
-
-  @media (min-width: 640px) {
-    .nav ul {
-      position: static;
-      display: flex;
-      gap: var(--space-2);
-      padding: 0;
-      background: none;
-      border: 0;
-    }
-
-    .nav a {
-      min-height: 40px;
-      padding: var(--space-1) var(--space-3);
-    }
-
-    main {
-      padding-bottom: var(--space-6);
-    }
-
-    .site-footer {
-      margin-bottom: 0;
-    }
+    padding-block: var(--space-5) var(--space-6);
   }
 </style>

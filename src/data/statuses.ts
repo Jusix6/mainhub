@@ -9,16 +9,16 @@ export type StatusSlug = (typeof STATUS_SLUGS)[number];
 export interface Status {
   slug: StatusSlug;
   label: string;
-  color: `--c-${string}` | '--muted';
+  color: `--c-${string}`;
   sticker: boolean;
 }
 
 export const STATUSES: readonly Status[] = [
-  { slug: 'idea', label: 'Idea', color: '--muted', sticker: true },
+  { slug: 'idea', label: 'Idea', color: '--c-grey', sticker: true },
   { slug: 'in-progress', label: 'In progress', color: '--c-yellow', sticker: true },
   { slug: 'released', label: 'Released', color: '--c-green', sticker: false },
   { slug: 'paused', label: 'Paused', color: '--c-orange', sticker: true },
-  { slug: 'archived', label: 'Archived', color: '--muted', sticker: false },
+  { slug: 'archived', label: 'Archived', color: '--c-grey', sticker: false },
 ];
 
 export function getStatus(slug: StatusSlug): Status {

@@ -1,0 +1,65 @@
+---
+/**
+ * Category pill in the category color, optionally linking to the filtered
+ * projects overview.
+ */
+import { getCategory, type CategorySlug } from '@/data/categories';
+import Icon from './Icon.astro';
+
+interface Props {
+  category: CategorySlug;
+  link?: boolean;
+  size?: 'sm' | 'md';
+  class?: string;
+}
+
+const { category, link = false, size = 'sm', class: className } = Astro.props;
+const def = getCategory(category);
+const Tag = link ? 'a' : 'span';
+---
+
+<Tag
+  class:list={['chip', `chip--${size}`, className]}
+  style={`--chip: var(${def.color})`}
+  href={link ? `/projects?cat=${def.slug}` : undefined}
+>
+  <Icon name={def.icon} size={size === 'sm' ? 14 : 18} />
+  {def.label}
+</Tag>
+
+<style>
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    background: var(--chip);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .chip--md {
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-base);
+  }
+
+  a.chip {
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  a.chip:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+</style>

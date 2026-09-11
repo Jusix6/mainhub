@@ -1,0 +1,50 @@
+---
+/**
+ * Slanted sticker label. Used for project status on covers and small callouts.
+ * Keep to one sticker per card.
+ */
+interface Props {
+  /** CSS custom property name for the fill, e.g. "--c-yellow". */
+  color?: string;
+  /** Rotation in degrees. */
+  rotate?: number;
+  class?: string;
+}
+
+const { color = '--c-yellow', rotate = -6, class: className } = Astro.props;
+---
+
+<span class:list={['sticker', className]} style={`--sticker: var(${color}); --rot: ${rotate}deg`}>
+  <slot />
+</span>
+
+<style>
+  .sticker {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    background: var(--sticker);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    transform: rotate(var(--rot));
+    animation: sticker-in var(--t-slow) var(--ease-pop) both;
+  }
+
+  @keyframes sticker-in {
+    from {
+      transform: rotate(calc(var(--rot) - 8deg)) scale(0.6);
+      opacity: 0;
+    }
+    to {
+      transform: rotate(var(--rot)) scale(1);
+      opacity: 1;
+    }
+  }
+</style>

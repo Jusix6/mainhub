@@ -1,0 +1,30 @@
+---
+/**
+ * Projects overview with category/status filter.
+ */
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import FilterBar from '@/components/FilterBar.astro';
+import ProjectGrid from '@/components/ProjectGrid.astro';
+import { UI } from '@/data/ui';
+
+const projects = (await getCollection('projects')).sort(
+  (a, b) => Number(b.data.featured) - Number(a.data.featured) || b.data.date.valueOf() - a.data.date.valueOf(),
+);
+---
+
+<Base title={UI.sections.projects} description="Apps, games, music, videos, digital products and experiments.">
+  <section class="container">
+    <h1 class="page-title">
+      <span class="marker" style="--marker: var(--c-pink)">{UI.sections.projects}</span>
+    </h1>
+    <FilterBar />
+    <ProjectGrid projects={projects} eagerCount={2} />
+  </section>
+</Base>
+
+<style>
+  .page-title {
+    margin-bottom: var(--space-4);
+  }
+</style>

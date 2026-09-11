@@ -1,0 +1,159 @@
+---
+/**
+ * Site header with brand mark and main navigation.
+ * Mobile: fixed bottom bar with big touch targets. Desktop: inline in the header.
+ */
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import Icon from './Icon.astro';
+
+const navItems = [
+  { href: '/', label: UI.nav.home, icon: 'home' },
+  { href: '/projects', label: UI.nav.projects, icon: 'grid' },
+  { href: '/updates', label: UI.nav.updates, icon: 'sparkle' },
+  { href: '/links', label: UI.nav.links, icon: 'link' },
+];
+
+const current = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (href: string) => (href === '/' ? current === '/' : current.startsWith(href));
+---
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="brand" href="/" aria-label={`${SITE.title} home`}>
+      <span class="brand__mark" aria-hidden="true">
+        <Icon name="star" size={18} />
+      </span>
+      {SITE.title}
+    </a>
+    <nav class="nav" aria-label="Main">
+      <ul>
+        {
+          navItems.map((item) => (
+            <li>
+              <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+                <Icon name={item.icon} size={20} class="nav__icon" />
+                <span>{item.label}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg);
+    border-bottom: var(--line) solid var(--ink);
+  }
+
+  .site-header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 64px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+  }
+
+  .brand__mark {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    background: var(--c-yellow);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transform: rotate(-6deg);
+    transition: transform var(--t-base) var(--ease-pop);
+  }
+
+  .brand:hover .brand__mark {
+    transform: rotate(8deg) scale(1.1);
+  }
+
+  .nav ul {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 50;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: var(--space-1);
+    margin: 0;
+    padding: var(--space-2);
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+    list-style: none;
+    background: var(--surface);
+    border-top: var(--line) solid var(--ink);
+  }
+
+  .nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 48px;
+    padding: var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-decoration: none;
+    border: var(--line) solid transparent;
+    border-radius: var(--radius);
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  .nav a[aria-current='page'] {
+    background: var(--c-yellow);
+    border-color: var(--ink);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .nav a:hover {
+    border-color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  @media (min-width: 640px) {
+    .nav ul {
+      position: static;
+      display: flex;
+      gap: var(--space-2);
+      padding: 0;
+      background: none;
+      border: 0;
+    }
+
+    .nav a {
+      flex-direction: row;
+      gap: var(--space-2);
+      min-height: 40px;
+      padding: var(--space-1) var(--space-3);
+      font-size: var(--text-base);
+    }
+
+    .nav :global(.nav__icon) {
+      display: none;
+    }
+  }
+</style>
