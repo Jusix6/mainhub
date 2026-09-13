@@ -29,7 +29,7 @@ export const GET: APIRoute = () => {
   return new Response(lines.join('\r\n') + '\r\n', {
     headers: {
       'Content-Type': 'text/vcard; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="justin.vcf"',
+      'Content-Disposition': 'attachment; filename="jusi.vcf"',
     },
   });
 };

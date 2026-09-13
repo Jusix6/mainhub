@@ -2,7 +2,7 @@
 // Run with `npm run og` after changing name or tagline. Text is kept in sync with src/data/site.ts by hand.
 import sharp from 'sharp';
 
-const NAME = 'Justin';
+const NAME = 'Jusi';
 const TAGLINE = 'Creative from Switzerland';
 const SITE_TITLE = 'MAINHUB';
 const LINE = 'Apps · Games · Music · Videos · Digital Products · Experiments';

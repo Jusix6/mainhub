@@ -57,7 +57,7 @@ YouTube-Channel-ID. Danach `npm run build` lokal prüfen und pushen.
 - [ ] Worker-URL (`mainhub.<subdomain>.workers.dev`) lädt, Karte dreht sich,
       Nav funktioniert, `/card.html` leitet auf `/card` um.
 - [ ] `/robots.txt` zeigt die Sitemap-URL, `/sitemap-index.xml` listet alle Seiten.
-- [ ] `/contact.vcf` auf dem iPhone öffnen: Kontakte-App mit "Justin".
+- [ ] `/contact.vcf` auf dem iPhone öffnen: Kontakte-App mit "Jusi".
 - [ ] `/card?src=print` zeigt die Karte mit Gruss.
 - [ ] Unbekannte URL liefert die 404-Seite mit Status 404.
 - [ ] Nach Domain-Setup: `https://jxsi.ch/projects` → `https://www.jxsi.ch/projects`.

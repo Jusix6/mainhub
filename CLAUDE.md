@@ -1,8 +1,11 @@
-# MAINHUB – Justins persönliche Website
+# MAINHUB – Jusis persönliche Website
 
-Persönlicher Hub für Justin, Kreativer aus der Schweiz (Apps, Games, Musik, Videos,
+Persönlicher Hub für Jusi (Justin), Kreativer aus der Schweiz (Apps, Games, Musik, Videos,
 digitale Produkte, Experimente). Die Seite ist Portfolio, Verkaufs-Einstieg
 (App Store, Gumroad, Streaming) und Content-Hub (YouTube, Twitch, Devlog) in einem.
+
+Auf der Website heisst er überall **Jusi**, nie Justin (Name, vCard, OG-Bild,
+Dateinamen). Der Name kommt aus `src/data/site.ts` und `scripts/og-default.mjs`.
 
 Sprache der Website: **Englisch**. Sprache der Zusammenarbeit im Chat: Deutsch.
 Kommentare und Code auf Englisch.

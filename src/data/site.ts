@@ -7,18 +7,18 @@ import type { LinkTypeSlug } from './linkTypes';
 export interface SocialLink {
   type: LinkTypeSlug;
   url: string;
-  /** Display handle, e.g. "@justin". */
+  /** Display handle, e.g. "@jusidroppop69". */
   handle: string;
 }
 
 export const SITE = {
-  name: 'Justin',
+  name: 'Jusi',
   // TODO: full name for the vCard, if different from `name`
-  fullName: 'Justin',
+  fullName: 'Jusi',
   title: 'MAINHUB',
   tagline: 'Creative from Switzerland',
   description:
-    'Apps, games, music, videos and digital products by Justin, a creative from Switzerland.',
+    'Apps, games, music, videos and digital products by Jusi, a creative from Switzerland.',
   bio: 'I make apps, games, music, videos and digital products. This is where all of it lands.',
   location: 'Switzerland',
   email: 'contactjxsi@gmail.com',
