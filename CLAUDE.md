@@ -166,7 +166,7 @@ Alle Routen auf Englisch, kleingeschrieben, keine Trailing-Slashes.
 ### Link-Typen (`src/data/linkTypes.ts`)
 
 `appstore` · `playstore` · `steam` · `itch` · `gumroad` · `spotify` · `applemusic`
-· `bandcamp` · `youtube` · `twitch` · `github` · `website` · `other`
+· `bandcamp` · `youtube` · `twitch` · `instagram` · `tiktok` · `github` · `website` · `other`
 
 Jeder Typ hat Standard-Label, Icon (inline SVG) und Farbe. Neue Typen hier ergänzen.
 

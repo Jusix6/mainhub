@@ -28,7 +28,8 @@ export const SITE = {
     { type: 'youtube', url: 'https://www.youtube.com/@jusidroppop69', handle: '@jusidroppop69' },
     { type: 'youtube', url: 'https://www.youtube.com/@jusix69', handle: '@jusix69 · Gaming' },
     { type: 'twitch', url: 'https://www.twitch.tv/jusidroppop', handle: 'jusidroppop' },
-    { type: 'github', url: 'https://github.com/Jusix6', handle: 'Jusix6' },
+    { type: 'instagram', url: 'https://www.instagram.com/jusidroppop', handle: '@jusidroppop' },
+    { type: 'tiktok', url: 'https://www.tiktok.com/@jusidroppop6', handle: '@jusidroppop6' },
   ] satisfies SocialLink[],
   youtube: {
     // Main channel @jusidroppop69 (JusiDroppop). Gaming channel @jusix69 is UC8vN5zk8Ge_b6B5goaNX14g.
