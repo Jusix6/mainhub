@@ -16,6 +16,7 @@ import { getCategory } from '@/data/categories';
 import { UI } from '@/data/ui';
 import { formatMonth, isoDate } from '@/lib/format';
 import { getUpdatesForProject } from '@/lib/updates';
+import { lqip } from '@/lib/lqip';
 
 export async function getStaticPaths() {
   const projects = await getCollection('projects');
@@ -30,6 +31,7 @@ const cat = getCategory(category);
 const dateLabel = status === 'released' ? UI.meta.released : UI.meta.started;
 
 const relatedUpdates = await getUpdatesForProject(project.id);
+const placeholder = await lqip(cover);
 
 const og = await getImage({ src: cover, width: 1200, height: 750, format: 'jpg' });
 const ogUrl = new URL(og.src, Astro.site).href;
@@ -52,11 +54,11 @@ const more = (await getCollection('projects', (p) => p.id !== project.id))
       <p class="project__tagline">{tagline}</p>
     </header>
 
-    <figure class="project__cover">
+    <figure class="project__cover" style={placeholder ? `background-image: url("${placeholder}")` : undefined}>
       <Image
         src={cover}
         alt={title}
-        widths={[640, 1100, 1600]}
+        widths={[400, 800, 1200, 1600]}
         sizes="(min-width: 1100px) 1100px, 100vw"
         loading="eager"
         fetchpriority="high"
@@ -205,7 +207,8 @@ const more = (await getCollection('projects', (p) => p.id !== project.id))
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
     overflow: hidden;
-    background: var(--accent);
+    /* Blurred inline placeholder (see lib/lqip.ts); the accent only shows if that is missing */
+    background: var(--accent) center / cover no-repeat;
     transform: rotate(-0.4deg);
   }
 

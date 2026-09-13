@@ -7,6 +7,7 @@ import { Image } from 'astro:assets';
 import { getCategory } from '@/data/categories';
 import CategoryChip from './CategoryChip.astro';
 import StatusBadge from './StatusBadge.astro';
+import { lqip } from '@/lib/lqip';
 
 interface Props {
   project: CollectionEntry<'projects'>;
@@ -22,6 +23,7 @@ const { project, eager = false, index = 0, heading = 'h3' } = Astro.props;
 const Heading = heading;
 const { title, tagline, category, status, cover, date } = project.data;
 const cat = getCategory(category);
+const placeholder = await lqip(cover);
 ---
 
 <li
@@ -32,7 +34,7 @@ const cat = getCategory(category);
   data-date={date.toISOString()}
 >
   <a class="card__link" href={`/projects/${project.id}`}>
-    <div class="card__media">
+    <div class="card__media" style={placeholder ? `background-image: url("${placeholder}")` : undefined}>
       <Image
         src={cover}
         alt={title}
@@ -91,7 +93,7 @@ const cat = getCategory(category);
     overflow: hidden;
     border-bottom: var(--line) solid var(--ink);
     border-radius: calc(var(--radius-lg) - var(--line)) calc(var(--radius-lg) - var(--line)) 0 0;
-    background: var(--accent);
+    background: var(--accent) center / cover no-repeat;
   }
 
   .card__media img {

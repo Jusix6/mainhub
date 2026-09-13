@@ -305,6 +305,12 @@ Kombinationen mindestens AA prüfen.
   Hover: Schatten wächst auf `--shadow-lg` und Element rückt `-2px, -2px`.
   Active: Schatten auf `2px 2px 0`, Element rückt `+2px, +2px` (fühlt sich wie
   Drücken an).
+- **Cover-Platzhalter**: Karten und Detail-Cover tragen einen unscharfen
+  24-px-Platzhalter des Covers als inline `background-image` (Data-URI, ~150
+  Bytes, erzeugt beim Build in `src/lib/lqip.ts`). So flackert beim
+  Cover-Morph und beim Lazy-Loading nie die Kategoriefarbe durch. Karte und
+  Detailseite nutzen dieselben Breiten (400/800/1200), damit das Handy die
+  Datei aus dem Cache wiederverwendet.
 - **ProjectCard**: Cover oben, darunter Titel in `--font-display`, Tagline,
   Kategorie-Chip in der Kategoriefarbe. Status als schräg geklebter Sticker
   (`rotate(-6deg)`) auf der Cover-Ecke, nur für `in-progress`, `idea`, `paused`.
