@@ -38,7 +38,6 @@ export function parseLatestVideo(xml: string): LatestVideo | null {
   const id = pick(entry, 'yt:videoId');
   const title = pick(entry, 'title');
   const published = pick(entry, 'published');
-  const thumbnail = entry.match(/<media:thumbnail[^>]*url="([^"]+)"/)?.[1];
   if (!id || !title || !published) return null;
 
   return {
@@ -46,7 +45,9 @@ export function parseLatestVideo(xml: string): LatestVideo | null {
     title: decode(title),
     published: new Date(published),
     url: `https://www.youtube.com/watch?v=${id}`,
-    thumbnail: thumbnail ?? `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    // The feed points at iN.ytimg.com hosts that redirect; the canonical host does not,
+    // which keeps Astro's remote image cache revalidation warning-free.
+    thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
   };
 }
 

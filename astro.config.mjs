@@ -15,6 +15,6 @@ export default defineConfig({
   },
   image: {
     // YouTube thumbnails are fetched and optimized at build time, no runtime request
-    domains: ['i.ytimg.com', 'i1.ytimg.com', 'i2.ytimg.com', 'i3.ytimg.com', 'i4.ytimg.com'],
+    domains: ['i.ytimg.com'],
   },
 });

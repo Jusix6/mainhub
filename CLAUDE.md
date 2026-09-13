@@ -67,6 +67,7 @@ F:\MAINHUB\
 ├─ wrangler.jsonc             # Cloudflare Worker: nur Assets aus dist/
 ├─ DEPLOY.md                  # Deploy-Anleitung und Checkliste
 ├─ scripts/og-default.mjs     # erzeugt src/assets/og-default.png
+├─ scripts/cover-from-icon.mjs # 16:10-Cover aus einem quadratischen App-Icon
 ├─ src/
 │  ├─ content.config.ts       # Collections: projects, updates
 │  ├─ content/
@@ -168,7 +169,7 @@ status: released                               # einer der Status-Slugs
 date: 2026-03-01                               # Release oder Projektstart
 updated: 2026-08-15                            # optional
 featured: true                                 # optional, default false
-cover: ../../assets/projects/forgot/cover.png  # Pflicht, 1600x1000 (16:10)
+cover: ../../assets/projects/forgot/cover.png  # Pflicht, 1600x1000 (16:10); für Apps aus icon.png per scripts/cover-from-icon.mjs
 gallery:                                       # optional
   - ../../assets/projects/forgot/shot-1.png
 platforms: [iOS]                               # optional
