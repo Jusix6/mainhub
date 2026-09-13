@@ -1,0 +1,27 @@
+# Schedule: upcoming streams, videos, posts and releases.
+# One entry per item. Past entries can stay (they show under "Recently") or be deleted.
+#
+# Fields:
+#   id:        unique, lowercase-with-dashes, e.g. 2026-09-20-stream   (required)
+#   title:     what happens                                             (required)
+#   start:     date and time with Swiss offset, +02:00 in summer, +01:00 in winter (required)
+#   end:       optional; stream = 2h, video/post = 30min, release = 1h, event = 2h if omitted
+#   type:      stream | video | post | release | event                  (required)
+#   platform:  twitch | youtube | appstore | itch | steam | ...         (optional, adds a button)
+#   url:       link for the button                                      (optional)
+#   project:   slug of a project, e.g. one-more-floor                   (optional)
+#   note:      one short line                                            (optional, max 200 chars)
+#   tentative: true = shown with a "maybe" sticker                       (optional)
+#   draft:     true = only visible in `npm run dev`                      (optional)
+
+- id: example-stream
+  title: "Example: One More Floor dev stream"
+  start: 2026-09-20T20:00:00+02:00
+  end: 2026-09-20T22:00:00+02:00
+  type: stream
+  platform: twitch
+  url: https://www.twitch.tv/jusidroppop
+  project: one-more-floor
+  note: "Building the next floor live. Delete this entry once you add real ones."
+  tentative: true
+  draft: true

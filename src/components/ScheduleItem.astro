@@ -1,0 +1,233 @@
+---
+/**
+ * One schedule entry: date block, title, time, type, optional platform button and project.
+ * Carries data-start/data-end so the client script can hide finished items and flag live ones.
+ */
+import type { CollectionEntry } from 'astro:content';
+import { getEventType } from '@/data/eventTypes';
+import { UI } from '@/data/ui';
+import { eventEnd, formatDayNumber, formatMonthShort, formatWeekday, formatRange, type ScheduleEntry } from '@/lib/schedule';
+import Icon from './Icon.astro';
+import LinkButton from './LinkButton.astro';
+import CategoryChip from './CategoryChip.astro';
+import Sticker from './Sticker.astro';
+
+interface Props {
+  event: ScheduleEntry;
+  project?: CollectionEntry<'projects'>;
+  index?: number;
+  compact?: boolean;
+}
+
+const { event, project, index = 0, compact = false } = Astro.props;
+const { title, start, type, platform, url, note, tentative } = event.data;
+const typeDef = getEventType(type);
+---
+
+<li
+  class:list={['ev', { 'ev--compact': compact }]}
+  style={`--type: var(${typeDef.color}); --i: ${index}`}
+  data-event
+  data-start={start.toISOString()}
+  data-end={eventEnd(event).toISOString()}
+>
+  <div class="ev__date" aria-hidden="true">
+    <span class="ev__weekday">{formatWeekday(start)}</span>
+    <span class="ev__day">{formatDayNumber(start)}</span>
+    <span class="ev__month">{formatMonthShort(start)}</span>
+  </div>
+
+  <div class="ev__body">
+    <div class="ev__meta">
+      <span class="ev__type">
+        <Icon name={typeDef.icon} size={14} />
+        {typeDef.label}
+      </span>
+      <time class="meta" datetime={start.toISOString()}>{formatRange(event)}</time>
+      {tentative && <Sticker color="--c-grey" rotate={-4} class="ev__sticker">{UI.schedule.tentative}</Sticker>}
+      <span class="ev__live" data-live-badge hidden>
+        <Sticker color="--c-pink" rotate={-4} class="ev__sticker">
+          {UI.schedule.live}
+        </Sticker>
+      </span>
+    </div>
+    <h3 class="ev__title">{title}</h3>
+    {note && !compact && <p class="ev__note">{note}</p>}
+    {
+      (project || (platform && url)) && (
+        <div class="ev__actions">
+          {platform && url && <LinkButton type={platform} url={url} class="ev__btn" />}
+          {project && (
+            <a class="ev__project" href={`/projects/${project.id}`}>
+              <CategoryChip category={project.data.category} />
+              {project.data.title}
+            </a>
+          )}
+        </div>
+      )
+    }
+  </div>
+</li>
+
+<style>
+  .ev {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    animation: ev-in var(--t-slow) var(--ease-out) both;
+    animation-delay: calc(var(--i) * 40ms);
+  }
+
+  .ev[hidden] {
+    display: none;
+  }
+
+  .ev.is-live {
+    border-color: var(--c-pink);
+    box-shadow: 4px 4px 0 var(--c-pink);
+  }
+
+  .ev__date {
+    display: grid;
+    align-content: start;
+    justify-items: center;
+    gap: 0;
+    padding: var(--space-2) 0;
+    background: var(--type);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .ev__weekday,
+  .ev__month {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .ev__day {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    margin-block: 2px;
+  }
+
+  .ev__body {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+    align-content: start;
+  }
+
+  .ev__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .ev__type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px var(--space-2);
+    background: var(--type);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .ev :global(.ev__sticker) {
+    font-size: 0.75rem;
+    padding: 1px var(--space-2);
+    animation: none;
+  }
+
+  .ev__live[hidden] {
+    display: none;
+  }
+
+  .ev__title {
+    font-size: var(--text-lg);
+  }
+
+  .ev__note {
+    color: var(--muted);
+  }
+
+  .ev__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+  }
+
+  .ev :global(.ev__btn) {
+    min-height: 40px;
+    padding-block: var(--space-1);
+  }
+
+  .ev__project {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .ev__project:hover {
+    text-decoration: underline;
+  }
+
+  .ev--compact .ev__title {
+    font-size: var(--text-base);
+  }
+
+  @keyframes ev-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>
+
+<script>
+  // Refine the build-time split at view time: hide finished entries in upcoming
+  // lists, flag entries that are happening right now.
+  function refresh() {
+    const now = Date.now();
+    document.querySelectorAll<HTMLElement>('[data-upcoming]').forEach((list) => {
+      let visible = 0;
+      list.querySelectorAll<HTMLElement>('[data-event]').forEach((item) => {
+        const start = Date.parse(item.dataset.start ?? '');
+        const end = Date.parse(item.dataset.end ?? '');
+        const live = start <= now && now <= end;
+        item.hidden = end < now;
+        item.classList.toggle('is-live', live);
+        const badge = item.querySelector<HTMLElement>('[data-live-badge]');
+        if (badge) badge.hidden = !live;
+        if (!item.hidden) visible++;
+      });
+      const empty = list.parentElement?.querySelector<HTMLElement>('[data-upcoming-empty]');
+      if (empty) empty.hidden = visible > 0;
+    });
+  }
+  document.addEventListener('astro:page-load', refresh);
+  setInterval(refresh, 60_000);
+</script>

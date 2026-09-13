@@ -49,6 +49,12 @@ npx astro check      # Typen und Content-Schemas prüfen
 ```
 
 Vor jedem "fertig" muss `npm run build` ohne Fehler und ohne Warnungen laufen.
+Einzige bekannte Ausnahme: `[WARN] Failed to revalidate cached remote image
+https://i.ytimg.com/... The request was redirected.` bei wiederholten lokalen
+Builds. Astro 5.18 wertet die 304-Antwort von YouTube fälschlich als Redirect
+(`astro/dist/assets/build/remote.js`), nutzt dann den Cache und baut korrekt
+weiter. Auf Cloudflare tritt sie nie auf (kein Cache). Verschwindet lokal mit
+`rm -rf node_modules/.astro`.
 
 Node wird über **fnm** verwaltet (installiert per winget, Node 24 LTS, siehe
 `.node-version`). In neuen PowerShell-Fenstern lädt das Profil fnm automatisch.
@@ -72,7 +78,8 @@ F:\MAINHUB\
 │  ├─ content.config.ts       # Collections: projects, updates
 │  ├─ content/
 │  │  ├─ projects/            # eine .md pro Projekt, Dateiname = slug
-│  │  └─ updates/             # eine .md pro Devlog-Eintrag, YYYY-MM-DD-slug.md
+│  │  ├─ updates/             # eine .md pro Devlog-Eintrag, YYYY-MM-DD-slug.md
+│  │  └─ schedule.yaml        # Zeitplan, eine Liste mit allen Terminen
 │  ├─ assets/
 │  │  ├─ projects/<slug>/     # cover.png + Galeriebilder je Projekt
 │  │  └─ updates/             # optionale Cover für Devlog-Einträge
@@ -122,6 +129,8 @@ Komponenten-Code wird dafür nie angefasst.
 | `/updates`         | Devlog chronologisch, optional `?project=slug` |
 | `/updates/[slug]`  | Einzelner Eintrag |
 | `/links`           | alle Social- und Shop-Links + Kontakt |
+| `/schedule`        | Zeitplan: kommende Streams/Videos/Posts/Releases, zuletzt vergangene |
+| `/schedule.ics`    | iCalendar-Feed des Zeitplans zum Abonnieren |
 | `/card`            | nur die Visitenkarte, ohne Nav. Gedruckter QR zeigt auf `/card?src=print` |
 | `/contact.vcf`     | vCard-Download |
 | `/rss.xml`         | Feed der Updates |
@@ -205,6 +214,32 @@ draft: false                    # optional; true = nur in `npm run dev` sichtbar
 Die URL ist der Dateiname ohne Datums-Präfix (`/updates/omf-alpha`). Zwei Dateien
 mit gleichem Rest-Namen brechen den Build. Typen und Farben in
 `src/data/updateTypes.ts`.
+
+### Zeitplan (`src/content/schedule.yaml`)
+
+Eine YAML-Datei mit einer Liste, ein Eintrag pro Termin (Stream, Video, Post,
+Release, Event). Loader `file()`, Schema in `content.config.ts`, Typen und
+Farben in `src/data/eventTypes.ts`.
+
+```yaml
+- id: 2026-09-20-stream         # eindeutig, klein, Bindestriche
+  title: "One More Floor dev stream"
+  start: 2026-09-20T20:00:00+02:00   # Schweizer Zeit mit Offset (+02:00 Sommer, +01:00 Winter)
+  end: 2026-09-20T22:00:00+02:00     # optional, sonst Standarddauer je Typ
+  type: stream                       # stream | video | post | release | event
+  platform: twitch                   # optional, Link-Typ → Button
+  url: https://www.twitch.tv/jusidroppop
+  project: one-more-floor            # optional
+  note: "Eine Zeile"                 # optional
+  tentative: true                    # optional, Sticker "maybe"
+  draft: true                        # optional, nur im Dev-Server
+```
+
+Anzeige: `/schedule` (Coming up + Recently), "Coming up" auf `/` (max. 3),
+"Next stream" in der Twitch-Karte, Kalender-Abo `/schedule.ics`. Die Trennung
+in kommend/vergangen passiert beim Build; ein Client-Script blendet zur
+Laufzeit abgelaufene Einträge aus und markiert laufende mit "Live now".
+Alle Zeiten werden in Europe/Zurich angezeigt.
 
 ### Erste Projekte
 

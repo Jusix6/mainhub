@@ -1,0 +1,119 @@
+---
+/**
+ * Schedule: upcoming streams, videos, posts and releases, plus a calendar subscription.
+ */
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import ScheduleItem from '@/components/ScheduleItem.astro';
+import Button from '@/components/Button.astro';
+import LinkButton from '@/components/LinkButton.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import { getUpcomingAndPast } from '@/lib/schedule';
+
+const { upcoming, past } = await getUpcomingAndPast();
+const projects = await getCollection('projects');
+const projectById = new Map(projects.map((p) => [p.id, p]));
+const recent = past.slice(0, 5);
+---
+
+<Base title={UI.nav.schedule} description={`When ${SITE.name} streams, posts and releases next.`}>
+  <section class="container sched">
+    <div class="sched__head">
+      <div>
+        <h1>
+          <span class="marker" style="--marker: var(--c-purple)">{UI.nav.schedule}</span>
+        </h1>
+        <p class="sched__intro">{UI.schedule.intro}</p>
+      </div>
+      <div class="sched__actions">
+        <Button href="/schedule.ics" color="--surface" icon="calendar">{UI.schedule.subscribe}</Button>
+        <LinkButton type="twitch" url={SITE.twitch.url} label={UI.schedule.followTwitch} />
+      </div>
+    </div>
+
+    <div class="sched__section">
+      <h2 class="sched__title">{UI.schedule.upcoming}</h2>
+      <ul class="sched__list" data-upcoming>
+        {upcoming.map((e, i) => <ScheduleItem event={e} project={e.data.project ? projectById.get(e.data.project.id) : undefined} index={i} />)}
+      </ul>
+      <p class="sched__empty" data-upcoming-empty hidden={upcoming.length > 0}>
+        {UI.schedule.empty}
+      </p>
+    </div>
+
+    {
+      recent.length > 0 && (
+        <div class="sched__section sched__section--past">
+          <h2 class="sched__title">{UI.schedule.recent}</h2>
+          <ul class="sched__list">
+            {recent.map((e, i) => (
+              <ScheduleItem event={e} project={e.data.project ? projectById.get(e.data.project.id) : undefined} index={i} compact />
+            ))}
+          </ul>
+        </div>
+      )
+    }
+
+    <p class="meta sched__tz">{UI.schedule.timezone}</p>
+  </section>
+</Base>
+
+<style>
+  .sched {
+    display: grid;
+    gap: var(--space-5);
+    max-width: 800px;
+  }
+
+  .sched__head {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .sched__intro {
+    margin-top: var(--space-2);
+    font-size: var(--text-lg);
+  }
+
+  .sched__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .sched__section {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .sched__section--past {
+    opacity: 0.85;
+  }
+
+  .sched__title {
+    font-size: var(--text-xl);
+  }
+
+  .sched__list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sched__empty {
+    padding: var(--space-5) var(--space-3);
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    border: var(--line) dashed var(--ink);
+    border-radius: var(--radius-lg);
+    max-width: none;
+  }
+
+  .sched__empty[hidden] {
+    display: none;
+  }
+</style>

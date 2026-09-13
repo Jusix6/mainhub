@@ -11,6 +11,7 @@ const navItems = [
   { href: '/', label: UI.nav.home, icon: 'home' },
   { href: '/projects', label: UI.nav.projects, icon: 'grid' },
   { href: '/updates', label: UI.nav.updates, icon: 'sparkle' },
+  { href: '/schedule', label: UI.nav.schedule, icon: 'calendar' },
   { href: '/links', label: UI.nav.links, icon: 'link' },
 ];
 
@@ -111,8 +112,8 @@ const isActive = (href: string) => (href === '/' ? current === '/' : current.sta
     justify-content: center;
     gap: 2px;
     min-height: 48px;
-    padding: var(--space-1);
-    font-size: var(--text-sm);
+    padding: var(--space-1) 2px;
+    font-size: 0.8rem;
     font-weight: 700;
     text-decoration: none;
     border: var(--line) solid transparent;

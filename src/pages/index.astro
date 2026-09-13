@@ -9,6 +9,7 @@ import BusinessCard from '@/components/BusinessCard.astro';
 import ProjectGrid from '@/components/ProjectGrid.astro';
 import CategoryStrip from '@/components/CategoryStrip.astro';
 import UpdateCard from '@/components/UpdateCard.astro';
+import ScheduleItem from '@/components/ScheduleItem.astro';
 import LatestVideo from '@/components/LatestVideo.astro';
 import LinkButton from '@/components/LinkButton.astro';
 import Button from '@/components/Button.astro';
@@ -16,6 +17,7 @@ import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
 import { getPublishedUpdates } from '@/lib/updates';
 import { getLatestVideo } from '@/lib/youtube';
+import { getUpcomingAndPast, formatFull } from '@/lib/schedule';
 
 const projects = await getCollection('projects');
 const projectById = new Map(projects.map((p) => [p.id, p]));
@@ -27,6 +29,9 @@ const featured = projects
 
 const updates = (await getPublishedUpdates()).slice(0, 2);
 const video = await getLatestVideo();
+const { upcoming } = await getUpcomingAndPast();
+const nextEvents = upcoming.slice(0, 3);
+const nextStream = upcoming.find((e) => e.data.type === 'stream');
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -70,6 +75,29 @@ const jsonLd = {
     <ProjectGrid projects={featured} />
   </section>
 
+  {
+    nextEvents.length > 0 && (
+      <section class="container section" aria-labelledby="upcoming-heading">
+        <div class="section-head">
+          <h2 id="upcoming-heading">{UI.schedule.upcoming}</h2>
+          <Button href="/schedule" color="--surface" iconAfter="arrow">
+            {UI.schedule.seeAll}
+          </Button>
+        </div>
+        <div>
+          <ul class="event-list" data-upcoming>
+            {nextEvents.map((e, i) => (
+              <ScheduleItem event={e} project={e.data.project ? projectById.get(e.data.project.id) : undefined} index={i} compact />
+            ))}
+          </ul>
+          <p class="event-empty" data-upcoming-empty hidden>
+            {UI.schedule.empty}
+          </p>
+        </div>
+      </section>
+    )
+  }
+
   <section class="container section split">
     {
       updates.length > 0 && (
@@ -97,7 +125,9 @@ const jsonLd = {
       <div class="twitch">
         <div class="twitch__text">
           <strong>{UI.sections.live}</strong>
-          <p>{SITE.twitch.schedule || UI.sections.liveText}</p>
+          <p>
+            {nextStream ? `${UI.schedule.nextStream}: ${formatFull(nextStream.data.start)}` : SITE.twitch.schedule || UI.sections.liveText}
+          </p>
         </div>
         <LinkButton type="twitch" url={SITE.twitch.url} />
       </div>
@@ -168,12 +198,31 @@ const jsonLd = {
     margin-bottom: 0;
   }
 
-  .update-list {
+  .update-list,
+  .event-list {
     display: grid;
     gap: var(--space-3);
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  .event-empty {
+    padding: var(--space-4);
+    text-align: center;
+    border: var(--line) dashed var(--ink);
+    border-radius: var(--radius-lg);
+    max-width: none;
+  }
+
+  .event-empty[hidden] {
+    display: none;
+  }
+
+  @media (min-width: 900px) {
+    .event-list {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 
   .twitch {
