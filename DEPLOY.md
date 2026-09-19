@@ -37,6 +37,13 @@ Schlägt der Deploy mit einem Hinweis auf die Zone fehl, ist `jxsi.ch` im
 Dashboard noch "Pending": Site öffnen → **Check nameservers**, dann im Worker
 **Retry deployment**.
 
+**DNSSEC:** Bei hosttech muss DNSSEC ausgeschaltet bleiben, solange kein
+DS-Eintrag von Cloudflare hinterlegt ist. Ein fremder DS-Eintrag macht die
+Zone für prüfende Resolver ungültig und verhindert die Aktivierung bei
+Cloudflare (so geschehen im September 2026). Wieder einschalten nur so:
+Cloudflare → `jxsi.ch` → DNS → Settings → DNSSEC aktivieren → den dort
+angezeigten DS-Eintrag bei hosttech unter "DNSSEC Einstellungen" eintragen.
+
 `_redirects` kann den Apex-Redirect nicht: Bei Workers sind dort nur relative
 Ziele erlaubt.
 

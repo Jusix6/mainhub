@@ -446,12 +446,14 @@ Website ist die eigentliche Karte.
       gesetzt (kein Layout-Sprung der Karte), Blau aufgehellt für AA-Kontrast,
       Karten-Überschriften per `heading`-Prop auf h2 unter Seiten-h1, Mindest-
       Schriftgrösse 12px auf der Kartenrückseite.
-- [~] **Phase 7 – Deploy** (2026-09-11): Repo auf GitHub (`Jusix6/mainhub`),
-      Cloudflare Worker `mainhub` per Git-Integration, `wrangler.jsonc` für
-      Assets-only. Erster Build scheiterte an absoluter URL in `_redirects`
-      (bei Workers nicht erlaubt), Datei entfernt. Live unter
-      `https://mainhub.jusispielt.workers.dev`, Checkliste geprüft (Status,
-      Redirects, Header, 404, vCard, Lighthouse Mobile 98–100). Offen: Custom
-      Domain `www.jxsi.ch` + Apex-Redirect-Regel, Platzhalter in `site.ts`.
+- [x] **Phase 7 – Deploy** (2026-09-11 bis 2026-09-19): Repo auf GitHub
+      (`Jusix6/mainhub`), Cloudflare Worker `mainhub` per Git-Integration,
+      Custom Domains über `wrangler.jsonc`, Apex- und HTTP-Redirect in
+      `worker.js`. **Live unter `https://www.jxsi.ch`.** Die Domain-Aktivierung
+      hing tagelang, weil bei hosttech DNSSEC mit dem alten Schlüssel aktiv
+      war; nach dem Ausschalten (DS-Eintrag bei der Registry weg) wurde die
+      Zone innerhalb einer Stunde aktiv. DNSSEC kann später in Cloudflare
+      (DNS → Settings → DNSSEC) mit Cloudflares eigenem DS-Eintrag bei
+      hosttech wieder eingeschaltet werden.
 - [ ] **Später / offen**: deutsche Sprachversion mit Umschalter, Twitch-Live-Status,
       Cloudflare Web Analytics.
