@@ -1,12 +1,23 @@
-// Cloudflare Workers config: static assets only, no server code.
+// Cloudflare Workers config: static assets from dist/ plus a tiny redirect worker (worker.js).
 // With this file present, `wrangler deploy` uploads dist/ as-is and does not
 // try to auto-configure the project (which would add the SSR adapter).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mainhub",
+  "main": "worker.js",
   "compatibility_date": "2026-09-11",
+  // Custom domains are provisioned on deploy (DNS record + certificate) as long as
+  // the zone jxsi.ch is active on this Cloudflare account.
+  "routes": [
+    { "pattern": "www.jxsi.ch", "custom_domain": true },
+    { "pattern": "jxsi.ch", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    // Run worker.js for every request so the apex redirect can happen; it passes
+    // everything else to the assets immediately.
+    "run_worker_first": true,
     // Serve /card for card.html, redirect /card/ and /card.html to /card
     "html_handling": "auto-trailing-slash",
     // Serve dist/404.html with status 404 for unknown paths

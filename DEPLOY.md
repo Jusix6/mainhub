@@ -23,20 +23,22 @@ in `wrangler.jsonc` (`mainhub`) muss mit dem Namen im Dashboard übereinstimmen.
 
 ## Domain
 
-1. `jxsi.ch` bei Cloudflare registrieren oder die Nameserver auf Cloudflare
-   zeigen lassen.
-2. Worker `mainhub` → **Settings** → **Domains & Routes** → **Add** →
-   **Custom domain** → `www.jxsi.ch`. Cloudflare legt den DNS-Eintrag an.
-3. Apex-Redirect `jxsi.ch` → `www.jxsi.ch`: In der Zone `jxsi.ch` unter
-   **Rules** → **Redirect Rules** → **Create rule**:
-   - Wenn: Hostname equals `jxsi.ch`
-   - Dann: Dynamic redirect, Ausdruck
-     `concat("https://www.jxsi.ch", http.request.uri.path)`, Status 301,
-     "Preserve query string" an.
-   Damit der Apex überhaupt antwortet, braucht `jxsi.ch` einen DNS-Eintrag mit
-   Proxy (orange Wolke), z. B. `A jxsi.ch 192.0.2.1` als Platzhalter.
+Die Domain `jxsi.ch` liegt bei hosttech, die Nameserver zeigen auf Cloudflare
+(`kristin.ns.cloudflare.com`, `skip.ns.cloudflare.com`). Alles Weitere steht im
+Repo, nichts muss im Dashboard geklickt werden:
 
-   `_redirects` kann das nicht: Bei Workers sind dort nur relative Ziele erlaubt.
+- `wrangler.jsonc` führt `www.jxsi.ch` und `jxsi.ch` als Custom Domains
+  (`routes` mit `custom_domain: true`). Beim Deploy legt Wrangler die
+  DNS-Einträge und Zertifikate an, sobald die Zone auf Cloudflare aktiv ist.
+- `worker.js` leitet `jxsi.ch` per 301 auf `www.jxsi.ch` um und reicht alles
+  andere an die statischen Assets weiter.
+
+Schlägt der Deploy mit einem Hinweis auf die Zone fehl, ist `jxsi.ch` im
+Dashboard noch "Pending": Site öffnen → **Check nameservers**, dann im Worker
+**Retry deployment**.
+
+`_redirects` kann den Apex-Redirect nicht: Bei Workers sind dort nur relative
+Ziele erlaubt.
 
 ## Ohne Git deployen (Notfall oder Test)
 

@@ -29,14 +29,17 @@ Kommentare und Code auf Englisch.
   (nur über `youtube-nocookie.com`). Der YouTube-Feed wird beim Build gelesen.
 - **Kein Tracking-Script.** Falls Statistik gewünscht: Cloudflare Web Analytics,
   sonst nichts.
-- **Deployment**: Cloudflare Workers mit Static Assets (kein Server-Code,
-  kein Adapter). Git-Integration mit `Jusix6/mainhub`, Push auf `main` = Deploy.
+- **Deployment**: Cloudflare Workers mit Static Assets, kein Adapter. Der
+  einzige Server-Code ist `worker.js` (Apex-Redirect, sonst Durchreichen an
+  die Assets). Git-Integration mit `Jusix6/mainhub`, Push auf `main` = Deploy.
   Build `npm run build`, Deploy `npx wrangler deploy`, Konfig in `wrangler.jsonc`.
   Details und Checkliste in `DEPLOY.md`. **Nie `astro add cloudflare`
   ausführen**, die Seite bleibt statisch.
-- **Domain**: `https://www.jxsi.ch` (kanonisch, in `astro.config.mjs` und
-  `src/data/site.ts`). Apex `jxsi.ch` → www per Redirect-Regel in der Zone,
-  nicht per `_redirects` (Workers erlauben dort nur relative Ziele).
+- **Domain**: `https://www.jxsi.ch` (kanonisch, in `astro.config.mjs`,
+  `src/data/site.ts` und `worker.js`). Beide Hosts stehen als `routes` mit
+  `custom_domain: true` in `wrangler.jsonc`; Wrangler legt DNS und Zertifikat
+  beim Deploy an. Apex `jxsi.ch` → www macht `worker.js` per 301. `_redirects`
+  kann das nicht (Workers erlauben dort nur relative Ziele).
 - Paketmanager: **npm**. Lockfile committen.
 
 ## Befehle
@@ -73,7 +76,8 @@ dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild).
 ```
 F:\MAINHUB\
 ├─ public/                    # favicon.svg, _headers (Cloudflare), sonst nichts
-├─ wrangler.jsonc             # Cloudflare Worker: nur Assets aus dist/
+├─ wrangler.jsonc             # Cloudflare Worker: Assets aus dist/, Custom Domains
+├─ worker.js                  # Apex-Redirect jxsi.ch → www, sonst Assets
 ├─ DEPLOY.md                  # Deploy-Anleitung und Checkliste
 ├─ scripts/og-default.mjs     # erzeugt src/assets/og-default.png
 ├─ scripts/cover-from-icon.mjs # 16:10-Cover aus einem quadratischen App-Icon
