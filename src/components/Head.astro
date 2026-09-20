@@ -31,8 +31,14 @@ const ogImage = image ?? new URL(ogDefault.src, Astro.site).href;
 
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<!-- Marks JS availability before first paint so no-JS fallbacks never flash (avoids layout shift). -->
-<script is:inline>document.documentElement.classList.add('js');</script>
+<!-- Marks JS availability before first paint so no-JS fallbacks never flash (avoids layout shift).
+     View transitions replace <html> attributes with the new page's, so re-apply after every swap. -->
+<script is:inline>
+  document.documentElement.classList.add('js');
+  document.addEventListener('astro:after-swap', function () {
+    document.documentElement.classList.add('js');
+  });
+</script>
 <title>{fullTitle}</title>
 <meta name="description" content={description} />
 <link rel="canonical" href={canonical} />

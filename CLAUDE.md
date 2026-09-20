@@ -360,6 +360,10 @@ Kombinationen mindestens AA prüfen.
   (`CHROME_PATH` auf Chrome oder Edge setzen). Kleinste Schriftgrösse 12px.
 - Fallbacks, die nur ohne JS gelten, hängen an `html:not(.js)`; die Klasse
   `js` wird inline im `<head>` gesetzt, damit nichts vor dem ersten Paint springt.
+  **Achtung View Transitions:** Der ClientRouter ersetzt beim Seitenwechsel die
+  Attribute von `<html>`, die Klasse geht dabei verloren. Deshalb setzt dasselbe
+  Inline-Script sie bei `astro:after-swap` erneut. Ohne das zeigte die
+  Visitenkarte nach einem Klick-Wechsel beide Seiten untereinander.
 
 ## Die 3D-Visitenkarte
 
