@@ -66,6 +66,7 @@ export const UI = {
   },
   footer: {
     madeIn: 'Made in Switzerland',
+    card: 'Business card',
   },
   notFound: {
     title: 'Nothing on this floor.',

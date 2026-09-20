@@ -8,20 +8,20 @@ import { UI } from '@/data/ui';
 import Icon from './Icon.astro';
 
 const navItems = [
-  { href: '/', label: UI.nav.home, icon: 'home' },
+  { href: '/hub', label: UI.nav.home, icon: 'home' },
   { href: '/projects', label: UI.nav.projects, icon: 'grid' },
   { href: '/updates', label: UI.nav.updates, icon: 'sparkle' },
   { href: '/schedule', label: UI.nav.schedule, icon: 'calendar' },
   { href: '/links', label: UI.nav.links, icon: 'link' },
 ];
 
-const current = Astro.url.pathname.replace(/\/$/, '') || '/';
-const isActive = (href: string) => (href === '/' ? current === '/' : current.startsWith(href));
+const current = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+const isActive = (href: string) => current.startsWith(href);
 ---
 
 <header class="site-header">
   <div class="container site-header__inner">
-    <a class="brand" href="/" aria-label={`${SITE.title} home`}>
+    <a class="brand" href="/hub" aria-label={`${SITE.title} home`}>
       <span class="brand__mark" aria-hidden="true">
         <Icon name="star" size={18} />
       </span>

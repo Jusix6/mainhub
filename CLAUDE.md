@@ -102,13 +102,14 @@ F:\MAINHUB\
 │  │  ├─ Base.astro           # <head>, Nav, Footer, Skip-Link
 │  │  └─ Bare.astro           # ohne Nav/Footer, für /card
 │  ├─ pages/
-│  │  ├─ index.astro          # Startseite
+│  │  ├─ index.astro          # Startseite = Visitenkarte (CardScreen)
+│  │  ├─ hub.astro            # Der Hub (ehemalige Startseite)
 │  │  ├─ projects/index.astro # Übersicht mit Filter
 │  │  ├─ projects/[slug].astro
 │  │  ├─ updates/index.astro
 │  │  ├─ updates/[slug].astro
 │  │  ├─ links.astro          # Linktree-Ersatz + Kontakt
-│  │  ├─ card.astro           # Visitenkarte im Vollbild (QR-Ziel)
+│  │  ├─ card.astro           # Alias von / für gedruckte QR-Codes
 │  │  ├─ contact.vcf.ts       # vCard aus site.ts
 │  │  ├─ rss.xml.ts
 │  │  ├─ robots.txt.ts       # Sitemap-URL aus `site` in astro.config
@@ -130,7 +131,8 @@ Komponenten-Code wird dafür nie angefasst.
 
 | Route              | Inhalt |
 |--------------------|--------|
-| `/`                | Hero = 3D-Visitenkarte, dann Featured-Projekte, letzte 2 Updates, Content-Block (neuestes YouTube-Video, Twitch-Link), Social-Links |
+| `/`                | Startseite = die Visitenkarte im Vollbild (Bare-Layout, JSON-LD Person), Button "Explore the site" → `/hub`. Gruss bei `?src=print` |
+| `/hub`             | Der Hub: Karte als Hero, Kategorien, Featured-Projekte, Coming up, letzte 2 Updates, YouTube-Video, Twitch. "Home" in der Nav zeigt hierhin |
 | `/projects`        | alle Projekte, Filter nach Kategorie und Status, Zustand in der URL (`?cat=games&status=released`) |
 | `/projects/[slug]` | Cover, Tagline, Status, Body, Galerie, Link-Buttons, zugehörige Updates |
 | `/updates`         | Devlog chronologisch, optional `?project=slug` |
@@ -138,7 +140,7 @@ Komponenten-Code wird dafür nie angefasst.
 | `/links`           | alle Social- und Shop-Links + Kontakt |
 | `/schedule`        | Zeitplan: kommende Streams/Videos/Posts/Releases, zuletzt vergangene |
 | `/schedule.ics`    | iCalendar-Feed des Zeitplans zum Abonnieren |
-| `/card`            | nur die Visitenkarte, ohne Nav. Gedruckter QR zeigt auf `/card?src=print` |
+| `/card`            | Alias der Startseite (gleiche `CardScreen`-Komponente, Canonical → `/`), damit gedruckte QR-Codes auf `/card?src=print` weiter funktionieren |
 | `/contact.vcf`     | vCard-Download |
 | `/rss.xml`         | Feed der Updates |
 | `/robots.txt`      | generiert, Sitemap-Link aus `site` |
@@ -361,9 +363,10 @@ Kombinationen mindestens AA prüfen.
 
 ## Die 3D-Visitenkarte
 
-Zentrales Element auf `/` (Hero) und alleine auf `/card`. Die physische
-Visitenkarte trägt nur einen QR-Code, der auf `/card?src=print` zeigt; die
-Website ist die eigentliche Karte.
+Die Startseite `/` ist die Karte alleine im Vollbild (`CardScreen.astro`),
+`/card` ist ihr Alias; auf `/hub` ist sie der Hero. Die physische Visitenkarte
+trägt nur einen QR-Code, der auf `/card?src=print` (oder `/?src=print`) zeigt;
+die Website ist die eigentliche Karte.
 
 - **Format**: Seitenverhältnis 85:55 (Schweizer Visitenkarte). Auf Mobile volle
   Breite abzüglich Rand, auf Desktop max. 560px breit.

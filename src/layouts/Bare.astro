@@ -9,15 +9,17 @@ interface Props {
   description?: string;
   image?: string;
   noIndex?: boolean;
+  /** Override the canonical path, e.g. "/" for an alias page. */
+  canonical?: string;
 }
 
-const { title, description, image, noIndex } = Astro.props;
+const { title, description, image, noIndex, canonical } = Astro.props;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title={title} description={description} image={image} noIndex={noIndex} />
+    <Head title={title} description={description} image={image} noIndex={noIndex} canonical={canonical} />
   </head>
   <body>
     <main id="main" tabindex="-1">

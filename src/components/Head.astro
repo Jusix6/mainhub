@@ -17,12 +17,14 @@ interface Props {
   /** Absolute URL of a social preview image; falls back to the default OG image. */
   image?: string;
   noIndex?: boolean;
+  /** Canonical path override for alias pages. */
+  canonical?: string;
 }
 
-const { title, description = SITE.description, image, noIndex = false } = Astro.props;
+const { title, description = SITE.description, image, noIndex = false, canonical: canonicalPath } = Astro.props;
 const fullTitle = title ? `${title} · ${SITE.title}` : `${SITE.title} · ${SITE.name}, ${SITE.tagline}`;
 // build.format 'file' makes pathname "/card.html" at build time; the public URL is "/card".
-const cleanPath = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+const cleanPath = canonicalPath ?? Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
 const canonical = new URL(cleanPath, Astro.site);
 const ogImage = image ?? new URL(ogDefault.src, Astro.site).href;
 ---

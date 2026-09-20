@@ -76,7 +76,8 @@ YouTube-Channel-ID. Danach `npm run build` lokal prüfen und pushen.
 
 ## QR-Code für die gedruckte Karte
 
-Ziel-URL: `https://www.jxsi.ch/card?src=print`
+Ziel-URL: `https://www.jxsi.ch/card?src=print` (die Startseite `/` zeigt
+dieselbe Karte; `/card` bleibt als Alias für bereits gedruckte Codes)
 
 Fehlerkorrektur Level H, vor dem Druck mit zwei Handys scannen. Die URL kann
 später ohne Neudruck umgeleitet werden, weil sie auf der Website liegt.
