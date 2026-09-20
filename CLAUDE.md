@@ -86,6 +86,7 @@ F:\MAINHUB\
 │  ├─ content/
 │  │  ├─ projects/            # eine .md pro Projekt, Dateiname = slug
 │  │  ├─ updates/             # eine .md pro Devlog-Eintrag, YYYY-MM-DD-slug.md
+│  │  ├─ legal/               # Rechtstexte je App, Dateiname = slug unter /privacy/
 │  │  └─ schedule.yaml        # Zeitplan, eine Liste mit allen Terminen
 │  ├─ assets/
 │  │  ├─ projects/<slug>/     # cover.png + Galeriebilder je Projekt
@@ -140,6 +141,7 @@ Komponenten-Code wird dafür nie angefasst.
 | `/links`           | alle Social- und Shop-Links + Kontakt |
 | `/schedule`        | Zeitplan: kommende Streams/Videos/Posts/Releases, zuletzt vergangene |
 | `/schedule.ics`    | iCalendar-Feed des Zeitplans zum Abonnieren |
+| `/privacy/[slug]`  | Rechtstexte aus der `legal`-Collection, z. B. `/privacy/forgot` |
 | `/card`            | Alias der Startseite (gleiche `CardScreen`-Komponente, Canonical → `/`), damit gedruckte QR-Codes auf `/card?src=print` weiter funktionieren |
 | `/contact.vcf`     | vCard-Download |
 | `/rss.xml`         | Feed der Updates |
@@ -249,6 +251,19 @@ Anzeige: `/schedule` (Coming up + Recently), "Coming up" auf `/` (max. 3),
 in kommend/vergangen passiert beim Build; ein Client-Script blendet zur
 Laufzeit abgelaufene Einträge aus und markiert laufende mit "Live now".
 Alle Zeiten werden in Europe/Zurich angezeigt.
+
+### Rechtliches (`src/content/legal/<slug>.md`)
+
+Datenschutzerklärungen und ähnliche Dokumente je App, ausgeliefert unter
+`/privacy/<slug>`. Frontmatter: `title`, `description`, `project` (Referenz,
+zeigt den Link "Privacy policy" in der Fakten-Box der Projektseite), `updated`,
+`languages` (Liste aus `code`, `label`, `anchor` für die Sprach-Sprungmarken;
+die Anker stehen als `{#anchor}` an den H2-Überschriften im Markdown).
+Rechtstexte bleiben wörtlich wie im Original, inklusive des dort genannten
+Verantwortlichen; hier gilt die Jusi-Regel nicht.
+
+- `forgot` → `/privacy/forgot`, DE + EN, Kontakt jxsisupport@gmail.com.
+  Diese URL gehört ins App-Store-Listing als Privacy Policy.
 
 ### Erste Projekte
 

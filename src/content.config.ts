@@ -68,4 +68,18 @@ const schedule = defineCollection({
     .refine((e) => !e.end || e.end > e.start, { message: 'end must be after start', path: ['end'] }),
 });
 
-export const collections = { projects, updates, schedule };
+/** Legal pages (privacy policies, terms) per app. Served under /privacy/<slug>. */
+const legal = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/legal' }),
+  schema: z.object({
+    title: z.string().min(1),
+    description: z.string().max(200),
+    /** The app this document belongs to; shown as a link on the project page. */
+    project: reference('projects').optional(),
+    updated: z.coerce.date(),
+    /** Languages contained, in document order. Used for the jump links at the top. */
+    languages: z.array(z.object({ code: z.string(), label: z.string(), anchor: z.string() })).default([]),
+  }),
+});
+
+export const collections = { projects, updates, schedule, legal };

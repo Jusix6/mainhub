@@ -31,6 +31,7 @@ const cat = getCategory(category);
 const dateLabel = status === 'released' ? UI.meta.released : UI.meta.started;
 
 const relatedUpdates = await getUpdatesForProject(project.id);
+const legalDocs = await getCollection('legal', (d) => d.data.project?.id === project.id);
 const placeholder = await lqip(cover);
 
 const og = await getImage({ src: cover, width: 1200, height: 750, format: 'jpg' });
@@ -108,6 +109,18 @@ const more = (await getCollection('projects', (p) => p.id !== project.id))
               <div class="facts__row">
                 <dt class="meta">{UI.meta.tech}</dt>
                 <dd>{tech.join(', ')}</dd>
+              </div>
+            )
+          }
+          {
+            legalDocs.length > 0 && (
+              <div class="facts__row">
+                <dt class="meta">{UI.legal.heading}</dt>
+                <dd>
+                  {legalDocs.map((d) => (
+                    <a href={`/privacy/${d.id}`}>{UI.legal.privacy}</a>
+                  ))}
+                </dd>
               </div>
             )
           }

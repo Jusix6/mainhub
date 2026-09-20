@@ -68,6 +68,11 @@ export const UI = {
     madeIn: 'Made in Switzerland',
     card: 'Business card',
   },
+  legal: {
+    updated: 'Last updated',
+    privacy: 'Privacy policy',
+    heading: 'Legal',
+  },
   notFound: {
     title: 'Nothing on this floor.',
     text: 'The page you are looking for does not exist.',
