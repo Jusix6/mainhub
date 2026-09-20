@@ -394,7 +394,9 @@ die Website ist die eigentliche Karte.
   (`src/assets/portrait.png`, 600x750, Platzhalter per
   `scripts/portrait-placeholder.mjs`, durch echtes Foto ersetzen), rote
   Nummer, Zeilen DOB/EXP, Projektzahlen je Kategorie statt HT/WT/HAIR/EYES
-  (live aus der Collection), Issue/Class/Restr/Endorse, Barcode, Jusis echte
+  (live aus der Collection, einzelne Werte über `license.statOverrides`
+  überschreibbar, z. B. Videos = Anzahl auf YouTube), Issue/Class/Restr/Endorse,
+  Barcode, Jusis echte
   Unterschrift (`src/assets/signature.png`, aus einem Foto freigestellt mit
   `scripts/signature-from-photo.mjs <foto> [schwelle]`), Name und "Adresse".
   Alle Werte in `SITE.license` (`site.ts`).

@@ -48,7 +48,12 @@ export const SITE = {
     restr: 'NONE',
     endorse: 'ALL',
     addressLines: ['MADE IN SWITZERLAND', 'WWW.JXSI.CH'],
-    // Photo: src/assets/portrait.png (600x750). Placeholder until replaced with a real photo.
+    // Photo: src/assets/portrait.png (600x750), cropped 4:5 around the face.
+    // The stats row shows project counts per category; override a value here when the real
+    // number lives elsewhere (e.g. videos published on YouTube, not listed as projects).
+    statOverrides: {
+      videos: '183',
+    } as Partial<Record<'apps' | 'games' | 'music' | 'videos', string>>,
   },
   twitch: {
     url: 'https://www.twitch.tv/jusidroppop',

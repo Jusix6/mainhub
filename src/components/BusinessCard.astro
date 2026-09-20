@@ -31,7 +31,9 @@ const lic = SITE.license;
 const projects = await getCollection('projects');
 const stats = CATEGORIES.slice(0, 4).map((c) => ({
   label: c.label.split(' ')[0],
-  value: String(projects.filter((p) => p.data.category === c.slug).length),
+  value:
+    (lic.statOverrides as Partial<Record<string, string>>)[c.slug] ??
+    String(projects.filter((p) => p.data.category === c.slug).length),
 }));
 ---
 
