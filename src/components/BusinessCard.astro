@@ -97,7 +97,8 @@ const { standalone = false, class: className } = Astro.props;
           }
         </div>
 
-        <button class="back__flip" type="button" data-flip aria-label={UI.card.flipBack}>
+        <button class="back__flip" type="button" data-flip>
+          {UI.card.flipBack}
           <Icon name="arrow" size={16} />
         </button>
       </div>
@@ -232,13 +233,14 @@ const { standalone = false, class: className } = Astro.props;
     gap: clamp(8px, 3cqw, 16px);
     align-content: start;
     background: var(--surface);
+    /* room at the bottom for the "flip back" pill, mirroring the front */
+    padding-bottom: calc(clamp(14px, 5cqw, 28px) + 44px);
     transform: rotateY(180deg);
   }
 
   .back__head {
     display: grid;
     gap: 2px;
-    padding-right: 44px;
   }
 
   .back__name {
@@ -328,26 +330,35 @@ const { standalone = false, class: className } = Astro.props;
     font-size: clamp(12px, 3.2cqw, 15px);
   }
 
+  /* Same pill as the front hint, same spot: bottom right */
   .back__flip {
     position: absolute;
-    top: clamp(10px, 4cqw, 20px);
-    right: clamp(10px, 4cqw, 20px);
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
+    right: clamp(14px, 5cqw, 28px);
+    bottom: clamp(14px, 5cqw, 28px);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 32px;
+    padding: 3px 10px;
     background: var(--c-yellow);
-    border: var(--line) solid var(--ink);
-    border-radius: 50%;
-    box-shadow: var(--shadow-sm);
+    color: var(--ink);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: clamp(12px, 2.8cqw, 13px);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     cursor: pointer;
-    transform: rotate(180deg);
-    transition: transform var(--t-base) var(--ease-pop);
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .back__flip :global(.icon) {
+    transform: scaleX(-1);
   }
 
   .back__flip:hover {
-    transform: rotate(180deg) scale(1.1);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
   }
 
   /* Easter egg: after too many flips the card gets tired and hides everything but a line of text */

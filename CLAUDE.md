@@ -407,8 +407,9 @@ die Website ist die eigentliche Karte.
 - **Easter Egg**: Wer die Karte zu oft dreht, bekommt statt der Daten nur noch
   einen Satz zu sehen (Stufen in `UI.card.tired`: 10 → "why are you doing
   this?", 13 → "seriously?", 16 → "fine. here you go." und Reset). Zählt pro
-  Seitenaufruf. Der Dreh-Hinweis und der Zurück-Knopf liegen über der
-  Überlagerung und bleiben immer sichtbar. Texte in `src/data/ui.ts`.
+  Seitenaufruf. Der Dreh-Hinweis vorne und die "flip back"-Pille hinten sitzen
+  beide unten rechts, liegen über der Überlagerung und bleiben immer sichtbar.
+  Texte in `src/data/ui.ts`.
 - **Daten** kommen ausschliesslich aus `src/data/site.ts`. vCard wird daraus
   in `contact.vcf.ts` generiert (`FN`, `EMAIL`, `URL`, `NOTE`, `X-SOCIALPROFILE`).
 - Der QR-Code selbst ist nicht Teil der Website (wird extern für den Druck erzeugt).
