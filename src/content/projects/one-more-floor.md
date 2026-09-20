@@ -9,10 +9,7 @@ cover: ../../assets/projects/one-more-floor/cover.png
 platforms: [Windows, macOS]
 tech: [Godot, GDScript]
 tags: [roguelike, pixel-art, indie]
-links:
-  # TODO: replace with the real itch.io or Steam URL once there is a build
-  - type: itch
-    url: https://itch.io/
+# links: add itch.io or Steam here once there is a public build
 ---
 
 ## What it is
