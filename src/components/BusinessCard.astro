@@ -78,9 +78,17 @@ const { standalone = false, class: className } = Astro.props;
           <Button href="/contact.vcf" icon="download" download="jusi.vcf">
             {UI.actions.saveContact}
           </Button>
-          <Button href="/projects" color="--c-pink" iconAfter="arrow">
-            {UI.actions.seeMyWork}
-          </Button>
+          {
+            standalone ? (
+              <Button href="/hub" color="--c-pink" iconAfter="arrow">
+                {UI.card.visit}
+              </Button>
+            ) : (
+              <Button href="/projects" color="--c-pink" iconAfter="arrow">
+                {UI.actions.seeMyWork}
+              </Button>
+            )
+          }
         </div>
 
         <button class="back__flip" type="button" data-flip aria-label={UI.card.flipBack}>

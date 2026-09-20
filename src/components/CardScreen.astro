@@ -1,17 +1,16 @@
 ---
 /**
  * Full-screen business card: what visitors see on / and what the printed QR code
- * opens (/card?src=print). Card, optional greeting for scanned cards, one button into the hub.
+ * opens (/card?src=print). Card plus an optional greeting for scanned cards.
+ * The way into the hub ("Explore the site") sits on the back of the card.
  */
 import BusinessCard from './BusinessCard.astro';
-import Button from './Button.astro';
 import { UI } from '@/data/ui';
 ---
 
 <div class="card-page">
   <BusinessCard standalone />
   <p class="card-page__note meta" data-print-note hidden>{UI.card.scanned}</p>
-  <Button href="/hub" color="--surface" iconAfter="arrow" size="lg">{UI.card.visit}</Button>
 </div>
 
 <style>

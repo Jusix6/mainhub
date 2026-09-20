@@ -131,7 +131,7 @@ Komponenten-Code wird dafür nie angefasst.
 
 | Route              | Inhalt |
 |--------------------|--------|
-| `/`                | Startseite = die Visitenkarte im Vollbild (Bare-Layout, JSON-LD Person), Button "Explore the site" → `/hub`. Gruss bei `?src=print` |
+| `/`                | Startseite = die Visitenkarte im Vollbild (Bare-Layout, JSON-LD Person), "Explore the site" → `/hub` auf der Kartenrückseite. Gruss bei `?src=print` |
 | `/hub`             | Der Hub: Karte als Hero, Kategorien, Featured-Projekte, Coming up, letzte 2 Updates, YouTube-Video, Twitch. "Home" in der Nav zeigt hierhin |
 | `/projects`        | alle Projekte, Filter nach Kategorie und Status, Zustand in der URL (`?cat=games&status=released`) |
 | `/projects/[slug]` | Cover, Tagline, Status, Body, Galerie, Link-Buttons, zugehörige Updates |
@@ -378,8 +378,10 @@ die Website ist die eigentliche Karte.
   kleines Logo/Emoji, Hinweis "tap to flip". Look: Karte mit `--line`-Outline,
   `--shadow-lg`, Signalfarbe als Fläche oder Ecke.
 - **Rückseite**: Was ich mache (die sechs Kategorien als Mini-Chips), E-Mail,
-  Socials als Icons, Button "Save contact" → `/contact.vcf`, Button "See my work"
-  → `/projects`.
+  Socials als Icons, Button "Save contact" → `/contact.vcf`. Zweiter Button je
+  nach Kontext: auf `/` und `/card` (Prop `standalone`) "Explore the site" →
+  `/hub`, im Hub-Hero "See my work" → `/projects`. Unter der Karte steht auf der
+  Startseite kein weiterer Button.
 - **Interaktion**: Klick/Tipp dreht die Karte (`rotateY(180deg)`, `--t-slow`,
   `--ease-pop`, `perspective: 1200px`, `backface-visibility: hidden`). Desktop
   zusätzlich: leichtes Kippen mit der Mausposition (max. ±8°), per Script.
