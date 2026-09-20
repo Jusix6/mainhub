@@ -371,9 +371,10 @@ const { standalone = false, class: className } = Astro.props;
     display: none;
   }
 
-  .scene.is-tired .front__hint,
-  .scene.is-tired .back__flip {
-    visibility: hidden;
+  /* The flip controls stay on top of the overlay so the card can always be turned */
+  .front__hint,
+  .back__flip {
+    z-index: 3;
   }
 
   @keyframes tired-in {
