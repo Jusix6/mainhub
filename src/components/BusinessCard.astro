@@ -23,10 +23,15 @@ interface Props {
 const { standalone = false, class: className } = Astro.props;
 ---
 
-<div class:list={['scene', { 'scene--standalone': standalone }, className]} data-business-card>
+<div
+  class:list={['scene', { 'scene--standalone': standalone }, className]}
+  data-business-card
+  data-tired={JSON.stringify(UI.card.tired)}
+>
   <div class="tilt" data-tilt>
     <div class="card" data-card>
       <button class="face face--front" type="button" data-flip>
+        <span class="face__tired" data-tired-text hidden></span>
         <span class="front__mark" aria-hidden="true">
           <Icon name="star" size={22} />
         </span>
@@ -40,6 +45,7 @@ const { standalone = false, class: className } = Astro.props;
       </button>
 
       <div class="face face--back" data-back>
+        <span class="face__tired" data-tired-text hidden aria-live="polite"></span>
         <div class="back__head">
           <span class="back__name">{SITE.name}</span>
           <a class="back__mail" href={`mailto:${SITE.email}`}>
@@ -344,6 +350,41 @@ const { standalone = false, class: className } = Astro.props;
     transform: rotate(180deg) scale(1.1);
   }
 
+  /* Easter egg: after too many flips the card gets tired and hides everything but a line of text */
+  .face__tired {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    padding: clamp(14px, 5cqw, 28px);
+    background: var(--bg);
+    font-family: var(--font-mono);
+    font-size: clamp(16px, 4.5cqw, 26px);
+    text-align: center;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+    animation: tired-in var(--t-base) ease-out both;
+  }
+
+  .face__tired[hidden] {
+    display: none;
+  }
+
+  .scene.is-tired .front__hint,
+  .scene.is-tired .back__flip {
+    visibility: hidden;
+  }
+
+  @keyframes tired-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
   /* No JS (html.js is set inline in <head> before first paint): both faces stacked, no 3D */
   :global(html:not(.js)) .tilt,
   :global(html:not(.js)) .card {
@@ -420,6 +461,35 @@ const { standalone = false, class: className } = Astro.props;
 
     let flipped = false;
 
+    // Easter egg: count flips, show a message after a while, reset at the last stage.
+    type Stage = { at: number; text: string; reset?: boolean };
+    const stages: Stage[] = JSON.parse(scene.dataset.tired ?? '[]');
+    const tiredTexts = scene.querySelectorAll<HTMLElement>('[data-tired-text]');
+    let flips = 0;
+    let resetTimer = 0;
+
+    function setTired(text: string | null) {
+      scene.classList.toggle('is-tired', text !== null);
+      tiredTexts.forEach((el) => {
+        el.textContent = text ?? '';
+        el.hidden = text === null;
+      });
+    }
+
+    function countFlip() {
+      flips++;
+      const stage = stages.find((s) => s.at === flips);
+      if (!stage) return;
+      setTired(stage.text);
+      if (stage.reset) {
+        window.clearTimeout(resetTimer);
+        resetTimer = window.setTimeout(() => {
+          setTired(null);
+          flips = 0;
+        }, 1800);
+      }
+    }
+
     function render() {
       card!.classList.toggle('is-flipped', flipped);
       // Keep the hidden face out of the tab order and the accessibility tree.
@@ -431,6 +501,7 @@ const { standalone = false, class: className } = Astro.props;
     function flip(to: boolean) {
       flipped = to;
       render();
+      countFlip();
       // Move focus to the face that is now visible, after the animation has started.
       const target = flipped ? backFlip : front;
       window.setTimeout(() => target?.focus({ preventScroll: true }), reducedMotion.matches ? 0 : 350);

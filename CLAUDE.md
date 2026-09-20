@@ -404,6 +404,10 @@ die Website ist die eigentliche Karte.
 - **Ohne JS / reduced motion**: Beide Seiten stehen als Text im HTML; ohne JS
   wird die Rückseite unter der Vorderseite angezeigt, mit reduced motion wird
   überblendet statt gedreht.
+- **Easter Egg**: Wer die Karte zu oft dreht, bekommt statt der Daten nur noch
+  einen Satz zu sehen (Stufen in `UI.card.tired`: 10 → "why are you doing
+  this?", 13 → "seriously?", 16 → "fine. here you go." und Reset). Zählt pro
+  Seitenaufruf, die Karte bleibt dabei drehbar. Texte in `src/data/ui.ts`.
 - **Daten** kommen ausschliesslich aus `src/data/site.ts`. vCard wird daraus
   in `contact.vcf.ts` generiert (`FN`, `EMAIL`, `URL`, `NOTE`, `X-SOCIALPROFILE`).
 - Der QR-Code selbst ist nicht Teil der Website (wird extern für den Druck erzeugt).

@@ -63,6 +63,12 @@ export const UI = {
     whatIMake: 'What I make',
     visit: 'Explore the site',
     scanned: 'You scanned my card. Nice.',
+    /** Easter egg: after this many flips the card gets tired. Stages in flip order; the last one resets. */
+    tired: [
+      { at: 10, text: 'why are you doing this?' },
+      { at: 13, text: 'seriously?' },
+      { at: 16, text: 'fine. here you go.', reset: true },
+    ],
   },
   footer: {
     madeIn: 'Made in Switzerland',
