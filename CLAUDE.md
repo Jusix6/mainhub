@@ -389,9 +389,20 @@ die Website ist die eigentliche Karte.
 
 - **Format**: Seitenverhältnis 85:55 (Schweizer Visitenkarte). Auf Mobile volle
   Breite abzüglich Rand, auf Desktop max. 560px breit.
-- **Vorderseite**: Name gross in `--font-display`, "Creative from Switzerland",
-  kleines Logo/Emoji, Hinweis "tap to flip". Look: Karte mit `--line`-Outline,
-  `--shadow-lg`, Signalfarbe als Fläche oder Ecke.
+- **Vorderseite**: Parodie des McLovin-Ausweises aus Superbad als
+  "SWITZERLAND · CREATIVE LICENSE" (ohne den Regenbogen des Originals): Foto links
+  (`src/assets/portrait.png`, 600x750, Platzhalter per
+  `scripts/portrait-placeholder.mjs`, durch echtes Foto ersetzen), rote
+  Nummer, Zeilen DOB/EXP, Projektzahlen je Kategorie statt HT/WT/HAIR/EYES
+  (live aus der Collection), Issue/Class/Restr/Endorse, Barcode, Jusis echte
+  Unterschrift (`src/assets/signature.png`, aus einem Foto freigestellt mit
+  `scripts/signature-from-photo.mjs <foto> [schwelle]`), Name und "Adresse".
+  Alle Werte in `SITE.license` (`site.ts`).
+  Bewusst kein echtes Amtsdokument nachgebaut: Land statt US-Staat, "Creative
+  License" statt "Driver License". Hinweis "tap to flip" unten rechts.
+  Bekannte Ausnahme von der 12-px-Regel: Die Ausweisfelder skalieren mit der
+  Kartenbreite und liegen auf dem Handy bei 8–9 px, wie auf einem echten
+  Ausweis. Lighthouse Best Practices auf `/` deshalb 96 statt 100, akzeptiert.
 - **Rückseite**: Was ich mache (die sechs Kategorien als Mini-Chips), E-Mail,
   Socials als Icons, Button "Save contact" → `/contact.vcf`. Zweiter Button je
   nach Kontext: auf `/` und `/card` (Prop `standalone`) "Explore the site" →

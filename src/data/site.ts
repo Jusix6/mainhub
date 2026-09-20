@@ -35,6 +35,21 @@ export const SITE = {
     // Main channel @jusidroppop69 (JusiDroppop). Gaming channel @jusix69 is UC8vN5zk8Ge_b6B5goaNX14g.
     channelId: 'UCWHDPzJa99zS3XHaetPjdig',
   },
+  /** Front of the business card: a "creative license" in the style of a certain fake Hawaiian ID. */
+  license: {
+    region: 'Switzerland',
+    kind: 'Creative License',
+    number: 'JXSI-CH-01',
+    // TODO: real date of birth as DD/MM/YYYY (shown as DOB on the card), or leave a joke value
+    dob: '??/??/????',
+    exp: 'NEVER',
+    issued: '11/09/2026',
+    cls: 'CREATIVE',
+    restr: 'NONE',
+    endorse: 'ALL',
+    addressLines: ['MADE IN SWITZERLAND', 'WWW.JXSI.CH'],
+    // Photo: src/assets/portrait.png (600x750). Placeholder until replaced with a real photo.
+  },
   twitch: {
     url: 'https://www.twitch.tv/jusidroppop',
     // Free text shown next to the Twitch link, leave empty to hide

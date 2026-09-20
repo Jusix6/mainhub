@@ -7,10 +7,14 @@
  * - With reduced motion the flip becomes a crossfade (see global reduced-motion rule).
  * All content comes from src/data/site.ts and src/data/ui.ts.
  */
+import { getCollection } from 'astro:content';
+import { Image } from 'astro:assets';
 import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
 import { CATEGORIES } from '@/data/categories';
 import { getLinkType } from '@/data/linkTypes';
+import portrait from '@/assets/portrait.png';
+import signature from '@/assets/signature.png';
 import Icon from './Icon.astro';
 import Button from './Button.astro';
 
@@ -21,6 +25,14 @@ interface Props {
 }
 
 const { standalone = false, class: className } = Astro.props;
+const lic = SITE.license;
+
+// "HT / WT / HAIR / EYES" row of the license: project counts per category, live from the collection
+const projects = await getCollection('projects');
+const stats = CATEGORIES.slice(0, 4).map((c) => ({
+  label: c.label.split(' ')[0],
+  value: String(projects.filter((p) => p.data.category === c.slug).length),
+}));
 ---
 
 <div
@@ -32,16 +44,58 @@ const { standalone = false, class: className } = Astro.props;
     <div class="card" data-card>
       <button class="face face--front" type="button" data-flip>
         <span class="face__tired" data-tired-text hidden></span>
-        <span class="front__mark" aria-hidden="true">
-          <Icon name="star" size={22} />
+
+        <span class="lic__head">
+          <span class="lic__region">{lic.region}</span>
+          <span class="lic__kind">{lic.kind}</span>
         </span>
-        <span class="front__tagline">{SITE.tagline}</span>
-        <span class="front__name">{SITE.name}</span>
+
+        <span class="lic__number">
+          <span class="lic__label">Number</span>
+          {lic.number}
+        </span>
+
+        <span class="lic__photo">
+          <Image src={portrait} alt="" width={300} height={375} densities={[1, 2]} loading="eager" />
+        </span>
+
+        <span class="lic__fields">
+          <span class="lic__row lic__row--big">
+            <span><b>DOB</b> {lic.dob}</span>
+            <span><b>EXP</b> {lic.exp}</span>
+          </span>
+          <span class="lic__row lic__row--stats">
+            {
+              stats.map((s) => (
+                <span>
+                  <b>{s.label}</b>
+                  {s.value}
+                </span>
+              ))
+            }
+          </span>
+          <span class="lic__row">
+            <span><b>Issue date</b> {lic.issued}</span>
+            <span><b>Class</b> {lic.cls}</span>
+            <span><b>Restr</b> {lic.restr}</span>
+            <span><b>Endorse</b> {lic.endorse}</span>
+          </span>
+        </span>
+
+        <span class="lic__barcode" aria-hidden="true"></span>
+        <span class="lic__sig" aria-hidden="true">
+          <Image src={signature} alt="" width={370} height={174} densities={[1, 2]} loading="eager" />
+        </span>
+
+        <span class="lic__id">
+          <span class="lic__name">{SITE.name}</span>
+          {lic.addressLines.map((l) => <span class="lic__addr">{l}</span>)}
+        </span>
+
         <span class="front__hint">
           {UI.actions.tapToFlip}
           <Icon name="arrow" size={16} />
         </span>
-        <span class="front__stripe" aria-hidden="true"></span>
       </button>
 
       <div class="face face--back" data-back>
@@ -151,46 +205,191 @@ const { standalone = false, class: className } = Astro.props;
     text-align: left;
   }
 
-  /* Front */
+  /* Front: a "creative license" laid out like a certain fake Hawaiian ID */
   .face--front {
+    --lic-blue: #2a5bd7;
+    --lic-red: #d3202f;
     display: grid;
-    grid-template-rows: auto 1fr auto;
+    grid-template-columns: 30% 1fr;
+    grid-template-rows: auto auto 1fr auto auto;
+    grid-template-areas:
+      'photo head'
+      'photo number'
+      'photo fields'
+      'barcode sig'
+      'id id';
+    gap: clamp(4px, 1.4cqw, 10px) clamp(8px, 3cqw, 18px);
     align-items: start;
-    background: var(--c-yellow);
+    padding: clamp(10px, 3.5cqw, 22px);
+    background: #fff;
     cursor: pointer;
     font: inherit;
-  }
-
-  .front__mark {
-    display: inline-grid;
-    place-items: center;
-    width: clamp(36px, 11cqw, 52px);
-    height: clamp(36px, 11cqw, 52px);
-    background: var(--surface);
-    border: var(--line) solid var(--ink);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    transform: rotate(-8deg);
-    transition: transform var(--t-base) var(--ease-pop);
-  }
-
-  .face--front:hover .front__mark {
-    transform: rotate(8deg) scale(1.1);
-  }
-
-  .front__tagline {
-    align-self: end;
-    font-family: var(--font-mono);
-    font-size: clamp(12px, 3.2cqw, 16px);
+    font-family: var(--font-body);
     text-transform: uppercase;
+  }
+
+  /* Grid content; the overlays keep their own positioning */
+  .face--front > :not(.front__hint):not(.face__tired) {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+  }
+
+
+  .lic__head {
+    grid-area: head;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px clamp(4px, 2cqw, 12px);
+    color: var(--lic-blue);
+    line-height: 1;
+  }
+
+  .lic__region {
+    font-family: var(--font-display);
+    font-size: clamp(18px, 7cqw, 46px);
+    letter-spacing: -0.02em;
+    transform: skewX(-8deg);
+    white-space: nowrap;
+  }
+
+  .lic__kind {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: clamp(9px, 2.4cqw, 14px);
+    line-height: 1.05;
+    white-space: nowrap;
+  }
+
+  .lic__number {
+    grid-area: number;
+    display: flex;
+    align-items: baseline;
+    gap: clamp(4px, 1.5cqw, 10px);
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: clamp(11px, 3.8cqw, 24px);
+    color: var(--lic-red);
+    letter-spacing: 0.02em;
+  }
+
+  .lic__label {
+    font-size: 0.55em;
+    color: var(--ink);
     letter-spacing: 0.08em;
   }
 
-  .front__name {
+  .lic__photo {
+    grid-area: photo;
+    display: block;
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    border: 2px solid var(--ink);
+    background: #ff9a3c;
+  }
+
+  .lic__photo :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .lic__fields {
+    grid-area: fields;
+    display: grid;
+    gap: clamp(3px, 1.2cqw, 8px);
+    align-content: start;
+    font-family: var(--font-mono);
+    font-size: clamp(7px, 2.2cqw, 13px);
+    line-height: 1.15;
+    letter-spacing: 0.02em;
+  }
+
+  .lic__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px clamp(6px, 2.4cqw, 16px);
+    min-width: 0;
+  }
+
+  .lic__row > span {
+    white-space: nowrap;
+  }
+
+  .lic__row b {
+    display: inline-block;
+    margin-right: 0.4em;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .lic__row--big {
+    font-size: clamp(9px, 3.2cqw, 20px);
+    font-weight: 700;
+    color: var(--lic-red);
+  }
+
+  .lic__row--stats > span {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .lic__row--stats b {
+    margin: 0;
+  }
+
+  .lic__barcode {
+    grid-area: barcode;
+    display: block;
+    height: clamp(12px, 4.5cqw, 28px);
+    background: repeating-linear-gradient(
+      90deg,
+      var(--ink) 0 2px,
+      transparent 2px 3px,
+      var(--ink) 3px 4px,
+      transparent 4px 7px,
+      var(--ink) 7px 10px,
+      transparent 10px 12px,
+      var(--ink) 12px 13px,
+      transparent 13px 16px
+    );
+  }
+
+  /* Real pen signature (src/assets/signature.png, extracted via scripts/signature-from-photo.mjs) */
+  .lic__sig {
+    grid-area: sig;
+    align-self: center;
+    display: block;
+    padding-left: 10cqw;
+  }
+
+  .lic__sig :global(img) {
+    width: auto;
+    height: clamp(22px, 8cqw, 52px);
+    transform: rotate(-3deg);
+  }
+
+  .lic__id {
+    grid-area: id;
+    display: grid;
+    gap: 1px;
+    padding-right: 40%;
+    line-height: 1.1;
+  }
+
+  .lic__name {
     font-family: var(--font-display);
-    font-size: clamp(34px, 13cqw, 76px);
-    line-height: 0.95;
-    letter-spacing: -0.02em;
+    font-size: clamp(16px, 6cqw, 40px);
+    letter-spacing: 0.02em;
+  }
+
+  .lic__addr {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: clamp(8px, 2.6cqw, 15px);
+    letter-spacing: 0.04em;
   }
 
   .front__hint {
@@ -209,18 +408,6 @@ const { standalone = false, class: className } = Astro.props;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     animation: hint-nudge 1.8s var(--ease-pop) 1.2s 2;
-  }
-
-  .front__stripe {
-    position: absolute;
-    top: -20%;
-    right: -12%;
-    width: 22%;
-    height: 140%;
-    background: var(--c-pink);
-    border-inline: var(--line) solid var(--ink);
-    transform: rotate(14deg);
-    z-index: -1;
   }
 
   .face--front {
