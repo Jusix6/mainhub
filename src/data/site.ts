@@ -40,8 +40,8 @@ export const SITE = {
     region: 'Switzerland',
     kind: 'Creative License',
     number: 'JXSI-CH-01',
-    // TODO: real date of birth as DD/MM/YYYY (shown as DOB on the card), or leave a joke value
-    dob: '??/??/????',
+    // Date of birth as DD/MM/YYYY, shown as DOB on the card
+    dob: '10/03/2003',
     exp: 'NEVER',
     issued: '11/09/2026',
     cls: 'CREATIVE',
