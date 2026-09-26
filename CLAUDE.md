@@ -270,6 +270,7 @@ Verantwortlichen; hier gilt die Jusi-Regel nicht.
 - `forgot` – Forgot?, iOS-App für Routinen (Kategorie `apps`)
 - `one-more-floor` – One More Floor, Godot-Game (Kategorie `games`)
 - `sky-justin` – Sky & Justin, Minecraft-Minigame-Kanal mit Sky auf YouTube und TikTok (Kategorie `videos`)
+- `beats` – prod. by JXSI, Beats in FL Studio, Musikkanal @prodbyJXSI (Kategorie `music`)
 
 ## Design-System: Neo-Brutalist Playground
 
