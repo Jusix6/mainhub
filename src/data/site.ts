@@ -32,7 +32,8 @@ export const SITE = {
     { type: 'tiktok', url: 'https://www.tiktok.com/@jusidroppop6', handle: '@jusidroppop6' },
   ] satisfies SocialLink[],
   youtube: {
-    // Main channel @jusidroppop69 (JusiDroppop). Gaming channel @jusix69 is UC8vN5zk8Ge_b6B5goaNX14g.
+    // Main channel @jusidroppop69 (JusiDroppop). Gaming channel @jusix69 is UC8vN5zk8Ge_b6B5goaNX14g,
+    // duo channel @Sky.Justin (with Sky) is UCHKiFOcnFfetf3E83uWW4tA.
     channelId: 'UCWHDPzJa99zS3XHaetPjdig',
   },
   /** Front of the business card: a "creative license" in the style of a certain fake Hawaiian ID. */
@@ -52,7 +53,7 @@ export const SITE = {
     // The stats row shows project counts per category; override a value here when the real
     // number lives elsewhere (e.g. videos published on YouTube, not listed as projects).
     statOverrides: {
-      videos: '183',
+      videos: '184',
     } as Partial<Record<'apps' | 'games' | 'music' | 'videos', string>>,
   },
   twitch: {
