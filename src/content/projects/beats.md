@@ -23,7 +23,7 @@ links:
 
 ## What it is
 
-I opened FL Studio with no experience and made three beats in one sitting. The
+I opened FL Studio with no experience and made three beats over four days. The
 whole thing is on video on my main channel. One of the three, a sample type
 beat called "I DON'T C ME", made it onto my music channel, prod. by JXSI.
 
