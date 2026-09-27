@@ -128,7 +128,8 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
               return (
                 <li>
                   <a href={s.url} target="_blank" rel="me noopener" aria-label={`${def.label}: ${s.handle}`} style={`--c: var(${def.color})`}>
-                    <Icon name={def.icon} size={18} />
+                    <Icon name={def.icon} size={16} />
+                    <span>{s.label}</span>
                   </a>
                 </li>
               );
@@ -486,12 +487,21 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
     list-style: none;
   }
 
+  /* Icon + short label so the two YouTube channels can be told apart without a tap */
   .back__socials a {
-    display: inline-grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 10px;
     background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: clamp(12px, 2.8cqw, 13px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    white-space: nowrap;
     border: var(--line) solid var(--ink);
     border-radius: var(--radius);
     transition:

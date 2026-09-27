@@ -9,6 +9,8 @@ export interface SocialLink {
   url: string;
   /** Display handle, e.g. "@jusidroppop69". */
   handle: string;
+  /** Short label shown next to the icon on the business card, e.g. "Main" or "Gaming". */
+  label: string;
 }
 
 export const SITE = {
@@ -25,11 +27,11 @@ export const SITE = {
   // Keep in sync with `site` in astro.config.mjs
   url: 'https://www.jxsi.ch',
   socials: [
-    { type: 'youtube', url: 'https://www.youtube.com/@jusidroppop69', handle: '@jusidroppop69' },
-    { type: 'youtube', url: 'https://www.youtube.com/@jusix69', handle: '@jusix69 · Gaming' },
-    { type: 'twitch', url: 'https://www.twitch.tv/jusidroppop', handle: 'jusidroppop' },
-    { type: 'instagram', url: 'https://www.instagram.com/jusidroppop', handle: '@jusidroppop' },
-    { type: 'tiktok', url: 'https://www.tiktok.com/@jusidroppop6', handle: '@jusidroppop6' },
+    { type: 'youtube', url: 'https://www.youtube.com/@jusidroppop69', handle: '@jusidroppop69', label: 'Main' },
+    { type: 'youtube', url: 'https://www.youtube.com/@jusix69', handle: '@jusix69 · Gaming', label: 'Gaming' },
+    { type: 'twitch', url: 'https://www.twitch.tv/jusidroppop', handle: 'jusidroppop', label: 'Twitch' },
+    { type: 'instagram', url: 'https://www.instagram.com/jusidroppop', handle: '@jusidroppop', label: 'Instagram' },
+    { type: 'tiktok', url: 'https://www.tiktok.com/@jusidroppop6', handle: '@jusidroppop6', label: 'TikTok' },
   ] satisfies SocialLink[],
   youtube: {
     // Main channel @jusidroppop69 (JusiDroppop). Gaming channel @jusix69 is UC8vN5zk8Ge_b6B5goaNX14g,
