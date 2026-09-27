@@ -271,6 +271,7 @@ Verantwortlichen; hier gilt die Jusi-Regel nicht.
 - `one-more-floor` – One More Floor, Godot-Game (Kategorie `games`)
 - `sky-justin` – Sky & Justin, Minecraft-Minigame-Kanal mit Sky auf YouTube und TikTok (Kategorie `videos`)
 - `beats` – prod. by JXSI, Beats in FL Studio, Musikkanal @prodbyJXSI (Kategorie `music`)
+- `judgeitall` – JudgeItAll, kurzlebiger Bewertungs-Blog plus YouTube-Kanal aus 2025, pausiert (Kategorie `experiments`)
 
 ## Design-System: Neo-Brutalist Playground
 
