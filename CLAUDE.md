@@ -81,11 +81,12 @@ dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild, workerd).
 
 ```
 F:\MAINHUB\
-├─ public/                    # favicon.svg, _headers (Cloudflare), sonst nichts
+├─ public/                    # favicon.svg (Logo als SVG nachgebaut), apple-touch-icon.png, _headers (Cloudflare), sonst nichts
 ├─ wrangler.jsonc             # Cloudflare Worker: Assets aus dist/, Custom Domains
 ├─ worker.js                  # Apex-Redirect jxsi.ch → www, sonst Assets
 ├─ DEPLOY.md                  # Deploy-Anleitung und Checkliste
 ├─ scripts/og-default.mjs     # erzeugt src/assets/og-default.png
+├─ scripts/logo-icons.mjs     # erzeugt src/assets/logo.png (Nav-Logo) und public/apple-touch-icon.png aus der Logo-Masterdatei
 ├─ scripts/cover-from-icon.mjs # 16:10-Cover aus einem quadratischen App-Icon
 ├─ src/
 │  ├─ content.config.ts       # Collections: projects, updates
@@ -167,7 +168,7 @@ Browser-Spiele ohne Account. Die Seiten liegen unter `src/pages/fun/` (Layout
 `src/layouts/Fun.astro`, eigener kleiner Header, kein Hauptmenü) und landen im
 Build unter `dist/fun*`. `worker.js` bedient den Host `fun.jxsi.ch` aus genau
 diesen Dateien: `fun.jxsi.ch/` → `dist/fun.html`, `fun.jxsi.ch/the-button` →
-`dist/fun/the-button.html`; `/_astro/*` und `favicon.svg` sind geteilt.
+`dist/fun/the-button.html`; `/_astro/*`, `favicon.svg` und `apple-touch-icon.png` sind geteilt.
 `www.jxsi.ch/fun/*` leitet nach `fun.jxsi.ch/*` um, die Sitemap lässt `/fun`
 aus (Filter in `astro.config.mjs`), Canonical ist die Fun-URL (`SITE.fun.url`).
 Links zwischen Fun-Seiten sind **relativ** (`the-button`, `./`), damit sie auf
@@ -445,6 +446,12 @@ die Website ist die eigentliche Karte.
   Unterschrift (`src/assets/signature.png`, aus einem Foto freigestellt mit
   `scripts/signature-from-photo.mjs <foto> [schwelle]`), Name und "Adresse".
   Alle Werte in `SITE.license` (`site.ts`).
+
+**Logo:** Das JXSI-Logo (oranges abgerundetes Quadrat, schwarzes X; Master
+`F:\JXSI LOGO.png`, nicht im Repo) ist das Markenzeichen in der Nav
+(`src/assets/logo.png`, mit Drop-Shadow, leicht gedreht, Hover-Animation) und
+das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
+`npm run logo -- <pfad>`, dann `favicon.svg` von Hand anpassen.
   Bewusst kein echtes Amtsdokument nachgebaut: Land statt US-Staat, "Creative
   License" statt "Driver License". Hinweis "tap to flip" unten rechts.
   Bekannte Ausnahme von der 12-px-Regel: Die Ausweisfelder skalieren mit der

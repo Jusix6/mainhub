@@ -10,6 +10,7 @@
     "fun": "wrangler dev --port 8787 --local-upstream fun.jxsi.ch --var DEV:1",
     "fun:www": "wrangler dev --port 8787 --local-upstream www.jxsi.ch --var DEV:1",
     "og": "node scripts/og-default.mjs",
+    "logo": "node scripts/logo-icons.mjs",
     "deploy": "npm run build && npx wrangler@4 deploy",
     "astro": "astro"
   },

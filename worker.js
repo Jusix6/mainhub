@@ -19,7 +19,7 @@ const FUN_PREFIX = '/fun';
 const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST];
 
 /** Files at the site root that fun pages reference as well. */
-const SHARED_ROOT_FILES = ['/favicon.svg', '/robots.txt'];
+const SHARED_ROOT_FILES = ['/favicon.svg', '/apple-touch-icon.png', '/robots.txt'];
 
 export default {
   async fetch(request, env) {
