@@ -490,6 +490,21 @@ das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
   in `contact.vcf.ts` generiert (`FN`, `EMAIL`, `URL`, `NOTE`, `X-SOCIALPROFILE`).
 - Der QR-Code selbst ist nicht Teil der Website (wird extern für den Druck erzeugt).
 
+## Easter Egg: XP-Modus
+
+Dreimal schnell (innerhalb 1,5 s) aufs Logo oben links klicken: schwarzer
+Boot-Screen mit Ladebalken, dann "welcome", danach trägt die ganze Seite einen
+Luna-Skin (Windows-XP-Gefühl ohne Markenzeichen): Tahoma/Trebuchet, Bliss-artiger
+Verlauf als Desktop, Boxen als Fenster mit blauer Titelleiste und den drei
+Knöpfen (als Hintergrund-Layer in den Rahmen gemalt, kein Markup-Eingriff),
+Header als Taskleiste mit grünem Start-Knopf, Tray mit Uhr und "Exit XP mode".
+Dreimal Logo oder der Tray-Knopf loggt wieder aus. Der Zustand liegt in
+`localStorage` (`theme=xp`), `Head.astro` setzt `data-theme="xp"` vor dem ersten
+Paint und nach jedem View-Transition-Swap. Alles dazu: `src/styles/retro.css`
+(nur unter `html[data-theme='xp']` aktiv), Script in `Nav.astro`, Strings in
+`UI.retro`. Die ersten zwei Klicks navigieren normal zu `/hub`, nur der dritte
+wird abgefangen.
+
 ## Content-Hub
 
 - **YouTube**: `src/lib/youtube.ts` liest beim Build den öffentlichen RSS-Feed

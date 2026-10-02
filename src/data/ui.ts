@@ -71,6 +71,15 @@ export const UI = {
       { at: 16, text: 'fine. here you go.', reset: true },
     ],
   },
+  /** Easter egg: three quick clicks on the logo boot the XP-style skin (see Nav.astro, retro.css). */
+  retro: {
+    bootSub: 'Loading 2003, please wait',
+    welcome: 'welcome',
+    welcomeSub: 'Enjoy the trip back.',
+    off: 'Logging off',
+    offSub: 'Saving your settings, returning to the present',
+    exit: 'Exit XP mode',
+  },
   footer: {
     madeIn: 'Made in Switzerland',
     card: 'Business card',

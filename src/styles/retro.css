@@ -1,0 +1,464 @@
+/* Easter egg: the "XP mode" skin. Active while <html data-theme="xp">, which the
+   Nav script sets after three quick clicks on the logo (and remembers in
+   localStorage). Strategy: swap the design tokens first (fonts, colours, lines,
+   shadows, corners), then give the main boxes window chrome through their
+   background layers (title bar + buttons painted into the border area, so no
+   component markup or pseudo-elements are touched), then restyle the header as
+   the taskbar. Nothing in here applies without the attribute. */
+
+html[data-theme='xp'] {
+  --bg: #3a6ea5;
+  --surface: #ece9d8;
+  --ink: #000000;
+  --muted: #4a4a4a;
+
+  --c-yellow: #f6d77a;
+  --c-pink: #f3a8cb;
+  --c-blue: #a3c4f7;
+  --c-purple: #c9b5ec;
+  --c-orange: #f7b67c;
+  --c-green: #a9dba9;
+  --c-grey: #d4d0c8;
+
+  --font-display: 'Trebuchet MS', Tahoma, Verdana, sans-serif;
+  --font-body: Tahoma, Verdana, 'Segoe UI', sans-serif;
+  --font-mono: 'Lucida Console', 'Courier New', monospace;
+
+  --line: 1px;
+  --shadow: 2px 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 4px 4px 10px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 1px 1px 2px rgba(0, 0, 0, 0.35);
+  --radius: 3px;
+  --radius-lg: 6px;
+
+  --xp-frame: #0831d9;
+  --xp-title: linear-gradient(#0a5be6, #3b8bf5 10%, #2a7bf2 45%, #1f66e0 90%, #1a56c9);
+  --xp-btn: linear-gradient(#ffffff, #ecebe5 86%, #d8d0c4);
+  --xp-btn-border: #003c74;
+  --xp-task: linear-gradient(#3168d5 0, #4993e6 6%, #245edb 10%, #245edb 90%, #1941a5);
+  --xp-glow:
+    inset 0 0 0 1px #fff2c6,
+    inset 0 0 0 2px #f8d78b,
+    inset 0 0 0 3px #f0a33e;
+  /* The three Luna window buttons as one crisp SVG, painted top-right of every window */
+  --xp-buttons: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='66' height='21' viewBox='0 0 66 21'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%234d8cf5'/%3E%3Cstop offset='1' stop-color='%231f5fd6'/%3E%3C/linearGradient%3E%3ClinearGradient id='r' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23e8775b'/%3E%3Cstop offset='1' stop-color='%23c43a1c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='.5' y='.5' width='20' height='20' rx='3' fill='url(%23b)' stroke='%23fff'/%3E%3Crect x='6' y='14' width='8' height='3' fill='%23fff'/%3E%3Crect x='22.5' y='.5' width='20' height='20' rx='3' fill='url(%23b)' stroke='%23fff'/%3E%3Crect x='27' y='5' width='10' height='10' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Crect x='27' y='5' width='10' height='3' fill='%23fff'/%3E%3Crect x='45.5' y='.5' width='20' height='20' rx='3' fill='url(%23r)' stroke='%23fff'/%3E%3Cpath d='M50 5l11 11M61 5L50 16' stroke='%23fff' stroke-width='2.4'/%3E%3C/svg%3E");
+}
+
+html[data-theme='xp'] body {
+  /* Sky over a green hill, fixed like a desktop wallpaper */
+  background:
+    radial-gradient(120% 55% at 50% 112%, #2f7a2b 0%, #4c9a3f 45%, transparent 72%),
+    linear-gradient(180deg, #2f7fd9 0%, #5aa7ee 45%, #b7dcf8 70%, #d9ecfb 100%);
+  background-attachment: fixed;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+html[data-theme='xp'] h1,
+html[data-theme='xp'] h2,
+html[data-theme='xp'] h3,
+html[data-theme='xp'] h4 {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+html[data-theme='xp'] .marker {
+  padding: 0 4px;
+  background: #316ac5;
+  color: #fff;
+}
+
+/* ---- Buttons, chips, pills: Luna bevels, no hard shadows ------------------ */
+
+html[data-theme='xp'] .btn,
+html[data-theme='xp'] .fchip,
+html[data-theme='xp'] .pchip,
+html[data-theme='xp'] .chip,
+html[data-theme='xp'] .badge,
+html[data-theme='xp'] .sticker,
+html[data-theme='xp'] .back__cats li,
+html[data-theme='xp'] .back__socials a,
+html[data-theme='xp'] .site-footer__links a,
+html[data-theme='xp'] .fun-header__back,
+html[data-theme='xp'] .front__hint,
+html[data-theme='xp'] .back__flip,
+html[data-theme='xp'] .tile__icon {
+  border: 1px solid var(--xp-btn-border);
+  border-radius: 3px;
+  box-shadow: none;
+  text-shadow: none;
+  transform: none;
+}
+
+html[data-theme='xp'] .skip-link {
+  border: 1px solid var(--xp-btn-border);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+html[data-theme='xp'] .btn,
+html[data-theme='xp'] .fchip,
+html[data-theme='xp'] .pchip,
+html[data-theme='xp'] .back__socials a,
+html[data-theme='xp'] .site-footer__links a,
+html[data-theme='xp'] .fun-header__back,
+html[data-theme='xp'] .front__hint,
+html[data-theme='xp'] .back__flip {
+  background: var(--xp-btn);
+  color: #000;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+html[data-theme='xp'] .btn {
+  min-height: 28px;
+  padding: 3px 14px;
+}
+
+html[data-theme='xp'] .btn:hover,
+html[data-theme='xp'] .fchip:hover,
+html[data-theme='xp'] .pchip:hover,
+html[data-theme='xp'] .back__socials a:hover,
+html[data-theme='xp'] .site-footer__links a:hover,
+html[data-theme='xp'] .fun-header__back:hover,
+html[data-theme='xp'] .back__flip:hover {
+  background: var(--xp-btn);
+  box-shadow: var(--xp-glow);
+  transform: none;
+}
+
+html[data-theme='xp'] .btn:active {
+  background: #e3e0d6;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  transform: none;
+}
+
+html[data-theme='xp'] .sticker {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  transform: none;
+}
+
+/* ---- Windows: title bar and buttons painted into the top border ----------- */
+
+html[data-theme='xp'] .tile,
+html[data-theme='xp'] .card:has(> .card__link), /* project cards only, not the flip card wrapper */
+html[data-theme='xp'] .ucard,
+html[data-theme='xp'] .ev,
+html[data-theme='xp'] .stage,
+html[data-theme='xp'] .fun-card,
+html[data-theme='xp'] .facts,
+html[data-theme='xp'] .twitch,
+html[data-theme='xp'] .stores__item,
+html[data-theme='xp'] .event-empty,
+html[data-theme='xp'] .game,
+html[data-theme='xp'] .video__poster,
+html[data-theme='xp'] .face {
+  border: 3px solid var(--xp-frame);
+  border-top: 26px solid transparent;
+  border-radius: 8px 8px 4px 4px;
+  background:
+    var(--xp-buttons) right 5px top 3px / 66px 21px no-repeat border-box,
+    var(--xp-title) top / 100% 26px no-repeat border-box,
+    linear-gradient(var(--xp-frame), var(--xp-frame)) top / 100% 26px no-repeat border-box,
+    var(--surface) padding-box;
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.45);
+  color: #000;
+}
+
+html[data-theme='xp'] .tile,
+html[data-theme='xp'] .fun-card,
+html[data-theme='xp'] .ev,
+html[data-theme='xp'] .ucard {
+  transform: none;
+}
+
+html[data-theme='xp'] .tile:hover,
+html[data-theme='xp'] .fun-card:hover {
+  transform: none;
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme='xp'] .card__link:hover,
+html[data-theme='xp'] .ucard__link:hover {
+  transform: none;
+}
+
+/* The flip card keeps its 3D behaviour; faces only get the chrome */
+html[data-theme='xp'] .face--front {
+  background-color: #fff;
+}
+
+html[data-theme='xp'] .fun-card {
+  background-color: var(--surface);
+}
+
+html[data-theme='xp'] .fun-card__button,
+html[data-theme='xp'] .big {
+  border: 1px solid #7a1a0c;
+  box-shadow:
+    inset 0 -6px 10px rgba(0, 0, 0, 0.25),
+    inset 0 4px 6px rgba(255, 255, 255, 0.35),
+    0 6px 0 #5a1208;
+  background: radial-gradient(circle at 40% 35%, #ff6a5c, #d8281c 70%);
+  color: #fff;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme='xp'] .stat {
+  border: 1px solid #919b9c;
+  border-radius: 3px;
+  box-shadow: inset 1px 1px 0 #fff;
+}
+
+html[data-theme='xp'] .tile__icon {
+  background: #fff;
+}
+
+html[data-theme='xp'] .fun-header,
+html[data-theme='xp'] .site-footer,
+html[data-theme='xp'] .fun-footer {
+  background: var(--surface);
+  border-color: #919b9c;
+  font-size: 12px;
+}
+
+/* ---- Header → taskbar, logo → start button ------------------------------- */
+
+html[data-theme='xp'] .site-header {
+  background: var(--xp-task);
+  border-bottom: 1px solid #0f3fb2;
+  box-shadow: none;
+}
+
+html[data-theme='xp'] .site-header__inner {
+  min-height: 34px;
+  gap: 8px;
+}
+
+html[data-theme='xp'] .brand {
+  gap: 6px;
+  height: 32px;
+  padding: 0 20px 0 8px;
+  margin-left: -4px;
+  background: linear-gradient(#5fbf4a, #3c9b3c 45%, #2f8b2f);
+  color: #fff;
+  border-radius: 0 14px 14px 0;
+  font-family: 'Trebuchet MS', Tahoma, sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 0; /* hides the site title; the start label comes from ::after */
+  text-shadow: 1px 1px 1px #0b3a0b;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset -2px 0 4px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme='xp'] .brand::after {
+  content: 'start';
+  font-size: 18px;
+  line-height: 1;
+}
+
+html[data-theme='xp'] .brand:hover {
+  filter: brightness(1.08);
+}
+
+html[data-theme='xp'] .brand__mark {
+  width: 22px;
+  height: 22px;
+  filter: none;
+  transform: none;
+}
+
+html[data-theme='xp'] .brand:hover .brand__mark {
+  transform: none;
+}
+
+html[data-theme='xp'] .nav ul {
+  background: var(--xp-task);
+  border-top: 1px solid #0f3fb2;
+}
+
+html[data-theme='xp'] .nav a {
+  min-height: 0;
+  padding: 4px 10px;
+  background: linear-gradient(#4f91f2, #3b7de6 40%, #2f6cdb);
+  color: #fff;
+  border: 1px solid #1e4fbd;
+  border-radius: 2px;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.35);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  transform: none;
+}
+
+html[data-theme='xp'] .nav a:hover {
+  background: linear-gradient(#63a0f7, #4a8bee 40%, #3c79e3);
+  border-color: #1e4fbd;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.35);
+  transform: none;
+}
+
+html[data-theme='xp'][data-theme] .nav a[aria-current='page'] {
+  background: linear-gradient(#1b48b0, #2a5fcc);
+  border-color: #0f3390;
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+@media (min-width: 640px) {
+  html[data-theme='xp'] .site-header {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    inset-inline: 0;
+    border-top: 1px solid #0f3fb2;
+    border-bottom: 0;
+  }
+
+  html[data-theme='xp'] .site-header__inner {
+    max-width: none;
+    padding-inline: 0 0;
+  }
+
+  html[data-theme='xp'] body {
+    padding-bottom: 36px;
+  }
+
+  html[data-theme='xp'] .nav a {
+    gap: 6px;
+  }
+}
+
+/* Tray with clock and the way back, added by the Nav script */
+html[data-theme='xp'] .xp-tray {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: stretch;
+  padding: 0 12px;
+  margin-left: auto;
+  background: linear-gradient(#0f8cf0, #1b78e2 10%, #0f5fd0 90%, #0c4bb0);
+  border-left: 1px solid #0b3a9b;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+
+html[data-theme='xp'] .xp-tray__exit {
+  padding: 1px 8px;
+  background: var(--xp-btn);
+  color: #000;
+  border: 1px solid var(--xp-btn-border);
+  border-radius: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+
+html[data-theme='xp'] .xp-tray__exit:hover {
+  box-shadow: var(--xp-glow);
+}
+
+html[data-theme='xp'] .xp-tray__clock {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Boot, welcome and log-off screens (used by the Nav script) ----------- */
+
+.xp-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: #000;
+  color: #fff;
+  font-family: 'Trebuchet MS', Tahoma, Verdana, sans-serif;
+  text-align: center;
+}
+
+.xp-boot__inner {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.xp-boot__brand {
+  font-size: clamp(30px, 7vw, 60px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.xp-boot__brand small {
+  font-size: 0.45em;
+  font-weight: 400;
+  vertical-align: top;
+  margin-left: 4px;
+  color: #f0a33e;
+}
+
+.xp-boot__sub {
+  font-size: 14px;
+  color: #bdbdbd;
+}
+
+.xp-boot__bar {
+  position: relative;
+  width: 170px;
+  height: 16px;
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid #a9a9a9;
+  border-radius: 4px;
+}
+
+.xp-boot__bar::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 0;
+  width: 44px;
+  height: 10px;
+  background: repeating-linear-gradient(90deg, #2a63f3 0 10px, transparent 10px 15px);
+  animation: xp-boot 1.1s linear infinite;
+}
+
+@keyframes xp-boot {
+  from {
+    transform: translateX(-46px);
+  }
+  to {
+    transform: translateX(172px);
+  }
+}
+
+.xp-boot--welcome,
+.xp-boot--off {
+  background: linear-gradient(#5b7fdc, #3a5fd0 45%, #2c53c7);
+}
+
+.xp-boot--welcome .xp-boot__brand,
+.xp-boot--off .xp-boot__brand {
+  font-style: italic;
+  font-weight: 400;
+  text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.35);
+}
+
+.xp-boot--welcome .xp-boot__sub,
+.xp-boot--off .xp-boot__sub {
+  color: #dfe7ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-boot__bar::after {
+    animation: none;
+    width: 100%;
+  }
+}

@@ -8,6 +8,7 @@ import '@fontsource-variable/space-grotesk';
 import '@fontsource-variable/jetbrains-mono';
 import '@/styles/tokens.css';
 import '@/styles/global.css';
+import '@/styles/retro.css';
 import { SITE } from '@/data/site';
 import ogDefault from '@/assets/og-default.png';
 
@@ -34,10 +35,19 @@ const ogImage = image ?? new URL(ogDefault.src, Astro.site).href;
 <!-- Marks JS availability before first paint so no-JS fallbacks never flash (avoids layout shift).
      View transitions replace <html> attributes with the new page's, so re-apply after every swap. -->
 <script is:inline>
-  document.documentElement.classList.add('js');
-  document.addEventListener('astro:after-swap', function () {
-    document.documentElement.classList.add('js');
-  });
+  (function () {
+    function apply() {
+      document.documentElement.classList.add('js');
+      // Easter egg skin (three clicks on the logo), remembered across pages
+      try {
+        if (localStorage.getItem('theme') === 'xp' || new URLSearchParams(location.search).get('xp') === '1') {
+          document.documentElement.setAttribute('data-theme', 'xp');
+        }
+      } catch (e) {}
+    }
+    apply();
+    document.addEventListener('astro:after-swap', apply);
+  })();
 </script>
 <title>{fullTitle}</title>
 <meta name="description" content={description} />

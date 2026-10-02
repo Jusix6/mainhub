@@ -23,7 +23,16 @@ const current = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || 
 const isActive = (href: string) => current.startsWith(href);
 ---
 
-<header class="site-header">
+<header
+  class="site-header"
+  data-retro-title={SITE.title}
+  data-retro-boot={UI.retro.bootSub}
+  data-retro-welcome={UI.retro.welcome}
+  data-retro-welcome-sub={UI.retro.welcomeSub}
+  data-retro-off={UI.retro.off}
+  data-retro-off-sub={UI.retro.offSub}
+  data-retro-exit={UI.retro.exit}
+>
   <div class="container site-header__inner">
     <a class="brand" href="/hub" aria-label={`${SITE.title} home`}>
       <span class="brand__mark" aria-hidden="true">
@@ -47,6 +56,134 @@ const isActive = (href: string) => current.startsWith(href);
     </nav>
   </div>
 </header>
+
+<script>
+  /**
+   * Easter egg: three quick clicks on the logo boot "XP mode", a Luna-style
+   * skin defined in src/styles/retro.css. The choice is kept in localStorage
+   * (Head.astro applies it before first paint on every page); three more
+   * clicks, or the tray button, log off again.
+   */
+  const KEY = 'theme';
+  const CLICKS = 3;
+  const WINDOW_MS = 1500;
+  const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let clicks = 0;
+  let clickTimer: number | undefined;
+  let busy = false;
+  let clockTimer: number | undefined;
+
+  const header = () => document.querySelector<HTMLElement>('.site-header');
+  const text = (key: string) => header()?.dataset[key] ?? '';
+  const isXp = () => document.documentElement.dataset.theme === 'xp';
+
+  function setXp(on: boolean) {
+    if (on) document.documentElement.dataset.theme = 'xp';
+    else delete document.documentElement.dataset.theme;
+    try {
+      if (on) localStorage.setItem(KEY, 'xp');
+      else localStorage.removeItem(KEY);
+    } catch {
+      /* private mode: the skin still works for this page */
+    }
+    mountTray();
+  }
+
+  function screen(kind: 'boot' | 'welcome' | 'off', title: string, sub: string, ms: number) {
+    return new Promise<void>((resolve) => {
+      const el = document.createElement('div');
+      el.className = `xp-boot xp-boot--${kind}`;
+      el.setAttribute('role', 'status');
+      const inner = document.createElement('div');
+      inner.className = 'xp-boot__inner';
+      const brand = document.createElement('div');
+      brand.className = 'xp-boot__brand';
+      brand.textContent = title;
+      if (kind === 'boot') {
+        const tag = document.createElement('small');
+        tag.textContent = 'xp';
+        brand.append(tag);
+      }
+      const subEl = document.createElement('div');
+      subEl.className = 'xp-boot__sub';
+      subEl.textContent = sub;
+      inner.append(brand, subEl);
+      if (kind === 'boot') {
+        const bar = document.createElement('div');
+        bar.className = 'xp-boot__bar';
+        inner.append(bar);
+      }
+      el.append(inner);
+      document.body.append(el);
+      window.setTimeout(() => {
+        el.remove();
+        resolve();
+      }, reduced() ? Math.min(ms, 600) : ms);
+    });
+  }
+
+  async function boot() {
+    if (busy) return;
+    busy = true;
+    await screen('boot', text('retroTitle'), text('retroBoot'), 2600);
+    setXp(true);
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    await screen('welcome', text('retroWelcome'), text('retroWelcomeSub'), 1400);
+    busy = false;
+  }
+
+  async function logOff() {
+    if (busy) return;
+    busy = true;
+    await screen('off', text('retroOff'), text('retroOffSub'), 1500);
+    setXp(false);
+    busy = false;
+  }
+
+  function mountTray() {
+    const host = header()?.querySelector<HTMLElement>('.site-header__inner');
+    const existing = host?.querySelector<HTMLElement>('.xp-tray');
+    if (!isXp()) {
+      existing?.remove();
+      window.clearInterval(clockTimer);
+      return;
+    }
+    if (!host || existing) return;
+    const tray = document.createElement('div');
+    tray.className = 'xp-tray';
+    const exit = document.createElement('button');
+    exit.type = 'button';
+    exit.className = 'xp-tray__exit';
+    exit.textContent = text('retroExit');
+    exit.addEventListener('click', logOff);
+    const clock = document.createElement('span');
+    clock.className = 'xp-tray__clock';
+    const tick = () => {
+      clock.textContent = new Date().toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+    };
+    tick();
+    window.clearInterval(clockTimer);
+    clockTimer = window.setInterval(tick, 15000);
+    tray.append(exit, clock);
+    host.append(tray);
+  }
+
+  document.addEventListener('click', (e) => {
+    const brand = (e.target as Element | null)?.closest('.brand');
+    if (!brand) return;
+    clicks += 1;
+    window.clearTimeout(clickTimer);
+    clickTimer = window.setTimeout(() => (clicks = 0), WINDOW_MS);
+    if (clicks < CLICKS) return;
+    clicks = 0;
+    e.preventDefault();
+    if (isXp()) logOff();
+    else boot();
+  });
+
+  document.addEventListener('astro:page-load', mountTray);
+</script>
 
 <style>
   .site-header {
