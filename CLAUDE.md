@@ -333,7 +333,7 @@ Schatten, knallige Flächen auf cremeweissem Grund. Kein Template-Look.
   --muted:     #5A5A5A;
 
   /* Signalfarben */
-  --c-yellow:  #FFD23F;
+  --c-yellow:  #FFA300;  /* Logo-Farbe */
   --c-pink:    #FF5DA2;
   --c-blue:    #4D8DFF;   /* heller als klassisches Elektroblau, damit Ink-Text AA schafft */
   --c-purple:  #9B5DE5;

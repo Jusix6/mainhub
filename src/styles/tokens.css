@@ -7,7 +7,7 @@
   --muted: #5a5a5a;
 
   /* Signal colors – text on these is always --ink */
-  --c-yellow: #ffd23f;
+  --c-yellow: #ffa300; /* logo orange-yellow, --ink text passes AA (9.4:1) */
   --c-pink: #ff5da2;
   --c-blue: #4d8dff; /* lightened from #2f6bff so --ink text passes AA (5.9:1) */
   --c-purple: #9b5de5;

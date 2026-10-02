@@ -13,7 +13,7 @@ const svg = `
   <rect width="600" height="750" fill="url(#bg)"/>
   <circle cx="300" cy="290" r="140" fill="#1b1440" opacity="0.9"/>
   <path d="M60 750 C60 560 160 480 300 480 C440 480 540 560 540 750 Z" fill="#1b1440" opacity="0.9"/>
-  <rect x="200" y="250" width="200" height="60" rx="30" fill="#ffd23f" opacity="0.9"/>
+  <rect x="200" y="250" width="200" height="60" rx="30" fill="#ffa300" opacity="0.9"/>
   <text x="300" y="700" text-anchor="middle" font-family="Courier New, monospace" font-size="34" font-weight="700" fill="#1b1440" opacity="0.7">PHOTO TBD</text>
 </svg>`;
 
