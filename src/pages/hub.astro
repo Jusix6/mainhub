@@ -13,6 +13,7 @@ import ScheduleItem from '@/components/ScheduleItem.astro';
 import LatestVideo from '@/components/LatestVideo.astro';
 import LinkButton from '@/components/LinkButton.astro';
 import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
 import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
 import { getPublishedUpdates } from '@/lib/updates';
@@ -61,6 +62,24 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
       <Button href="/projects" color="--surface" iconAfter="arrow">{UI.actions.allProjects}</Button>
     </div>
     <ProjectGrid projects={featured} />
+  </section>
+
+  <section class="container section" aria-labelledby="fun-heading">
+    <div class="section-head">
+      <h2 id="fun-heading">{UI.fun.indexTitle}</h2>
+      <Button href={SITE.fun.url} color="--surface" iconAfter="arrow">{UI.fun.allGames}</Button>
+    </div>
+    <a class="fun-card" href={`${SITE.fun.url}/the-button`}>
+      <span class="fun-card__button" aria-hidden="true">{UI.fun.theButton.press}</span>
+      <span class="fun-card__body">
+        <strong class="fun-card__title">{UI.fun.theButton.title}</strong>
+        <span>{UI.fun.hubTeaser}</span>
+        <span class="fun-card__cta">
+          {UI.fun.hubCta}
+          <Icon name="arrow" size={18} />
+        </span>
+      </span>
+    </a>
   </section>
 
   {
@@ -169,6 +188,83 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
     justify-content: space-between;
     gap: var(--space-3);
     margin-bottom: var(--space-4);
+  }
+
+  /* Teaser for fun.jxsi.ch: a mini version of The Button that leads to the real one */
+  .fun-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-4);
+    background: var(--c-pink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    text-decoration: none;
+    transition:
+      transform var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-pop);
+  }
+
+  .fun-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .fun-card__button {
+    --depth: 8px;
+    display: grid;
+    place-items: center;
+    width: clamp(88px, 24vw, 120px);
+    aspect-ratio: 1;
+    margin-bottom: var(--depth);
+    background: #ff3b30;
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+    box-shadow:
+      0 var(--depth) 0 var(--ink),
+      0 var(--depth) 0 var(--line) var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(0.9rem, 3vw, 1.2rem);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition:
+      transform 70ms ease-out,
+      box-shadow 70ms ease-out;
+  }
+
+  .fun-card:hover .fun-card__button {
+    transform: translateY(calc(var(--depth) - 2px));
+    box-shadow:
+      0 2px 0 var(--ink),
+      0 2px 0 var(--line) var(--ink);
+  }
+
+  .fun-card__body {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .fun-card__title {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: 400;
+  }
+
+  .fun-card__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    justify-self: start;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-decoration: underline;
+    text-decoration-thickness: 3px;
+    text-underline-offset: 4px;
   }
 
   .split {

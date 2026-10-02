@@ -140,7 +140,7 @@ Komponenten-Code wird dafür nie angefasst.
 | Route              | Inhalt |
 |--------------------|--------|
 | `/`                | Startseite = die Visitenkarte im Vollbild (Bare-Layout, JSON-LD Person), "Explore the site" → `/hub` auf der Kartenrückseite. Gruss bei `?src=print` |
-| `/hub`             | Der Hub: Karte als Hero, Kategorien, Featured-Projekte, Coming up, letzte 2 Updates, YouTube-Video, Twitch. "Home" in der Nav zeigt hierhin |
+| `/hub`             | Der Hub: Karte als Hero, Kategorien, Featured-Projekte, Fun-Teaser (→ fun.jxsi.ch), Coming up, letzte 2 Updates, YouTube-Video, Twitch. "Home" in der Nav zeigt hierhin |
 | `/projects`        | alle Projekte, Filter nach Kategorie und Status, Zustand in der URL (`?cat=games&status=released`) |
 | `/projects/[slug]` | Cover, Tagline, Status, Body, Galerie, Link-Buttons, zugehörige Updates |
 | `/updates`         | Devlog chronologisch, optional `?project=slug` |
@@ -171,7 +171,8 @@ diesen Dateien: `fun.jxsi.ch/` → `dist/fun.html`, `fun.jxsi.ch/the-button` →
 `dist/fun/the-button.html`; `/_astro/*`, `favicon.svg` und `apple-touch-icon.png` sind geteilt.
 `www.jxsi.ch/fun/*` leitet nach `fun.jxsi.ch/*` um, die Sitemap lässt `/fun`
 aus (Filter in `astro.config.mjs`), Canonical ist die Fun-URL (`SITE.fun.url`).
-Links zwischen Fun-Seiten sind **relativ** (`the-button`, `./`), damit sie auf
+Erreichbar von der Hauptseite über den Nav-Punkt "Fun" (absolute URL) und den
+Teaser auf `/hub`. Links zwischen Fun-Seiten sind **relativ** (`the-button`, `./`), damit sie auf
 beiden Hosts stimmen; zurück zur Hauptseite absolut (`SITE.url`).
 
 | Route (fun-Host)  | Inhalt |

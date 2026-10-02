@@ -15,6 +15,8 @@ const navItems = [
   { href: '/updates', label: UI.nav.updates, icon: 'sparkle' },
   { href: '/schedule', label: UI.nav.schedule, icon: 'calendar' },
   { href: '/links', label: UI.nav.links, icon: 'link' },
+  // Fun games live on their own subdomain (see worker.js)
+  { href: SITE.fun.url, label: UI.nav.fun, icon: 'games' },
 ];
 
 const current = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
