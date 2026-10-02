@@ -24,7 +24,7 @@ Sky & Justin is a gaming channel I run together with my good friend Sky.
 We play Minecraft minigames, from the bottle game to "who is lying?", and turn
 the best moments into short videos for YouTube and TikTok.
 
-<!-- Cover is generated from the channel avatar via `node scripts/cover-from-icon.mjs sky-justin "#5fae3a" "#1e3a14"`. Sky Justin channel id: UCHKiFOcnFfetf3E83uWW4tA -->
+<!-- Cover is generated from the channel artwork (icon.png, Minecraft skins at sunset) via `node scripts/cover-from-icon.mjs sky-justin "#ff8a3d" "#2b1446"`. Sky Justin channel id: UCHKiFOcnFfetf3E83uWW4tA -->
 
 ## Why
 
