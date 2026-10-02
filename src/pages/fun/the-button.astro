@@ -1,0 +1,610 @@
+---
+/**
+ * The Button: a red button and one global number. Every click by every
+ * person ever, added up, never reset. Counting happens in the worker's
+ * Durable Object (see worker.js, /api/the-button); this page batches clicks
+ * and shows the numbers.
+ */
+import Fun from '@/layouts/Fun.astro';
+import Button from '@/components/Button.astro';
+import { UI } from '@/data/ui';
+
+const T = UI.fun.theButton;
+---
+
+<Fun title={T.title} description={T.description} path="/the-button" indexHref="./">
+  <div class="container game" data-the-button data-anon={T.anonymous} data-by={T.by}>
+    <header class="game__head">
+      <h1><span class="marker" style="--marker: var(--c-pink)">{T.title}</span></h1>
+      <p>{T.tagline}</p>
+    </header>
+
+    <section class="stage" aria-label={T.title}>
+      <p class="total">
+        <span class="total__num" data-total aria-live="off">&hellip;</span>
+        <span class="total__label">{T.totalLabel}</span>
+      </p>
+
+      <button class="big" type="button" data-press>
+        <span class="big__face">{T.press}</span>
+      </button>
+
+      <p class="streak" data-streak hidden>
+        {T.streak}: <b data-streak-n>0</b>
+      </p>
+      <p class="status" data-status role="status" hidden>{T.offline}</p>
+      <noscript><p class="status">{T.noJs}</p></noscript>
+    </section>
+
+    <dl class="stats" aria-label="Stats">
+      <div class="stat" style="--c: var(--c-yellow)">
+        <dt>{T.yourClicks}</dt>
+        <dd data-you>0</dd>
+      </div>
+      <div class="stat" style="--c: var(--c-blue)">
+        <dt>{T.players}</dt>
+        <dd data-players>&hellip;</dd>
+      </div>
+      <div class="stat" style="--c: var(--c-green)">
+        <dt>{T.today}</dt>
+        <dd data-today>&hellip;</dd>
+      </div>
+      <div class="stat" style="--c: var(--c-orange)">
+        <dt>{T.longestStreak}</dt>
+        <dd data-record>&hellip;</dd>
+        <dd class="stat__sub" data-record-by></dd>
+      </div>
+      <div class="stat" style="--c: var(--c-purple)">
+        <dt>{T.yourBest}</dt>
+        <dd data-best>0</dd>
+      </div>
+      <div class="stat" style="--c: var(--c-pink)">
+        <dt>{T.yourRank}</dt>
+        <dd data-rank>&ndash;</dd>
+      </div>
+    </dl>
+
+    <section class="board" aria-labelledby="board-heading">
+      <h2 id="board-heading">{T.leaderboard}</h2>
+      <ol class="board__list" data-top></ol>
+
+      <form class="name" data-name-form>
+        <label class="name__label" for="player-name">{T.nameLabel}</label>
+        <div class="name__row">
+          <input
+            class="name__input"
+            id="player-name"
+            name="name"
+            type="text"
+            maxlength="16"
+            autocomplete="nickname"
+            placeholder={T.namePlaceholder}
+          />
+          <Button type="submit" color="--c-green">Save</Button>
+        </div>
+      </form>
+      <p class="meta">{T.privacy}</p>
+    </section>
+  </div>
+</Fun>
+
+<style>
+  .game {
+    --red: #ff3b30;
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .game__head {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .stage {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+  }
+
+  .total {
+    display: grid;
+    gap: var(--space-1);
+    max-width: none;
+  }
+
+  .total__num {
+    font-family: var(--font-display);
+    font-size: clamp(2.6rem, 12vw, 6rem);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .total__num.is-bump {
+    transform: scale(1.06);
+  }
+
+  .total__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  /* The red button: a thick cylinder you push down into its shadow */
+  .big {
+    --depth: 12px;
+    display: grid;
+    place-items: center;
+    width: clamp(180px, 56vw, 280px);
+    aspect-ratio: 1;
+    margin-bottom: var(--depth);
+    padding: 0;
+    background: var(--red);
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+    box-shadow:
+      0 var(--depth) 0 var(--ink),
+      0 var(--depth) 0 var(--line) var(--ink);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform 70ms ease-out,
+      box-shadow 70ms ease-out;
+  }
+
+  .big:hover {
+    filter: brightness(1.05);
+  }
+
+  .big:active,
+  .big.is-down {
+    transform: translateY(calc(var(--depth) - 3px));
+    box-shadow:
+      0 3px 0 var(--ink),
+      0 3px 0 var(--line) var(--ink);
+  }
+
+  .big:focus-visible {
+    outline: var(--line) dashed var(--ink);
+    outline-offset: 6px;
+  }
+
+  .big__face {
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 6vw, 2.4rem);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+
+  .streak,
+  .status {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .streak b {
+    display: inline-block;
+    min-width: 2ch;
+    padding: 0 6px;
+    background: var(--c-yellow);
+    border: 2px solid var(--ink);
+    border-radius: 6px;
+  }
+
+  .status {
+    padding: var(--space-2) var(--space-3);
+    background: var(--c-grey);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+  }
+
+  .stat {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    background: var(--c);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .stat dt {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .stat dd {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat dd.stat__sub {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .stat dd.stat__sub:empty {
+    display: none;
+  }
+
+  .board {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .board__list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: rank;
+  }
+
+  .board__list:empty::before {
+    content: '—';
+    color: var(--muted);
+  }
+
+  /* List items are created by the script, so Astro's scoped attribute is not on them */
+  .board__list :global(li) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    max-width: none;
+    min-height: 48px;
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    counter-increment: rank;
+  }
+
+  .board__list :global(li)::before {
+    content: counter(rank);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    background: var(--c-yellow);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .board__list :global(li.is-you) {
+    background: var(--c-yellow);
+  }
+
+  .board__list :global(.board__name) {
+    flex: 1;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .board__list :global(.board__clicks) {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .name {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .name__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .name__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .name__input {
+    flex: 1 1 200px;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .name__input:focus-visible {
+    outline: var(--line) dashed var(--ink);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .total__num,
+    .big {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  /**
+   * Clicks are counted locally right away and sent to /api/the-button/click in
+   * small batches (a few hundred ms of clicking per request). The server answers
+   * with the fresh global numbers. While nobody is clicking, the numbers are
+   * refreshed every few seconds so other people's clicks show up too.
+   */
+  interface Stats {
+    total: number;
+    players: number;
+    today: number;
+    record: { name: string; streak: number } | null;
+    top: { name: string; clicks: number }[];
+    you: { name: string; clicks: number; best: number; rank: number | null };
+    accepted: number;
+  }
+
+  const API = '/api/the-button';
+  const ID_KEY = 'fun.player';
+  const NAME_KEY = 'fun.name';
+  const BATCH_MS = 350;
+  const POLL_MS = 6000;
+  const STREAK_GAP_MS = 2500;
+  const MAX_UNSENT = 500;
+
+  const fmt = new Intl.NumberFormat('en');
+
+  function storage(key: string, value?: string): string | null {
+    try {
+      if (value !== undefined) localStorage.setItem(key, value);
+      return localStorage.getItem(key);
+    } catch {
+      return value ?? null;
+    }
+  }
+
+  function playerId(): string {
+    const existing = storage(ID_KEY);
+    if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+    const id = crypto.randomUUID();
+    storage(ID_KEY, id);
+    return id;
+  }
+
+  function init() {
+    const root = document.querySelector<HTMLElement>('[data-the-button]');
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = 'true';
+
+    const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    const btn = $('[data-press]');
+    const totalEl = $('[data-total]');
+    const youEl = $('[data-you]');
+    const playersEl = $('[data-players]');
+    const todayEl = $('[data-today]');
+    const recordEl = $('[data-record]');
+    const recordByEl = $('[data-record-by]');
+    const bestEl = $('[data-best]');
+    const rankEl = $('[data-rank]');
+    const streakEl = $('[data-streak]');
+    const streakNEl = $('[data-streak-n]');
+    const statusEl = $('[data-status]');
+    const topEl = $('[data-top]');
+    const form = $<HTMLFormElement>('[data-name-form]');
+    const nameInput = $<HTMLInputElement>('#player-name');
+    const anon = root.dataset.anon ?? 'anonymous';
+    const by = root.dataset.by ?? 'by';
+
+    const player = playerId();
+    let name: string | undefined = storage(NAME_KEY) ?? undefined;
+    if (name) nameInput.value = name;
+
+    // Numbers as last confirmed by the server, plus what is still on its way
+    let serverTotal = 0;
+    let serverYou = 0;
+    let unsent = 0;
+    let inflight = 0;
+    let pendingName: string | undefined;
+    let batchTimer: number | undefined;
+    let pollTimer: number | undefined;
+    let lastClickAt = 0;
+    let streak = 0;
+    let streakTimer: number | undefined;
+    let offline = false;
+
+    function render(stats?: Stats) {
+      if (stats) {
+        serverTotal = stats.total;
+        serverYou = stats.you.clicks;
+        playersEl.textContent = fmt.format(stats.players);
+        todayEl.textContent = fmt.format(stats.today);
+        bestEl.textContent = fmt.format(Math.max(stats.you.best, streak));
+        rankEl.textContent = stats.you.rank ? `#${fmt.format(stats.you.rank)}` : '–';
+        if (stats.record) {
+          recordEl.textContent = fmt.format(stats.record.streak);
+          recordByEl.textContent = `${by} ${stats.record.name || anon}`;
+        } else {
+          recordEl.textContent = '0';
+          recordByEl.textContent = '';
+        }
+        topEl.replaceChildren(
+          ...stats.top.map((row) => {
+            const li = document.createElement('li');
+            const n = document.createElement('span');
+            n.className = 'board__name';
+            n.textContent = row.name || anon;
+            const c = document.createElement('span');
+            c.className = 'board__clicks';
+            c.textContent = fmt.format(row.clicks);
+            li.append(n, c);
+            if (stats.you.rank && stats.you.rank - 1 === stats.top.indexOf(row)) li.classList.add('is-you');
+            return li;
+          }),
+        );
+      }
+      totalEl.textContent = fmt.format(serverTotal + unsent + inflight);
+      youEl.textContent = fmt.format(serverYou + unsent + inflight);
+    }
+
+    function setOffline(value: boolean) {
+      if (offline === value) return;
+      offline = value;
+      statusEl.hidden = !value;
+    }
+
+    async function send(n: number, nameToSend?: string) {
+      const res = await fetch(`${API}/click`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ player, n, name: nameToSend }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return (await res.json()) as Stats;
+    }
+
+    async function flush() {
+      batchTimer = undefined;
+      if (inflight > 0) return; // the running request finishes first, then flushes again
+      if (unsent === 0 && pendingName === undefined) return;
+      inflight = Math.min(unsent, 50);
+      unsent -= inflight;
+      const nameToSend = pendingName;
+      pendingName = undefined;
+      try {
+        const stats = await send(inflight, nameToSend);
+        inflight = 0;
+        setOffline(false);
+        render(stats);
+      } catch {
+        // Keep the clicks, try again a bit later
+        unsent = Math.min(MAX_UNSENT, unsent + inflight);
+        inflight = 0;
+        if (nameToSend !== undefined) pendingName = nameToSend;
+        setOffline(true);
+        render();
+      }
+      if (unsent > 0 || pendingName !== undefined) scheduleFlush(offline ? 3000 : BATCH_MS);
+    }
+
+    function scheduleFlush(delay = BATCH_MS) {
+      if (batchTimer === undefined) batchTimer = window.setTimeout(flush, delay);
+    }
+
+    async function poll(initial = false) {
+      if (!initial && (document.hidden || Date.now() - lastClickAt < POLL_MS || inflight > 0 || unsent > 0)) return;
+      try {
+        const res = await fetch(`${API}?player=${encodeURIComponent(player)}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setOffline(false);
+        render((await res.json()) as Stats);
+      } catch {
+        setOffline(true);
+      }
+    }
+
+    function press() {
+      const now = Date.now();
+      streak = now - lastClickAt <= STREAK_GAP_MS ? streak + 1 : 1;
+      lastClickAt = now;
+      unsent = Math.min(MAX_UNSENT, unsent + 1);
+
+      streakEl.hidden = streak < 2;
+      streakNEl.textContent = fmt.format(streak);
+      const best = Number(bestEl.textContent?.replace(/\D/g, '')) || 0;
+      if (streak > best) bestEl.textContent = fmt.format(streak);
+      window.clearTimeout(streakTimer);
+      streakTimer = window.setTimeout(() => {
+        streakEl.hidden = true;
+        streak = 0;
+      }, STREAK_GAP_MS);
+
+      totalEl.classList.remove('is-bump');
+      void totalEl.offsetWidth;
+      totalEl.classList.add('is-bump');
+
+      render();
+      scheduleFlush();
+    }
+
+    btn.addEventListener('click', press);
+    // Hold the pressed look for keyboard users too
+    btn.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') btn.classList.add('is-down');
+    });
+    btn.addEventListener('keyup', () => btn.classList.remove('is-down'));
+    btn.addEventListener('blur', () => btn.classList.remove('is-down'));
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      name = nameInput.value.trim().slice(0, 16);
+      storage(NAME_KEY, name);
+      pendingName = name;
+      scheduleFlush(0);
+      nameInput.blur();
+    });
+
+    // Do not lose the last clicks when the tab goes away
+    const sendBeacon = () => {
+      if (unsent === 0 || typeof navigator.sendBeacon !== 'function') return;
+      const body = new Blob([JSON.stringify({ player, n: Math.min(unsent, 50), name: pendingName })], { type: 'application/json' });
+      if (navigator.sendBeacon(`${API}/click`, body)) {
+        serverTotal += Math.min(unsent, 50);
+        serverYou += Math.min(unsent, 50);
+        unsent = 0;
+        pendingName = undefined;
+      }
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) sendBeacon();
+      else poll();
+    });
+    window.addEventListener('pagehide', sendBeacon);
+
+    pollTimer = window.setInterval(poll, POLL_MS);
+    document.addEventListener('astro:before-swap', () => window.clearInterval(pollTimer), { once: true });
+
+    render();
+    poll(true);
+  }
+
+  document.addEventListener('astro:page-load', init);
+</script>

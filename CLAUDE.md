@@ -51,8 +51,14 @@ npm run build        # Produktions-Build nach dist/ (führt astro check mit aus)
 npm run preview      # dist/ lokal ansehen
 npm run og           # Standard-OG-Bild neu erzeugen (nach Änderung von Name/Tagline)
 npm run deploy       # Build + direkter Upload in den Cloudflare Worker (braucht `npx wrangler login`)
+npm run fun          # Worker + Durable Object lokal (wrangler dev) als fun.jxsi.ch auf http://localhost:8787, braucht vorher `npm run build`
+npm run fun:www      # dasselbe als www.jxsi.ch (zum Prüfen der /fun-Weiterleitung)
 npx astro check      # Typen und Content-Schemas prüfen
 ```
+
+`npm run dev` und `npm run preview` kennen weder den Worker noch die API: die
+Fun-Spiele zeigen dort "counter unreachable". Alles mit `/api/*` oder dem
+Fun-Host wird mit `npm run fun` geprüft (Daten liegen lokal in `.wrangler/state`).
 
 Vor jedem "fertig" muss `npm run build` ohne Fehler und ohne Warnungen laufen.
 Einzige bekannte Ausnahme: `[WARN] Failed to revalidate cached remote image
@@ -69,7 +75,7 @@ Absoluter Pfad als Notnagel: `%APPDATA%\fnm\node-versions\v24.21.0\installation`
 
 npm blockiert Install-Skripte neuer Pakete standardmässig. Nach `npm install`
 die Warnung prüfen und mit `npm install-scripts approve <paket>` freigeben,
-dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild).
+dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild, workerd).
 
 ## Ordnerstruktur
 
@@ -143,6 +149,7 @@ Komponenten-Code wird dafür nie angefasst.
 | `/schedule.ics`    | iCalendar-Feed des Zeitplans zum Abonnieren |
 | `/privacy/[slug]`  | Rechtstexte aus der `legal`-Collection, z. B. `/privacy/forgot` |
 | `/card`            | Alias der Startseite (gleiche `CardScreen`-Komponente, Canonical → `/`), damit gedruckte QR-Codes auf `/card?src=print` weiter funktionieren |
+| `/fun`, `/fun/*`   | Nur im Build: Quelle für `fun.jxsi.ch` (siehe unten). Auf www leitet der Worker nach `fun.jxsi.ch/*` um |
 | `/contact.vcf`     | vCard-Download |
 | `/rss.xml`         | Feed der Updates |
 | `/robots.txt`      | generiert, Sitemap-Link aus `site` |
@@ -153,6 +160,41 @@ OG-Bild: Projekt-Cover auf Detailseiten, Update-Cover falls vorhanden, sonst
 morphen per `transition:name="cover-<slug>"` von der Karte zur Detailseite.
 
 Alle Routen auf Englisch, kleingeschrieben, keine Trailing-Slashes.
+
+### Fun-Subdomain `fun.jxsi.ch`
+
+Browser-Spiele ohne Account. Die Seiten liegen unter `src/pages/fun/` (Layout
+`src/layouts/Fun.astro`, eigener kleiner Header, kein Hauptmenü) und landen im
+Build unter `dist/fun*`. `worker.js` bedient den Host `fun.jxsi.ch` aus genau
+diesen Dateien: `fun.jxsi.ch/` → `dist/fun.html`, `fun.jxsi.ch/the-button` →
+`dist/fun/the-button.html`; `/_astro/*` und `favicon.svg` sind geteilt.
+`www.jxsi.ch/fun/*` leitet nach `fun.jxsi.ch/*` um, die Sitemap lässt `/fun`
+aus (Filter in `astro.config.mjs`), Canonical ist die Fun-URL (`SITE.fun.url`).
+Links zwischen Fun-Seiten sind **relativ** (`the-button`, `./`), damit sie auf
+beiden Hosts stimmen; zurück zur Hauptseite absolut (`SITE.url`).
+
+| Route (fun-Host)  | Inhalt |
+|-------------------|--------|
+| `/`               | Liste der Spiele (`src/pages/fun/index.astro`) |
+| `/the-button`     | The Button: roter Knopf, globaler Zähler aller Klicks aller Menschen, nie zurückgesetzt. Stats: eigene Klicks, Anzahl Klicker, Klicks heute, längste Serie (global, mit Name), eigene beste Serie, eigener Rang, Top 5, optionaler Name |
+
+**API und Speicher:** `/api/the-button` (GET Stats, `?player=<uuid>`) und
+`/api/the-button/click` (POST `{player, n, name?}`, `n` ≤ 50 pro Request, `n`
+= 0 setzt nur den Namen) laufen in `worker.js` auf jedem Host und landen in
+**einem** Durable Object `TheButton` (SQLite, Binding `THE_BUTTON`, Migration
+`v1` in `wrangler.jsonc`; im Free-Plan enthalten). Tabellen `players`
+(id, name, clicks, streak, best_streak, first_seen, last_seen) und `daily`.
+Serie = Klicks mit höchstens 2,5 s Abstand. Autoclicker-Bremse: pro Spieler
+höchstens ein Klick je 40 ms plus 5 Burst, Überschuss wird still verworfen.
+Spieler-ID = `crypto.randomUUID()` in `localStorage` (`fun.player`), Name in
+`fun.name`, maximal 16 Zeichen, serverseitig auf Buchstaben/Ziffern/`_ .-`
+reduziert. Der Client zählt sofort lokal, sendet alle 350 ms gebündelt, pollt
+alle 6 s wenn nicht geklickt wird, schickt beim Verlassen per `sendBeacon` nach
+und hält Klicks bei Netzfehlern zurück (max. 500).
+
+Neue Spiele: Seite unter `src/pages/fun/`, Eintrag in der `games`-Liste von
+`fun/index.astro`, Strings in `UI.fun`. Braucht ein Spiel Speicher, bekommt es
+eine eigene DO-Klasse in `worker.js` plus Binding und neue Migration (`v2`, …).
 
 ## Datenmodell
 
@@ -450,7 +492,8 @@ die Website ist die eigentliche Karte.
    Komponenten nutzen. Optionale Felder haben Defaults im Schema.
 3. **Keine neuen Abhängigkeiten ohne Grund.** Bevor ein Paket installiert wird:
    kurz begründen. Erlaubt ohne Nachfrage: `@astrojs/sitemap`, `@astrojs/rss`,
-   `@fontsource/*`, `sharp`, `simple-icons` (Marken-Icons, nur zur Build-Zeit).
+   `@fontsource/*`, `sharp`, `simple-icons` (Marken-Icons, nur zur Build-Zeit),
+   `wrangler` (Dev-Dependency für `npm run fun` und `npm run deploy`).
 4. **Jede Seite mobil prüfen** (360px) bevor sie als fertig gilt. Bei
    UI-Änderungen Screenshot in Mobile und Desktop machen.
 5. **Barrierefreiheit ist Pflicht**: semantisches HTML, Skip-Link, sichtbarer

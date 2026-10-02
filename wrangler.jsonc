@@ -1,4 +1,5 @@
-// Cloudflare Workers config: static assets from dist/ plus a tiny redirect worker (worker.js).
+// Cloudflare Workers config: static assets from dist/ plus worker.js (redirects, the
+// fun.jxsi.ch subdomain and the fun-games API on a Durable Object).
 // With this file present, `wrangler deploy` uploads dist/ as-is and does not
 // try to auto-configure the project (which would add the SSR adapter).
 {
@@ -10,17 +11,24 @@
   // the zone jxsi.ch is active on this Cloudflare account.
   "routes": [
     { "pattern": "www.jxsi.ch", "custom_domain": true },
-    { "pattern": "jxsi.ch", "custom_domain": true }
+    { "pattern": "jxsi.ch", "custom_domain": true },
+    { "pattern": "fun.jxsi.ch", "custom_domain": true }
   ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // Run worker.js for every request so the apex redirect can happen; it passes
-    // everything else to the assets immediately.
+    // Run worker.js for every request: redirects, the fun host mapping and /api/*
+    // happen there; everything else is passed to the assets immediately.
     "run_worker_first": true,
     // Serve /card for card.html, redirect /card/ and /card.html to /card
     "html_handling": "auto-trailing-slash",
     // Serve dist/404.html with status 404 for unknown paths
     "not_found_handling": "404-page"
-  }
+  },
+  // One Durable Object (SQLite-backed, included in the free plan) holds every
+  // click on The Button, so the counter is global, atomic and never resets.
+  "durable_objects": {
+    "bindings": [{ "name": "THE_BUTTON", "class_name": "TheButton" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TheButton"] }]
 }

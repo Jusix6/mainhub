@@ -1,9 +1,11 @@
 # Deploy auf Cloudflare Workers (statische Assets)
 
-Die Seite ist rein statisch (`dist/`) und läuft als Cloudflare Worker mit
-Static Assets. Das ist Cloudflares aktueller Standardweg (Pages geht darin
-auf). Es gibt keinen Server-Code, `wrangler.jsonc` beschreibt nur das
-Asset-Verzeichnis.
+Die Seite ist statisch (`dist/`) und läuft als Cloudflare Worker mit Static
+Assets. Das ist Cloudflares aktueller Standardweg (Pages geht darin auf).
+`worker.js` ist klein: Redirects, die Zuordnung des Hosts `fun.jxsi.ch` zu den
+Seiten unter `dist/fun*` und die API der Fun-Spiele, deren Daten in einem
+Durable Object (`TheButton`, SQLite) liegen. `wrangler.jsonc` beschreibt
+Assets, Domains, das DO-Binding und seine Migration.
 
 Das Projekt ist per Git-Integration mit `Jusix6/mainhub` verbunden:
 **jeder Push auf `main` deployt automatisch.**
@@ -47,6 +49,21 @@ angezeigten DS-Eintrag bei hosttech unter "DNSSEC Einstellungen" eintragen.
 `_redirects` kann den Apex-Redirect nicht: Bei Workers sind dort nur relative
 Ziele erlaubt.
 
+## Fun-Subdomain und Durable Object
+
+- `fun.jxsi.ch` ist als dritte Custom Domain in `wrangler.jsonc` eingetragen
+  und wird beim Deploy automatisch angelegt (DNS + Zertifikat), gleich wie www.
+- Das Durable Object `TheButton` wird mit der Migration `v1`
+  (`new_sqlite_classes`) beim ersten Deploy erzeugt. Die Daten (alle Klicks)
+  leben nur dort: **nie** die Klasse umbenennen oder die Migration löschen,
+  sonst ist der Zähler weg. Neue Felder kommen per `CREATE TABLE IF NOT EXISTS`
+  / `ALTER TABLE` im Konstruktor dazu.
+- Lokal testen: `npm run build`, dann `npm run fun` und
+  http://localhost:8787/the-button öffnen. Lokale Daten liegen in
+  `.wrangler/state` (gitignored) und haben nichts mit den Live-Daten zu tun.
+- Live-Daten ansehen: Dashboard → Workers & Pages → `mainhub` → Durable Objects,
+  oder einfach `https://fun.jxsi.ch/api/the-button` aufrufen.
+
 ## Ohne Git deployen (Notfall oder Test)
 
 ```bash
@@ -70,6 +87,8 @@ YouTube-Channel-ID. Danach `npm run build` lokal prüfen und pushen.
 - [ ] `/card?src=print` zeigt die Karte mit Gruss.
 - [ ] Unbekannte URL liefert die 404-Seite mit Status 404.
 - [ ] Nach Domain-Setup: `https://jxsi.ch/projects` → `https://www.jxsi.ch/projects`.
+- [ ] `https://fun.jxsi.ch/the-button` lädt, Klick erhöht den Zähler, Reload
+      behält ihn; `https://www.jxsi.ch/fun` leitet nach `https://fun.jxsi.ch/`.
 - [ ] Vorschau-Bild: Link in WhatsApp oder Discord einfügen oder
       https://www.opengraph.xyz nutzen. Gelbe Karte, auf Projektseiten das Cover.
 - [ ] Lighthouse auf der Live-URL, Mobile: alle Kategorien ≥ 95.

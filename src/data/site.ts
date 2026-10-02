@@ -59,6 +59,10 @@ export const SITE = {
       videos: '184',
     } as Partial<Record<'apps' | 'games' | 'music' | 'videos', string>>,
   },
+  /** Fun games live on their own subdomain; the worker maps it to the pages under src/pages/fun/. */
+  fun: {
+    url: 'https://fun.jxsi.ch',
+  },
   twitch: {
     url: 'https://www.twitch.tv/jusidroppop',
     // Free text shown next to the Twitch link, leave empty to hide

@@ -9,7 +9,12 @@ export default defineConfig({
   site: SITE,
   output: 'static',
   trailingSlash: 'never',
-  integrations: [sitemap()],
+  integrations: [
+    sitemap({
+      // Pages under /fun/ are served on fun.jxsi.ch (see worker.js); www redirects there.
+      filter: (page) => !/\/fun(\/|$)/.test(new URL(page).pathname),
+    }),
+  ],
   build: {
     format: 'file',
   },

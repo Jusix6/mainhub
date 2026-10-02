@@ -1,0 +1,120 @@
+---
+/**
+ * fun.jxsi.ch – list of the browser games. Served at the fun host root; on
+ * www.jxsi.ch the worker redirects /fun to the fun host.
+ */
+import Fun from '@/layouts/Fun.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import { UI } from '@/data/ui';
+
+const games = [
+  {
+    href: 'the-button',
+    title: UI.fun.theButton.title,
+    tagline: UI.fun.theButton.tagline,
+    color: '--c-pink',
+  },
+];
+---
+
+<Fun title={UI.fun.indexTitle} description={UI.fun.indexIntro} path="/">
+  <div class="container">
+    <header class="head">
+      <h1><span class="marker" style="--marker: var(--c-pink)">{UI.fun.indexTitle}</span></h1>
+      <p>{UI.fun.indexIntro}</p>
+    </header>
+
+    <ul class="games" aria-label={UI.fun.indexTitle}>
+      {
+        games.map((g) => (
+          <li class="game" style={`--c: var(${g.color})`}>
+            <span class="game__dot" aria-hidden="true">
+              <Icon name="games" size={28} />
+            </span>
+            <div class="game__body">
+              <h2 class="game__title">{g.title}</h2>
+              <p class="game__tagline">{g.tagline}</p>
+            </div>
+            <Button href={g.href} color={g.color} iconAfter="arrow">
+              {UI.fun.play}
+            </Button>
+          </li>
+        ))
+      }
+    </ul>
+
+    <p class="meta more">{UI.fun.moreSoon}</p>
+  </div>
+</Fun>
+
+<style>
+  .head {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+  }
+
+  .games {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .game {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-3);
+    align-items: center;
+    max-width: none;
+    padding: var(--space-4);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  .game__dot {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    background: var(--c);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    transform: rotate(-6deg);
+  }
+
+  .game__body {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .game__title {
+    font-size: var(--text-xl);
+  }
+
+  .game__tagline {
+    color: var(--muted);
+  }
+
+  .game :global(.btn) {
+    grid-column: 1 / -1;
+  }
+
+  @media (min-width: 640px) {
+    .game {
+      grid-template-columns: auto 1fr auto;
+    }
+
+    .game :global(.btn) {
+      grid-column: auto;
+    }
+  }
+
+  .more {
+    margin-top: var(--space-5);
+  }
+</style>

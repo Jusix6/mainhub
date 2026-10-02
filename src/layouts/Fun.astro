@@ -1,0 +1,115 @@
+---
+/**
+ * Layout for the fun games on fun.jxsi.ch. The pages live under src/pages/fun/
+ * and are built to dist/fun/, the worker serves them at the root of the fun
+ * host. Links between fun pages are relative so they work on both hosts.
+ * No main nav here: a small header with a way back to the main site is enough.
+ */
+import Head from '@/components/Head.astro';
+import Icon from '@/components/Icon.astro';
+import Sticker from '@/components/Sticker.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Path on the fun host, e.g. "/the-button". Used for the canonical URL. */
+  path: string;
+  /** Relative link back to the fun index, "./" from a game page. */
+  indexHref?: string;
+}
+
+const { title, description, path, indexHref } = Astro.props;
+const canonical = new URL(path, SITE.fun.url).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <Head title={`${title} · ${UI.fun.title}`} description={description} canonical={canonical} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>
+    <header class="fun-header">
+      <div class="container fun-header__inner">
+        {
+          indexHref ? (
+            <a class="fun-header__brand" href={indexHref}>
+              <Sticker color="--c-pink" rotate={-4}>{UI.fun.title}</Sticker>
+            </a>
+          ) : (
+            <span class="fun-header__brand">
+              <Sticker color="--c-pink" rotate={-4}>{UI.fun.title}</Sticker>
+            </span>
+          )
+        }
+        <a class="fun-header__back" href={`${SITE.url}/hub`}>
+          {UI.fun.backToSite}
+          <Icon name="arrow" size={16} />
+        </a>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="fun-footer">
+      <p class="container meta">
+        © {new Date().getFullYear()} {SITE.name} · {UI.footer.madeIn} · <a href={SITE.url}>{SITE.url.replace('https://', '')}</a>
+      </p>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .fun-header {
+    border-bottom: var(--line) solid var(--ink);
+    background: var(--surface);
+  }
+
+  .fun-header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 64px;
+  }
+
+  .fun-header__brand {
+    text-decoration: none;
+  }
+
+  .fun-header__back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+    background: var(--c-yellow);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  .fun-header__back:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  main {
+    padding-block: var(--space-5) var(--space-6);
+  }
+
+  .fun-footer {
+    border-top: var(--line) solid var(--ink);
+    padding-block: var(--space-4);
+  }
+</style>
