@@ -7,7 +7,7 @@ const svg = `
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#ffb35c"/>
-      <stop offset="1" stop-color="#ff7a1a"/>
+      <stop offset="1" stop-color="#ff5a1f"/>
     </linearGradient>
   </defs>
   <rect width="600" height="750" fill="url(#bg)"/>

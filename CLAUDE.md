@@ -337,7 +337,7 @@ Schatten, knallige Flächen auf cremeweissem Grund. Kein Template-Look.
   --c-pink:    #FF5DA2;
   --c-blue:    #4D8DFF;   /* heller als klassisches Elektroblau, damit Ink-Text AA schafft */
   --c-purple:  #9B5DE5;
-  --c-orange:  #FF7A1A;
+  --c-orange:  #FF5A1F;  /* rötlich, hebt sich vom Gelb ab */
   --c-green:   #3DDC84;
   --c-grey:    #E2DDD0;   /* neutrale Fläche für "Idea"/"Archived" */
 
