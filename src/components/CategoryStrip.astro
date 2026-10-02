@@ -74,9 +74,10 @@ import Icon from './Icon.astro';
     border-radius: var(--radius);
   }
 
+  /* Display font never below 20px: at 18px the dot of the "i" merges with its stem (see CLAUDE.md) */
   .tile__label {
     font-family: var(--font-display);
-    font-size: var(--text-lg);
+    font-size: var(--text-xl);
   }
 
   .tile__blurb {

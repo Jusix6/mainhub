@@ -369,6 +369,12 @@ Schatten, knallige Flächen auf cremeweissem Grund. Kein Template-Look.
 Textfarbe auf Signalflächen ist immer `--ink`, nie weiss. Kontrast auf allen
 Kombinationen mindestens AA prüfen.
 
+**Display-Schrift nie unter 20px.** Archivo Black setzt den Punkt des kleinen
+"i" sehr nah an den Strich; bei 18px und darunter verschmelzen beide durch das
+Hinting in Chrome/Windows zu einem grossen "I" ("MusIc", "VIdeos"). Deshalb
+für Labels in der Display-Schrift mindestens `var(--text-xl)` (20px) nehmen,
+nie `--text-lg`.
+
 ### Komponenten-Regeln
 
 - **Karten, Buttons, Chips**: `border: var(--line) solid var(--ink)`,
