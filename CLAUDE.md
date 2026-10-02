@@ -466,7 +466,10 @@ das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
   Ausweis. Lighthouse Best Practices auf `/` deshalb 96 statt 100, akzeptiert.
 - **Rückseite**: Was ich mache (die sechs Kategorien als Mini-Chips), E-Mail,
   Socials als Pills mit Icon und Kurzlabel (`socials[].label` in `site.ts`, z. B.
-  "Main"/"Gaming" für die zwei YouTube-Kanäle), Button "Save contact" → `/contact.vcf`. Zweiter Button je
+  "Main"/"Gaming" für die zwei YouTube-Kanäle; auf Karten unter 420px Breite
+  per Container-Query kompakter: Label nur bei doppelt vorkommenden Netzwerken,
+  kleinere Chips und Buttons, damit die Karte auf dem Handy etwa 4:3 bleibt
+  statt zu einem hohen Blatt zu wachsen), Button "Save contact" → `/contact.vcf`. Zweiter Button je
   nach Kontext: auf `/` und `/card` (Prop `standalone`) "Explore the site" →
   `/hub`, im Hub-Hero "See my work" → `/projects`. Unter der Karte steht auf der
   Startseite kein weiterer Button.

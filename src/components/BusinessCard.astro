@@ -125,9 +125,18 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
           {
             SITE.socials.map((s) => {
               const def = getLinkType(s.type);
+              // On small cards only the networks that appear twice (the two YouTube channels) keep their label
+              const dup = SITE.socials.filter((o) => o.type === s.type).length > 1;
               return (
                 <li>
-                  <a href={s.url} target="_blank" rel="me noopener" aria-label={`${def.label}: ${s.handle}`} style={`--c: var(${def.color})`}>
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="me noopener"
+                    aria-label={`${def.label}: ${s.handle}`}
+                    style={`--c: var(${def.color})`}
+                    data-dup={dup ? '' : undefined}
+                  >
                     <Icon name={def.icon} size={16} />
                     <span>{s.label}</span>
                   </a>
@@ -623,6 +632,57 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
   }
 
   /* Reduced motion: crossfade instead of rotation */
+  /* Small cards (phones): tighten the back so the card keeps a card-like shape
+     instead of growing into a tall sheet. Labels stay only where they tell two
+     networks apart; everything else shrinks a step. */
+  @container (max-width: 420px) {
+    .face--back {
+      gap: 8px;
+      padding-bottom: calc(clamp(14px, 5cqw, 28px) + 40px);
+    }
+
+    .back__cats {
+      gap: 3px 4px;
+    }
+
+    .back__cats li {
+      padding: 0 6px;
+      font-size: 11px;
+      border-width: 2px;
+    }
+
+    .back__socials {
+      gap: 4px;
+    }
+
+    /* Five pills must fit one row at 360px viewports (289px inner width) */
+    .back__socials a {
+      gap: 5px;
+      min-height: 32px;
+      padding: 0 7px;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+    }
+
+    .back__socials a:not([data-dup]) span {
+      display: none;
+    }
+
+    .back__actions {
+      gap: 6px;
+    }
+
+    .back__actions :global(.btn) {
+      min-height: 36px;
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+
+    .back__flip {
+      min-height: 28px;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .tilt,
     .card {
