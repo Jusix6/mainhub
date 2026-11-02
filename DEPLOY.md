@@ -78,6 +78,15 @@ Baut lokal und lädt `dist/` in denselben Worker hoch.
 In `src/data/site.ts` die Platzhalter ersetzen: E-Mail, Social-URLs,
 YouTube-Channel-ID. Danach `npm run build` lokal prüfen und pushen.
 
+## Sicherheits-Header prüfen
+
+```bash
+curl -sI https://www.jxsi.ch/hub | grep -iE "content-security|strict-transport|x-frame"
+```
+
+Alle drei müssen da sein. Fehlt die CSP, hat `scripts/csp.mjs` im Build nicht
+gelaufen (Build-Befehl im Dashboard muss `npm run build` sein, nicht `astro build`).
+
 ## Nach dem Deploy prüfen
 
 - [ ] Worker-URL (`mainhub.<subdomain>.workers.dev`) lädt, Karte dreht sich,

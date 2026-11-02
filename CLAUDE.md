@@ -47,7 +47,7 @@ Kommentare und Code auf Englisch.
 ```bash
 npm install          # Abhängigkeiten
 npm run dev          # Dev-Server auf http://localhost:4321
-npm run build        # Produktions-Build nach dist/ (führt astro check mit aus)
+npm run build        # astro check, astro build, dann scripts/csp.mjs (CSP-Hashes in dist/_headers)
 npm run preview      # dist/ lokal ansehen
 npm run og           # Standard-OG-Bild neu erzeugen (nach Änderung von Name/Tagline)
 npm run deploy       # Build + direkter Upload in den Cloudflare Worker (braucht `npx wrangler login`)
@@ -76,6 +76,7 @@ Absoluter Pfad als Notnagel: `%APPDATA%\fnm\node-versions\v24.21.0\installation`
 npm blockiert Install-Skripte neuer Pakete standardmässig. Nach `npm install`
 die Warnung prüfen und mit `npm install-scripts approve <paket>` freigeben,
 dann `npm rebuild <paket>` (bereits freigegeben: sharp, esbuild, workerd).
+Nach jedem Update: `npm audit` muss sauber sein.
 
 ## Ordnerstruktur
 
@@ -515,6 +516,40 @@ wird abgefangen.
 - **Twitch**: nur Link + optionaler Sendeplan-Text aus `site.ts`. Kein Live-Status
   (bräuchte API-Token).
 - **Devlog**: Updates-Collection, RSS-Feed, Verknüpfung zu Projekten.
+
+## Sicherheit
+
+Die Seite ist statisch, die einzige Angriffsfläche ist die Button-API im
+Worker. Stand nach dem Audit vom 2026-11-02:
+
+- **Header** (`public/_headers`, gilt für alle Assets auf www und fun):
+  strikte Content-Security-Policy (`script-src 'self'` plus die Hashes der
+  Inline-Scripts, die `scripts/csp.mjs` nach jedem Build aus `dist/` berechnet
+  und einsetzt; `style-src 'unsafe-inline'` wegen der `style`-Attribute;
+  `frame-src` nur youtube-nocookie; `frame-ancestors 'none'`), HSTS mit
+  includeSubDomains, nosniff, COOP, Permissions-Policy. Astro darf keine
+  Komponenten-Scripts mehr inline schreiben (`assetsInlineLimit: 0`); taucht ein
+  unerwartetes Inline-Script auf, bricht `scripts/csp.mjs` den Build ab, dann
+  dessen `EXPECTED`-Liste bewusst erweitern.
+- **API** (`worker.js`): POST nur mit `Origin` von www/fun (lokal localhost),
+  nur `application/json`, Body maximal 512 Bytes, pro IP 240 Requests/Minute
+  (429), Spieler-ID als UUID validiert, Name serverseitig auf 16 druckbare
+  Zeichen reduziert, Klicks pro Request auf 50 und pro Spieler auf ~25/s
+  begrenzt. Antworten `no-store`, `nosniff`, `noindex`. Keine CORS-Header:
+  andere Origins können die API im Browser weder lesen noch beschreiben.
+- **Durable Object**: alle SQL-Statements parametrisiert, maximal 100 000
+  Spieler-Zeilen (danach werden unbekannte IDs ignoriert).
+- **Client**: Alles Fremde (Namen aus der Rangliste) landet nur über
+  `textContent` im DOM, nie über `innerHTML`. `localStorage` hält nur
+  Theme, Spieler-ID und Namen.
+- **Worker-Kontingent**: `run_worker_first: ["/*", "!/_astro/*"]`, damit die
+  gehashten Assets den Worker nicht aufrufen (Free-Plan-Limit pro Tag).
+- **Abhängigkeiten**: `npm audit` muss 0 Schwachstellen melden; bei Astro
+  bleiben wir auf dem aktuellen Major (seit dem Audit Astro 7, Zod kommt aus
+  `astro/zod`, URLs im Schema per `z.url()`).
+
+Nicht abgedeckt, bewusst: Namen auf der Rangliste sind unmoderiert (nur
+Zeichen-Whitelist); wer das braucht, hängt eine Wortliste in `cleanName` an.
 
 ## Arbeitsregeln für Claude
 

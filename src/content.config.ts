@@ -1,4 +1,5 @@
-import { defineCollection, reference, z } from 'astro:content';
+import { defineCollection, reference } from 'astro:content';
+import { z } from 'astro/zod';
 import { file, glob } from 'astro/loaders';
 import { CATEGORY_SLUGS } from './data/categories';
 import { STATUS_SLUGS } from './data/statuses';
@@ -25,7 +26,7 @@ const projects = defineCollection({
         .array(
           z.object({
             type: z.enum(LINK_TYPE_SLUGS),
-            url: z.string().url(),
+            url: z.url(),
             label: z.string().optional(),
           }),
         )
@@ -58,7 +59,7 @@ const schedule = defineCollection({
       end: z.coerce.date().optional(),
       type: z.enum(EVENT_TYPE_SLUGS),
       platform: z.enum(LINK_TYPE_SLUGS).optional(),
-      url: z.string().url().optional(),
+      url: z.url().optional(),
       project: reference('projects').optional(),
       note: z.string().max(200).optional(),
       tentative: z.boolean().default(false),

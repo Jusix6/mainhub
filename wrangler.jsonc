@@ -17,9 +17,10 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // Run worker.js for every request: redirects, the fun host mapping and /api/*
-    // happen there; everything else is passed to the assets immediately.
-    "run_worker_first": true,
+    // Run worker.js for every request except the hashed build assets: redirects,
+    // the fun host mapping and /api/* need it, fonts/images/css/js do not. Keeps
+    // the Workers request quota (free plan) for pages and the API.
+    "run_worker_first": ["/*", "!/_astro/*"],
     // Serve /card for card.html, redirect /card/ and /card.html to /card
     "html_handling": "auto-trailing-slash",
     // Serve dist/404.html with status 404 for unknown paths

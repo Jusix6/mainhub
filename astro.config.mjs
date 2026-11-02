@@ -22,4 +22,11 @@ export default defineConfig({
     // YouTube thumbnails are fetched and optimized at build time, no runtime request
     domains: ['i.ytimg.com'],
   },
+  vite: {
+    build: {
+      // Never inline component scripts as <script> blocks: the CSP only allows
+      // bundled files plus the hashed bootstrap in Head.astro (see scripts/csp.mjs).
+      assetsInlineLimit: 0,
+    },
+  },
 });

@@ -9,6 +9,12 @@
  *    counters are global, atomic and never reset.
  *
  * Everything else is handed straight to the static assets (dist/).
+ *
+ * Hardening (see CLAUDE.md "Sicherheit"): the API only accepts POSTs from our
+ * own origins, with a JSON content type and a tiny body, and throttles per IP.
+ * The Durable Object caps the number of player rows so storage cannot be
+ * flooded with random ids. Everything user-provided is validated here before
+ * it reaches the object.
  */
 import { DurableObject } from 'cloudflare:workers';
 
@@ -17,6 +23,7 @@ const APEX_HOST = 'jxsi.ch';
 const FUN_HOST = 'fun.jxsi.ch';
 const FUN_PREFIX = '/fun';
 const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST];
+const OUR_ORIGINS = [`https://${CANONICAL_HOST}`, `https://${FUN_HOST}`];
 
 /** Files at the site root that fun pages reference as well. */
 const SHARED_ROOT_FILES = ['/favicon.svg', '/apple-touch-icon.png', '/robots.txt'];
@@ -84,12 +91,22 @@ async function serveFun(request, env, url) {
 const PLAYER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_CLICKS_PER_REQUEST = 50;
 const MAX_NAME_LENGTH = 16;
+/** A click request is `{player, n, name?}`: a few dozen bytes. Anything bigger is not ours. */
+const MAX_BODY_BYTES = 512;
+/** Per-IP throttle (per isolate, so a soft limit). The client sends at most ~3 requests/s while clicking. */
+const RATE_LIMIT = 240;
+const RATE_WINDOW_MS = 60_000;
+const DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+const API_HEADERS = {
+  'content-type': 'application/json; charset=utf-8',
+  'cache-control': 'no-store',
+  'x-content-type-options': 'nosniff',
+  'x-robots-tag': 'noindex',
+};
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  });
+  return new Response(JSON.stringify(data), { status, headers: API_HEADERS });
 }
 
 /** Display names are shown to everyone: short, printable, no markup tricks. */
@@ -104,9 +121,47 @@ function cleanName(value) {
   return name;
 }
 
+/**
+ * Only pages we serve may write. Browsers always send Origin on POST and
+ * sendBeacon. In `wrangler dev` the proxy rewrites Origin to the simulated
+ * host over plain http, so DEV also accepts our hosts without https.
+ */
+function allowedOrigin(request, env) {
+  const origin = request.headers.get('origin') ?? '';
+  if (OUR_ORIGINS.includes(origin)) return true;
+  if (!env.DEV) return false;
+  if (DEV_ORIGIN.test(origin)) return true;
+  try {
+    return OUR_HOSTS.includes(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
+const hits = new Map();
+let lastSweep = 0;
+
+/** Sliding one-minute counter per client IP. Memory is bounded by sweeping old entries. */
+function throttled(request) {
+  const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  const now = Date.now();
+  if (now - lastSweep > RATE_WINDOW_MS) {
+    for (const [key, entry] of hits) if (now - entry.start > RATE_WINDOW_MS) hits.delete(key);
+    lastSweep = now;
+  }
+  const entry = hits.get(ip);
+  if (!entry || now - entry.start > RATE_WINDOW_MS) {
+    hits.set(ip, { start: now, count: 1 });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > RATE_LIMIT;
+}
+
 async function handleApi(request, env, url) {
   const match = url.pathname.match(/^\/api\/the-button(?:\/(click))?$/);
   if (!match) return json({ error: 'not found' }, 404);
+  if (throttled(request)) return json({ error: 'too many requests' }, 429);
 
   const stub = env.THE_BUTTON.get(env.THE_BUTTON.idFromName('the-button'));
 
@@ -116,16 +171,25 @@ async function handleApi(request, env, url) {
   }
 
   if (request.method === 'POST' && match[1] === 'click') {
+    if (!allowedOrigin(request, env)) return json({ error: 'forbidden' }, 403);
+    if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
+      return json({ error: 'unsupported media type' }, 415);
+    }
+    const declared = Number(request.headers.get('content-length') ?? 0);
+    if (declared > MAX_BODY_BYTES) return json({ error: 'payload too large' }, 413);
     let body;
     try {
-      body = await request.json();
+      const text = await request.text();
+      if (text.length > MAX_BODY_BYTES) return json({ error: 'payload too large' }, 413);
+      body = JSON.parse(text);
     } catch {
       return json({ error: 'bad json' }, 400);
     }
-    const player = typeof body?.player === 'string' ? body.player : '';
+    if (!body || typeof body !== 'object') return json({ error: 'bad json' }, 400);
+    const player = typeof body.player === 'string' ? body.player : '';
     if (!PLAYER_ID.test(player)) return json({ error: 'bad player' }, 400);
     const n = Math.max(0, Math.min(MAX_CLICKS_PER_REQUEST, Math.floor(Number(body.n) || 0)));
-    return json(await stub.click(player, n, cleanName(body.name)));
+    return json(await stub.click(player.toLowerCase(), n, cleanName(body.name)));
   }
 
   return json({ error: 'method not allowed' }, 405);
@@ -141,6 +205,8 @@ const STREAK_GAP_MS = 2500;
 const MIN_MS_PER_CLICK = 40;
 const BURST_ALLOWANCE = 5;
 const LEADERBOARD_SIZE = 5;
+/** Storage guard: beyond this many player rows, unknown ids are counted nowhere. */
+const MAX_PLAYERS = 100_000;
 
 const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' });
 
@@ -181,6 +247,8 @@ export class TheButton extends DurableObject {
     const now = Date.now();
     let row = this.sql.exec('SELECT * FROM players WHERE id = ?', player).toArray()[0];
     if (!row) {
+      const count = this.sql.exec('SELECT COUNT(*) AS c FROM players').one().c;
+      if (count >= MAX_PLAYERS) return this.snapshot('', 0);
       this.sql.exec('INSERT INTO players (id, first_seen, last_seen) VALUES (?, ?, ?)', player, now, 0);
       row = { clicks: 0, streak: 0, best_streak: 0, last_seen: 0 };
     }
