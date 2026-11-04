@@ -317,6 +317,7 @@ Verantwortlichen; hier gilt die Jusi-Regel nicht.
 - `sky-justin` – Sky & Justin, Minecraft-Minigame-Kanal mit Sky auf YouTube und TikTok (Kategorie `videos`)
 - `beats` – prod. by JXSI, Beats in FL Studio, Musikkanal @prodbyJXSI (Kategorie `music`)
 - `judgeitall` – JudgeItAll, kurzlebiger Bewertungs-Blog plus YouTube-Kanal aus 2025, pausiert (Kategorie `experiments`)
+- `frogtype` – FrogType, Typing-Game in 7 Tagen gebaut (Godot), auf itch.io, mit Video (Kategorie `games`)
 
 ## Design-System: Neo-Brutalist Playground
 
@@ -512,7 +513,11 @@ wird abgefangen.
   `https://www.youtube.com/feeds/videos.xml?channel_id=<ID>` (kein API-Key).
   Neuestes Video auf `/` mit Thumbnail und Link, Embed nur nach Klick
   (Facade-Pattern, `youtube-nocookie.com`). Schlägt der Fetch fehl, darf der Build
-  nicht brechen: Block wird ausgeblendet und eine Warnung geloggt.
+  nicht brechen: dann kommt das Video aus `src/data/latest-video.json`, dem
+  letzten Stand, den ein erfolgreicher Feed-Abruf dort gespeichert hat (Datei
+  mitcommitten, wenn sie sich nach einem Build ändert). Erst ohne Fallback
+  wird der Block ausgeblendet. Seit 2026-11-04 liefern die YouTube-RSS-Feeds
+  von hier aus 404; der Fallback hält den Block am Leben.
 - **Twitch**: nur Link + optionaler Sendeplan-Text aus `site.ts`. Kein Live-Status
   (bräuchte API-Token).
 - **Devlog**: Updates-Collection, RSS-Feed, Verknüpfung zu Projekten.

@@ -1,9 +1,13 @@
 /**
  * Reads the latest video from a channel's public RSS feed at build time.
- * No API key. Never throws: on any problem it logs a warning and returns null,
- * and the page simply hides the video block.
+ * No API key. Never throws: on any problem it logs a warning and falls back to
+ * src/data/latest-video.json, the last video a successful build has seen (that
+ * file is refreshed whenever the feed works, so commit it along). Only when
+ * there is no fallback either does the page hide the video block.
  */
+import { readFile, writeFile } from 'node:fs/promises';
 import { SITE } from '@/data/site';
+import fallback from '@/data/latest-video.json';
 
 export interface LatestVideo {
   id: string;
@@ -70,12 +74,39 @@ async function fetchLatestVideo(): Promise<LatestVideo | null> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const video = parseLatestVideo(await res.text());
-    if (!video) console.warn('[youtube] feed had no entries');
+    if (!video) throw new Error('feed had no entries');
+    await rememberVideo(video);
     return video;
   } catch (err) {
-    console.warn(`[youtube] could not read channel feed, hiding video block: ${(err as Error).message}`);
-    return null;
+    console.warn(`[youtube] could not read channel feed (${(err as Error).message}), using src/data/latest-video.json`);
+    return fallbackVideo();
   } finally {
     clearTimeout(timer);
+  }
+}
+
+const FALLBACK_PATH = new URL('../data/latest-video.json', import.meta.url);
+
+function fallbackVideo(): LatestVideo | null {
+  if (!fallback?.id) return null;
+  return {
+    id: fallback.id,
+    title: fallback.title,
+    published: new Date(fallback.published),
+    url: `https://www.youtube.com/watch?v=${fallback.id}`,
+    thumbnail: `https://i.ytimg.com/vi/${fallback.id}/hqdefault.jpg`,
+  };
+}
+
+/** Best effort: keep the fallback file current so a later feed outage still shows the newest video. */
+async function rememberVideo(video: LatestVideo) {
+  try {
+    const current = JSON.parse(await readFile(FALLBACK_PATH, 'utf8'));
+    if (current.id === video.id) return;
+    const data = { id: video.id, title: video.title, published: video.published.toISOString() };
+    await writeFile(FALLBACK_PATH, JSON.stringify(data, null, 2) + '\n');
+    console.log(`[youtube] fallback updated to ${video.id}, commit src/data/latest-video.json`);
+  } catch {
+    /* read-only or missing: nothing to do */
   }
 }
