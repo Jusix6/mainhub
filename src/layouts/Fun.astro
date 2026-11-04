@@ -18,16 +18,18 @@ interface Props {
   path: string;
   /** Relative link back to the fun index, "./" from a game page. */
   indexHref?: string;
+  /** Absolute URL of a social preview image for this game. */
+  image?: string;
 }
 
-const { title, description, path, indexHref } = Astro.props;
+const { title, description, path, indexHref, image } = Astro.props;
 const canonical = new URL(path, SITE.fun.url).href;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title={`${title} · ${UI.fun.title}`} description={description} canonical={canonical} />
+    <Head title={`${title} · ${UI.fun.title}`} description={description} canonical={canonical} image={image} />
   </head>
   <body>
     <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>

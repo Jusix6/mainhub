@@ -25,6 +25,9 @@ const FUN_PREFIX = '/fun';
 const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST];
 const OUR_ORIGINS = [`https://${CANONICAL_HOST}`, `https://${FUN_HOST}`];
 
+/** Short links on www and the apex that point at a fun game (jxsi.ch/10s → fun.jxsi.ch/10s). */
+const FUN_SHORT_LINKS = { '/10s': '/10s' };
+
 /** Files at the site root that fun pages reference as well. */
 const SHARED_ROOT_FILES = ['/favicon.svg', '/apple-touch-icon.png', '/robots.txt'];
 
@@ -37,6 +40,13 @@ export default {
       url.protocol = 'https:';
       if (url.hostname === APEX_HOST) url.hostname = CANONICAL_HOST;
       return Response.redirect(url.toString(), 301);
+    }
+    const shortPath = url.pathname.replace(/\/+$/, '') || '/';
+    if ((url.hostname === APEX_HOST || url.hostname === CANONICAL_HOST) && FUN_SHORT_LINKS[shortPath]) {
+      url.protocol = 'https:';
+      url.hostname = FUN_HOST;
+      url.pathname = FUN_SHORT_LINKS[shortPath];
+      return Response.redirect(url.toString(), 302);
     }
     if (url.hostname === APEX_HOST) {
       url.hostname = CANONICAL_HOST;

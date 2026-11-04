@@ -1,0 +1,444 @@
+---
+/**
+ * How long is 10 seconds? Press start, press stop when you think ten seconds
+ * have passed. No clock on screen. Runs fully in the browser; the best try is
+ * kept in localStorage. The percentage is an estimate from a normal
+ * distribution of human timing error, not real player data.
+ * Short link: jxsi.ch/10s (worker.js redirects it to fun.jxsi.ch/10s).
+ */
+import Fun from '@/layouts/Fun.astro';
+import Button from '@/components/Button.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import og from '@/assets/fun/10s-og.png';
+
+const T = UI.fun.tenSeconds;
+const ogImage = new URL(og.src, SITE.fun.url).href;
+const strings = {
+  exact: T.exact,
+  early: T.early,
+  late: T.late,
+  rankBefore: T.rankBefore,
+  rankAfter: T.rankAfter,
+  share: T.share,
+  copied: T.copied,
+  copyFailed: T.copyFailed,
+  newBest: T.newBest,
+  best: T.best,
+  shareText: T.shareText,
+  shareUrl: T.shareUrl,
+  title: T.title,
+  comments: T.comments,
+};
+---
+
+<Fun title={T.title} description={T.description} path="/10s" indexHref="./" image={ogImage}>
+  <div class="container ten" data-ten data-strings={JSON.stringify(strings)}>
+    <header class="ten__head">
+      <h1><span class="marker" style="--marker: var(--c-blue)">{T.title}</span></h1>
+      <p class="ten__sub" data-sub>{T.intro}</p>
+    </header>
+
+    <section class="stage" aria-label={T.title}>
+      <div class="view" data-view="start">
+        <button class="ten-btn" type="button" data-start>{T.start}</button>
+        <p class="hint">{T.hint}</p>
+      </div>
+
+      <div class="view" data-view="run" hidden>
+        <button class="ten-btn ten-btn--stop" type="button" data-stop>{T.stop}</button>
+        <p class="hint">{T.counting}</p>
+      </div>
+
+      <div class="view view--result" data-view="result" hidden>
+        <div aria-live="polite">
+          <p class="ten-time" data-time>0.00s</p>
+          <p class="ten-off" data-off></p>
+        </div>
+        <p class="ten-rank" data-rank></p>
+        <p class="ten-comment" data-comment></p>
+        <div class="ten-actions">
+          <Button data-share icon="external"><span data-share-label>{T.share}</span></Button>
+          <Button data-again variant="outline" iconAfter="arrow">{T.again}</Button>
+        </div>
+        <p class="meta ten-best" data-best></p>
+      </div>
+
+      <noscript><p class="hint">{T.noJs}</p></noscript>
+    </section>
+  </div>
+</Fun>
+
+<style>
+  .ten {
+    display: grid;
+    gap: var(--space-5);
+    max-width: 720px;
+  }
+
+  .ten__head {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .stage {
+    display: grid;
+    padding: var(--space-5) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+  }
+
+  .view {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-3);
+  }
+
+  .view[hidden] {
+    display: none;
+  }
+
+  .hint {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  /* Same push-down cylinder as The Button, a touch smaller */
+  .ten-btn {
+    --depth: 12px;
+    --fill: var(--c-yellow);
+    display: grid;
+    place-items: center;
+    width: clamp(170px, 50vw, 220px);
+    aspect-ratio: 1;
+    margin-bottom: var(--depth);
+    padding: 0;
+    background: var(--fill);
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+    box-shadow:
+      0 var(--depth) 0 var(--ink),
+      0 var(--depth) 0 var(--line) var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 6vw, 2rem);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform 70ms ease-out,
+      box-shadow 70ms ease-out;
+  }
+
+  .ten-btn--stop {
+    --fill: #ff3b30;
+  }
+
+  .ten-btn:active {
+    transform: translateY(calc(var(--depth) - 3px));
+    box-shadow:
+      0 3px 0 var(--ink),
+      0 3px 0 var(--line) var(--ink);
+  }
+
+  .ten-btn:focus-visible {
+    outline: var(--line) dashed var(--ink);
+    outline-offset: 6px;
+  }
+
+  .view--result {
+    gap: var(--space-2);
+  }
+
+  .ten-time {
+    max-width: none;
+    font-family: var(--font-display);
+    font-size: clamp(3.6rem, 18vw, 6.5rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ten-time.is-pop {
+    animation: ten-pop 350ms var(--ease-pop);
+  }
+
+  .ten-off {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+    font-weight: 700;
+  }
+
+  /* Darker than plain green/orange/red so they pass AA on white */
+  .ten-off[data-grade='good'] {
+    color: #137a3f;
+  }
+
+  .ten-off[data-grade='ok'] {
+    color: #a05f00;
+  }
+
+  .ten-off[data-grade='bad'] {
+    color: #c2331f;
+  }
+
+  .ten-rank {
+    margin-top: var(--space-3);
+    font-size: var(--text-lg);
+  }
+
+  .ten-rank b {
+    font-family: var(--font-display);
+    font-weight: 400;
+  }
+
+  .ten-comment {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .ten-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+
+  .ten-best {
+    margin-top: var(--space-3);
+  }
+
+  .ten-best:empty {
+    display: none;
+  }
+
+  @keyframes ten-pop {
+    from {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ten-btn {
+      transition: none;
+    }
+
+    .ten-time.is-pop {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  interface Strings {
+    exact: string;
+    early: string;
+    late: string;
+    rankBefore: string;
+    rankAfter: string;
+    share: string;
+    copied: string;
+    copyFailed: string;
+    newBest: string;
+    best: string;
+    shareText: string;
+    shareUrl: string;
+    title: string;
+    comments: Record<string, string>;
+  }
+
+  const TARGET = 10;
+  // Estimated spread of human timing error in seconds. Tuned so ~0.5 s off is
+  // about the top 70 % and ~0.1 s off about the top 94 %.
+  const SIGMA = 1.4;
+  const BEST_KEY = 'jxsi_10s_best';
+
+  /** Complementary error function (Abramowitz–Stegun approximation). */
+  function erfc(x: number) {
+    const z = Math.abs(x);
+    const t = 1 / (1 + 0.5 * z);
+    const r =
+      t *
+      Math.exp(
+        -z * z -
+          1.26551223 +
+          t *
+            (1.00002368 +
+              t *
+                (0.37409196 +
+                  t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))),
+      );
+    return x >= 0 ? r : 2 - r;
+  }
+
+  const betterThan = (absErr: number) => Math.max(0.1, Math.min(99.9, erfc(absErr / (SIGMA * Math.SQRT2)) * 100));
+  const fmtPct = (p: number) => (p >= 99 || p < 1 ? p.toFixed(1) : Math.round(p).toString());
+
+  function commentFor(c: Record<string, string>, elapsed: number, err: number) {
+    const a = Math.abs(err);
+    if (elapsed > 30) return c.asleep;
+    if (elapsed < 3) return c.tooShort;
+    if (a < 0.02) return c.clock;
+    if (a < 0.1) return c.precise;
+    if (a < 0.3) return c.swiss;
+    if (a < 0.6) return c.solid;
+    if (a < 1.2) return err < 0 ? c.impatient : c.slow;
+    if (a < 2.5) return err < 0 ? c.short : c.long;
+    return err < 0 ? c.fast : c.different;
+  }
+
+  function readBest(): number | null {
+    try {
+      const v = parseFloat(localStorage.getItem(BEST_KEY) ?? '');
+      return Number.isNaN(v) ? null : v;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeBest(v: number) {
+    try {
+      localStorage.setItem(BEST_KEY, String(v));
+    } catch {
+      /* private mode: no personal best, the game still works */
+    }
+  }
+
+  type View = 'start' | 'run' | 'result';
+  let state: View = 'start';
+  let t0 = 0;
+  let last: { elapsed: number; absErr: number; pct: number } | null = null;
+
+  const root = () => document.querySelector<HTMLElement>('[data-ten]');
+  const el = <T extends HTMLElement>(sel: string) => root()!.querySelector<T>(sel)!;
+  const strings = (): Strings => JSON.parse(root()!.dataset.strings ?? '{}');
+
+  function show(name: View) {
+    const r = root();
+    if (!r) return;
+    r.querySelectorAll<HTMLElement>('[data-view]').forEach((v) => (v.hidden = v.dataset.view !== name));
+    el('[data-sub]').hidden = name === 'result';
+    state = name;
+    const focus = name === 'start' ? '[data-start]' : name === 'run' ? '[data-stop]' : null;
+    if (focus) el<HTMLButtonElement>(focus).focus({ preventScroll: true });
+  }
+
+  function start() {
+    t0 = performance.now();
+    show('run');
+  }
+
+  function stop() {
+    const s = strings();
+    const elapsed = (performance.now() - t0) / 1000;
+    const err = elapsed - TARGET;
+    const absErr = Math.abs(err);
+    const pct = betterThan(absErr);
+    last = { elapsed, absErr, pct };
+
+    const time = el('[data-time]');
+    time.textContent = `${elapsed.toFixed(2)}s`;
+
+    const off = el('[data-off]');
+    off.textContent = absErr < 0.005 ? s.exact : `${absErr.toFixed(2)}s ${err < 0 ? s.early : s.late}`;
+    off.dataset.grade = absErr < 0.3 ? 'good' : absErr < 1 ? 'ok' : 'bad';
+
+    const rank = el('[data-rank]');
+    const b = document.createElement('b');
+    b.textContent = `${fmtPct(pct)}%`;
+    rank.replaceChildren(s.rankBefore, b, s.rankAfter);
+
+    el('[data-comment]').textContent = commentFor(s.comments, elapsed, err);
+
+    let best = readBest();
+    let isNewBest = false;
+    if (best === null || absErr < best) {
+      best = absErr;
+      isNewBest = true;
+      writeBest(absErr);
+    }
+    el('[data-best]').textContent =
+      isNewBest && readBest() !== null ? s.newBest : best !== null ? s.best.replace('{s}', best.toFixed(2)) : '';
+
+    el('[data-share-label]').textContent = s.share;
+    show('result');
+    time.classList.remove('is-pop');
+    void time.offsetWidth;
+    time.classList.add('is-pop');
+  }
+
+  async function share() {
+    if (!last) return;
+    const s = strings();
+    const text = s.shareText
+      .replace('{t}', last.elapsed.toFixed(2))
+      .replace('{off}', last.absErr.toFixed(2))
+      .replace('{pct}', fmtPct(last.pct));
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: s.title, text, url: s.shareUrl });
+      } catch {
+        /* cancelled */
+      }
+      return;
+    }
+    const label = el('[data-share-label]');
+    try {
+      await navigator.clipboard.writeText(`${text} ${s.shareUrl}`);
+      label.textContent = s.copied;
+    } catch {
+      label.textContent = s.copyFailed;
+    }
+  }
+
+  function init() {
+    const r = root();
+    if (!r || r.dataset.bound) return;
+    r.dataset.bound = 'true';
+    state = 'start';
+    // pointerdown, not click: the stop moment should be as precise as possible
+    el('[data-start]').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      start();
+    });
+    el('[data-stop]').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      stop();
+    });
+    el('[data-again]').addEventListener('click', () => show('start'));
+    el('[data-share]').addEventListener('click', share);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!root()) return;
+    if (e.code !== 'Space' && e.code !== 'Enter') return;
+    if (e.repeat) return;
+    if (state === 'start') {
+      e.preventDefault();
+      start();
+    } else if (state === 'run') {
+      e.preventDefault();
+      stop();
+    } else if (state === 'result' && e.code === 'Space') {
+      e.preventDefault();
+      show('start');
+    }
+  });
+
+  document.addEventListener('astro:page-load', init);
+</script>

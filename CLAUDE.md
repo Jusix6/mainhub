@@ -179,6 +179,7 @@ beiden Hosts stimmen; zurück zur Hauptseite absolut (`SITE.url`).
 | Route (fun-Host)  | Inhalt |
 |-------------------|--------|
 | `/`               | Liste der Spiele (`src/pages/fun/index.astro`) |
+| `/10s`            | How long is 10 seconds? Start drücken, bei gefühlt 10 s stoppen, keine Uhr. Ergebnis, Abweichung, geschätzter Prozentrang (Normalverteilung, keine echten Spielerdaten), Kommentar, Teilen (Web Share / Zwischenablage), Bestwert in `localStorage` (`jxsi_10s_best`). Rein clientseitig. Kurzlink `jxsi.ch/10s` (auch `www.`), Worker leitet per `FUN_SHORT_LINKS` weiter. Vorschaubild `src/assets/fun/10s-og.png` |
 | `/the-button`     | The Button: roter Knopf, globaler Zähler aller Klicks aller Menschen, nie zurückgesetzt. Stats: eigene Klicks, Anzahl Klicker, Klicks heute, längste Serie (global, mit Name), eigene beste Serie, eigener Rang, Top 5, optionaler Name |
 
 **API und Speicher:** `/api/the-button` (GET Stats, `?player=<uuid>`) und
