@@ -92,8 +92,11 @@ export const UI = {
     indexIntro: 'Small games that live in the browser. No accounts, no downloads, no point. Enjoy.',
     play: 'Play',
     moreSoon: 'More games will show up here when I get around to making them.',
-    hubTeaser: 'Small browser games, no account, no point. Start with The Button.',
+    hubTeaser: 'One button, one number: every click by everyone, ever.',
     hubCta: 'Play The Button',
+    hubFlag: 'A new flag every day. You only get the outline, paint it from memory.',
+    hubFlagCta: "Paint today's flags",
+    hubDaily: 'Daily',
     allGames: 'All games',
     theButton: {
       title: 'The Button',

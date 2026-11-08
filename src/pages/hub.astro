@@ -69,17 +69,31 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
       <h2 id="fun-heading">{UI.fun.indexTitle}</h2>
       <Button href={SITE.fun.url} color="--surface" iconAfter="arrow">{UI.fun.allGames}</Button>
     </div>
-    <a class="fun-card" href={`${SITE.fun.url}/the-button`}>
-      <span class="fun-card__button" aria-hidden="true">{UI.fun.theButton.press}</span>
-      <span class="fun-card__body">
-        <strong class="fun-card__title">{UI.fun.theButton.title}</strong>
-        <span>{UI.fun.hubTeaser}</span>
-        <span class="fun-card__cta">
-          {UI.fun.hubCta}
-          <Icon name="arrow" size={18} />
+    <div class="fun-grid">
+      <a class="fun-card fun-card--flag" href={`${SITE.fun.url}/flag`}>
+        <span class="fun-card__flag" aria-hidden="true"></span>
+        <span class="fun-card__body">
+          <span class="fun-card__tag">{UI.fun.hubDaily}</span>
+          <strong class="fun-card__title">{UI.fun.flag.title}</strong>
+          <span>{UI.fun.hubFlag}</span>
+          <span class="fun-card__cta">
+            {UI.fun.hubFlagCta}
+            <Icon name="arrow" size={18} />
+          </span>
         </span>
-      </span>
-    </a>
+      </a>
+      <a class="fun-card" href={`${SITE.fun.url}/the-button`}>
+        <span class="fun-card__button" aria-hidden="true">{UI.fun.theButton.press}</span>
+        <span class="fun-card__body">
+          <strong class="fun-card__title">{UI.fun.theButton.title}</strong>
+          <span>{UI.fun.hubTeaser}</span>
+          <span class="fun-card__cta">
+            {UI.fun.hubCta}
+            <Icon name="arrow" size={18} />
+          </span>
+        </span>
+      </a>
+    </div>
   </section>
 
   {
@@ -190,7 +204,18 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
     margin-bottom: var(--space-4);
   }
 
-  /* Teaser for fun.jxsi.ch: a mini version of The Button that leads to the real one */
+  /* Teasers for fun.jxsi.ch: the daily flag game and a mini version of The Button */
+  .fun-grid {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  @media (min-width: 760px) {
+    .fun-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .fun-card {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -239,6 +264,56 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
     box-shadow:
       0 2px 0 var(--ink),
       0 2px 0 var(--line) var(--ink);
+  }
+
+  .fun-card--flag {
+    background: var(--c-green);
+  }
+
+  /* A half-painted Swiss flag: red and cross on the left, still unpainted on the right */
+  .fun-card__flag {
+    position: relative;
+    width: clamp(88px, 24vw, 120px);
+    aspect-ratio: 1;
+    overflow: hidden;
+    background:
+      linear-gradient(#fff, #fff) center / 62% 19% no-repeat,
+      linear-gradient(#fff, #fff) center / 19% 62% no-repeat,
+      #d52b1e;
+    border: var(--line) solid var(--ink);
+    box-shadow: var(--shadow-sm);
+    transform: rotate(-4deg);
+    transition: transform var(--t-base) var(--ease-pop);
+  }
+
+  .fun-card__flag::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-conic-gradient(#ece7da 0 25%, #f8f5ec 0 50%) 0 0 / 12px 12px;
+    clip-path: polygon(58% 0, 100% 0, 100% 100%, 63% 100%, 55% 78%, 66% 56%, 54% 34%, 64% 14%);
+    transition: clip-path var(--t-slow) var(--ease-out);
+  }
+
+  .fun-card--flag:hover .fun-card__flag {
+    transform: rotate(3deg) scale(1.05);
+  }
+
+  .fun-card--flag:hover .fun-card__flag::after {
+    clip-path: polygon(100% 0, 100% 0, 100% 100%, 100% 100%, 100% 78%, 100% 56%, 100% 34%, 100% 14%);
+  }
+
+  .fun-card__tag {
+    justify-self: start;
+    padding: 0 8px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   .fun-card__body {
