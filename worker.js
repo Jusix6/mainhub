@@ -26,7 +26,7 @@ const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST];
 const OUR_ORIGINS = [`https://${CANONICAL_HOST}`, `https://${FUN_HOST}`];
 
 /** Short links on www and the apex that point at a fun game (jxsi.ch/10s → fun.jxsi.ch/10s). */
-const FUN_SHORT_LINKS = { '/10s': '/10s' };
+const FUN_SHORT_LINKS = { '/10s': '/10s', '/flag': '/flag' };
 
 /** Files at the site root that fun pages reference as well. */
 const SHARED_ROOT_FILES = ['/favicon.svg', '/apple-touch-icon.png', '/robots.txt'];

@@ -1,0 +1,1183 @@
+---
+/**
+ * Paint the Flag: a daily game. Every day four flags, one per level (Easy,
+ * Medium, Hard, Impossible), the same for everyone (dailyFlag in
+ * src/data/flags.ts, day changes at midnight in Zurich). You get the name and
+ * the outline and paint it from memory; one scored try per level per day.
+ * Practice mode is unlimited. Scored on colour and area (scorePainting).
+ * Runs fully in the browser; results and streak live in localStorage.
+ * Share sends a picture of your painting next to the real flag.
+ * Links: jxsi.ch/flag (short link), ?f=<code> opens that flag in practice.
+ */
+import Fun from '@/layouts/Fun.astro';
+import Button from '@/components/Button.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import { PALETTE } from '@/data/flags';
+import og from '@/assets/fun/flag-og.png';
+
+const T = UI.fun.flag;
+const ogImage = new URL(og.src, SITE.fun.url).href;
+const strings = {
+  levels: T.levels,
+  dailyMeta: T.dailyMeta,
+  practiceMeta: T.practiceMeta,
+  oneTry: T.oneTry,
+  impossibleNote: T.impossibleNote,
+  loading: T.loading,
+  accurate: T.accurate,
+  mine: T.mine,
+  real: T.real,
+  share: T.share,
+  copied: T.copied,
+  downloaded: T.downloaded,
+  countdown: T.countdown,
+  streak: T.streak,
+  streakDay: T.streakDay,
+  streakDays: T.streakDays,
+  newBest: T.newBest,
+  best: T.best,
+  shareText: T.shareText,
+  shareDaily: T.shareDaily,
+  shareUrl: T.shareUrl,
+  title: T.title,
+  canvasLabel: T.canvasLabel,
+  comments: T.comments,
+};
+const levels = [
+  { key: 1, label: T.levels.easy },
+  { key: 2, label: T.levels.medium },
+  { key: 3, label: T.levels.hard },
+  { key: 4, label: T.levels.impossible },
+];
+const sizes = [
+  { key: 's', label: T.sizes.s, dot: 6 },
+  { key: 'm', label: T.sizes.m, dot: 12 },
+  { key: 'l', label: T.sizes.l, dot: 20 },
+];
+---
+
+<Fun title={T.title} description={T.description} path="/flag" indexHref="./" image={ogImage}>
+  <div class="container ptf" data-ptf data-strings={JSON.stringify(strings)}>
+    <header class="ptf__head">
+      <h1><span class="marker" style="--marker: var(--c-green)">{T.title}</span></h1>
+      <p>{T.intro}</p>
+    </header>
+
+    <div class="bar">
+      <div class="modes" role="group" aria-label={T.modeLabel}>
+        <button class="mode" type="button" data-mode="daily" aria-pressed="true">{T.daily}</button>
+        <button class="mode" type="button" data-mode="practice" aria-pressed="false">{T.practice}</button>
+      </div>
+      <p class="bar__meta">
+        <span data-meta></span>
+        <span class="bar__streak" data-streak hidden></span>
+      </p>
+    </div>
+
+    <div class="levels" role="group" aria-label={T.levelLabel}>
+      {
+        levels.map((l) => (
+          <button class="lvl" type="button" data-level={l.key} aria-pressed="false">
+            <span class="lvl__name">{l.label}</span>
+            <span class="lvl__state" data-level-state />
+          </button>
+        ))
+      }
+    </div>
+
+    <section class="stage" aria-label={T.title}>
+      <!-- PAINT -->
+      <div class="view" data-view="paint">
+        <div class="task">
+          <p class="task__prompt">
+            <span class="meta">{T.prompt}</span>
+            <strong class="task__name" data-name>&hellip;</strong>
+          </p>
+          <Button data-skip variant="outline" iconAfter="arrow">{T.skip}</Button>
+        </div>
+        <p class="note" data-note></p>
+
+        <div class="flag-wrap" data-wrap>
+          <canvas class="flag-canvas" data-canvas width="720" height="480"></canvas>
+          <canvas class="flag-mask" data-mask width="720" height="480" aria-hidden="true"></canvas>
+        </div>
+
+        <div class="tools">
+          <div class="palette" role="group" aria-label={T.palette}>
+            {
+              PALETTE.map((c, i) => (
+                <button
+                  class="swatch"
+                  type="button"
+                  data-color={c.key}
+                  style={`--sw: ${c.hex}`}
+                  aria-label={c.name}
+                  aria-pressed={i === 0 ? 'true' : 'false'}
+                  title={c.name}
+                />
+              ))
+            }
+          </div>
+          <div class="tools__row">
+            <div class="chips" role="group" aria-label={T.toolLabel}>
+              <button class="chip" type="button" data-tool="brush" aria-pressed="true">{T.brush}</button>
+              <button class="chip" type="button" data-tool="fill" aria-pressed="false">{T.fill}</button>
+            </div>
+            <div class="chips" role="group" aria-label={T.sizeLabel}>
+              {
+                sizes.map((s) => (
+                  <button class="chip chip--dot" type="button" data-size={s.key} aria-pressed={s.key === 'm' ? 'true' : 'false'} aria-label={s.label} title={s.label}>
+                    <span class="dot" style={`--d: ${s.dot}px`} />
+                  </button>
+                ))
+              }
+            </div>
+            <div class="chips">
+              <button class="chip" type="button" data-undo>{T.undo}</button>
+              <button class="chip" type="button" data-clear>{T.clear}</button>
+            </div>
+            <Button data-done color="--c-green" iconAfter="arrow">{T.done}</Button>
+          </div>
+          <p class="hint">{T.hint}</p>
+        </div>
+      </div>
+
+      <!-- RESULT -->
+      <div class="view view--result" data-view="result" hidden>
+        <div class="score" aria-live="polite">
+          <p class="score__num"><span data-score>0</span>%</p>
+          <p class="score__label"><span data-result-name></span> · {T.accurate}</p>
+        </div>
+        <p class="comment" data-comment></p>
+        <div class="compare">
+          <figure>
+            <canvas class="compare__img compare__img--mine" data-mine width="720" height="480"></canvas>
+            <figcaption>{T.mine}</figcaption>
+          </figure>
+          <figure>
+            <canvas class="compare__img" data-real width="720" height="480"></canvas>
+            <figcaption>{T.real}</figcaption>
+          </figure>
+        </div>
+        <div class="actions">
+          <Button data-share icon="external"><span data-share-label>{T.share}</span></Button>
+          <Button data-again variant="outline">{T.again}</Button>
+          <Button data-next color="--c-green" iconAfter="arrow">{T.next}</Button>
+          <Button data-next-level color="--c-green" iconAfter="arrow">{T.nextLevel}</Button>
+          <Button data-to-practice variant="outline">{T.toPractice}</Button>
+        </div>
+        <p class="meta best" data-best></p>
+        <p class="meta countdown" data-countdown></p>
+      </div>
+
+      <noscript><p class="hint">{T.noJs}</p></noscript>
+    </section>
+  </div>
+</Fun>
+
+<style>
+  .ptf {
+    display: grid;
+    gap: var(--space-4);
+    max-width: 900px;
+  }
+
+  .ptf__head {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .modes {
+    display: inline-flex;
+    padding: 3px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .mode {
+    min-height: 40px;
+    padding: 4px 18px;
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+  }
+
+  .mode[aria-pressed='true'] {
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  .bar__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .bar__streak {
+    padding: 0 8px;
+    background: var(--c-yellow);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .bar__streak[hidden] {
+    display: none;
+  }
+
+  .levels {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .lvl {
+    --lvl: var(--c-green);
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: 6px 4px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  .lvl[data-level='2'] {
+    --lvl: var(--c-yellow);
+  }
+
+  .lvl[data-level='3'] {
+    --lvl: var(--c-pink);
+  }
+
+  .lvl[data-level='4'] {
+    --lvl: var(--c-purple);
+  }
+
+  .lvl[aria-pressed='true'] {
+    background: var(--lvl);
+    box-shadow: var(--shadow-sm);
+    transform: translate(-2px, -2px);
+  }
+
+  .lvl__name {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .lvl__state {
+    min-height: 1.2em;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .stage {
+    padding: var(--space-4) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .view {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .view[hidden] {
+    display: none;
+  }
+
+  .task {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .task :global([hidden]) {
+    display: none;
+  }
+
+  .task__prompt {
+    display: grid;
+    gap: var(--space-1);
+    max-width: none;
+  }
+
+  .task__name {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: 400;
+    line-height: 1.05;
+  }
+
+  .note {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .note:empty {
+    display: none;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    min-width: 40px;
+    padding: 4px 12px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .chip[aria-pressed='true'] {
+    background: var(--c-yellow);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .chip:focus-visible,
+  .swatch:focus-visible,
+  .mode:focus-visible,
+  .lvl:focus-visible {
+    outline: var(--line) dashed var(--ink);
+    outline-offset: 3px;
+  }
+
+  .chip--dot {
+    padding: 4px 8px;
+  }
+
+  .dot {
+    display: block;
+    width: var(--d);
+    height: var(--d);
+    background: var(--ink);
+    border-radius: 50%;
+  }
+
+  /* The outline: the only hint the player gets. Width follows the flag's
+     ratio so tall flags (Switzerland, Nepal) still fit on screen. */
+  .flag-wrap {
+    --ratio: 1.5;
+    position: relative;
+    justify-self: center;
+    width: min(100%, calc(56vh * var(--ratio)));
+  }
+
+  .flag-canvas,
+  .compare__img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: var(--line) solid var(--ink);
+    /* Checkerboard = unpainted, so nobody mistakes it for white */
+    background: repeating-conic-gradient(#ece7da 0 25%, #f8f5ec 0 50%) 0 0 / 24px 24px;
+  }
+
+  .flag-canvas {
+    touch-action: none;
+    cursor: crosshair;
+    box-shadow: var(--shadow);
+  }
+
+  /* Covers the parts of a non-rectangular flag (Nepal) that are not flag */
+  .flag-mask {
+    position: absolute;
+    inset: var(--line);
+    width: calc(100% - 2 * var(--line));
+    height: calc(100% - 2 * var(--line));
+    pointer-events: none;
+  }
+
+  .tools {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .palette {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .swatch {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: var(--sw);
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .swatch[aria-pressed='true'] {
+    transform: scale(1.18);
+    box-shadow:
+      0 0 0 3px var(--surface),
+      0 0 0 6px var(--ink);
+  }
+
+  .tools__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .hint {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .view--result {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .score {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .score__num {
+    max-width: none;
+    font-family: var(--font-display);
+    font-size: clamp(3.6rem, 16vw, 6rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score__label {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .comment {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .compare {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+    max-width: 720px;
+  }
+
+  .compare figure {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    margin: 0;
+  }
+
+  .compare figcaption {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+  }
+
+  .actions :global([hidden]) {
+    display: none;
+  }
+
+  .best:empty,
+  .countdown:empty {
+    display: none;
+  }
+
+  @media (max-width: 520px) {
+    .levels {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>
+
+<script>
+  import {
+    PALETTE,
+    dailyFlag,
+    dayNumber,
+    drawFlag,
+    emoji,
+    findFlag,
+    flagsOf,
+    prepareFlag,
+    scorePainting,
+    secondsToNextDay,
+    type ColorKey,
+    type Flag,
+    type Level,
+  } from '@/data/flags';
+
+  interface Strings {
+    levels: Record<'easy' | 'medium' | 'hard' | 'impossible', string>;
+    dailyMeta: string;
+    practiceMeta: string;
+    oneTry: string;
+    impossibleNote: string;
+    loading: string;
+    accurate: string;
+    mine: string;
+    real: string;
+    share: string;
+    copied: string;
+    downloaded: string;
+    countdown: string;
+    streak: string;
+    streakDay: string;
+    streakDays: string;
+    newBest: string;
+    best: string;
+    shareText: string;
+    shareDaily: string;
+    shareUrl: string;
+    title: string;
+    canvasLabel: string;
+    comments: { min: number; text: string }[];
+  }
+
+  interface DailyResult {
+    code: string;
+    score: number;
+    /** The painting as a PNG data URL, so the result survives a reload */
+    png: string;
+  }
+
+  type Mode = 'daily' | 'practice';
+
+  const CANVAS_W = 720;
+  const SIZES = { s: 10, m: 24, l: 56 } as const;
+  const UNDO_MAX = 15;
+  const RECENT_MAX = 20;
+  const KEYS = {
+    daily: 'jxsi_flag_daily',
+    streak: 'jxsi_flag_streak',
+    level: 'jxsi_flag_level',
+    recent: 'jxsi_flag_recent',
+    best: 'jxsi_flag_best',
+  };
+
+  const HEX = Object.fromEntries(PALETTE.map((c) => [c.key, c.hex])) as Record<ColorKey, string>;
+  const dateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', day: 'numeric', month: 'short' });
+
+  function load<T>(key: string, fallback: T): T {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? fallback : (JSON.parse(raw) as T);
+    } catch {
+      return fallback;
+    }
+  }
+
+  function save(key: string, value: unknown) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* private mode or full: the game still works, it just forgets */
+    }
+  }
+
+  /** Today's daily results; anything from another day is dropped. */
+  function todays(day: number): Record<string, DailyResult> {
+    const stored = load<{ day: number; results: Record<string, DailyResult> }>(KEYS.daily, { day, results: {} });
+    return stored.day === day ? stored.results : {};
+  }
+
+  function init() {
+    const root = document.querySelector<HTMLElement>('[data-ptf]');
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = 'true';
+
+    const S: Strings = JSON.parse(root.dataset.strings ?? '{}');
+    const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    const $$ = <T extends HTMLElement>(sel: string) => [...root.querySelectorAll<T>(sel)];
+
+    const canvas = $<HTMLCanvasElement>('[data-canvas]');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    const mask = $<HTMLCanvasElement>('[data-mask]');
+    const wrap = $('[data-wrap]');
+    const levelNames = [S.levels.easy, S.levels.medium, S.levels.hard, S.levels.impossible];
+
+    const params = new URLSearchParams(location.search);
+    let mode: Mode = params.get('f') ? 'practice' : 'daily';
+    let level: Level = ([1, 2, 3, 4] as Level[]).find((l) => l === Number(load(KEYS.level, 1))) ?? 1;
+    let flag: Flag = dailyFlag(level);
+    let color: ColorKey = PALETTE[0].key;
+    let tool: 'brush' | 'fill' = 'brush';
+    let size: keyof typeof SIZES = 'm';
+    let undo: ImageData[] = [];
+    let drawing = false;
+    let last: { x: number; y: number } | null = null;
+    let lastScore = 0;
+    let loadToken = 0;
+    let countdownTimer: number | undefined;
+
+    const today = () => dayNumber();
+
+    function press(selector: string, attr: string, value: string) {
+      $$(selector).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === value)));
+    }
+
+    function show(view: 'paint' | 'result') {
+      $$('[data-view]').forEach((v) => (v.hidden = v.dataset.view !== view));
+    }
+
+    /* ---- header: mode, levels, streak ---------------------------------- */
+
+    function renderHeader() {
+      const day = today();
+      press('[data-mode]', 'mode', mode);
+      press('[data-level]', 'level', String(level));
+      $('[data-meta]').textContent =
+        mode === 'daily' ? S.dailyMeta.replace('{n}', String(day)).replace('{date}', dateFmt.format(new Date())) : S.practiceMeta;
+
+      const results = todays(day);
+      $$('[data-level]').forEach((b) => {
+        const state = b.querySelector<HTMLElement>('[data-level-state]')!;
+        const r = results[b.dataset.level ?? ''];
+        state.textContent = mode === 'daily' && r ? `✓ ${r.score}%` : '';
+      });
+
+      const streak = load<{ last: number; count: number }>(KEYS.streak, { last: 0, count: 0 });
+      const alive = streak.last >= day - 1 && streak.count > 0;
+      const el = $('[data-streak]');
+      el.hidden = mode !== 'daily' || !alive;
+      el.textContent = `🔥 ${S.streak.replace('{n}', `${streak.count} ${streak.count === 1 ? S.streakDay : S.streakDays}`)}`;
+    }
+
+    function bumpStreak(day: number) {
+      const streak = load<{ last: number; count: number }>(KEYS.streak, { last: 0, count: 0 });
+      if (streak.last === day) return;
+      save(KEYS.streak, { last: day, count: streak.last === day - 1 ? streak.count + 1 : 1 });
+    }
+
+    /* ---- choosing the flag ---------------------------------------------- */
+
+    function randomFlag(): Flag {
+      const pool = flagsOf(level);
+      const recent = load<string[]>(KEYS.recent, []);
+      const fresh = pool.filter((fl) => !recent.includes(fl.code) && fl.code !== flag.code);
+      const list = fresh.length ? fresh : pool.filter((fl) => fl.code !== flag.code);
+      return list[Math.floor(Math.random() * list.length)] ?? pool[0];
+    }
+
+    /** Covers the parts of a non-rectangular flag that are not flag, so the outline is honest. */
+    function drawMask() {
+      mask.width = canvas.width;
+      mask.height = canvas.height;
+      const m = mask.getContext('2d')!;
+      m.clearRect(0, 0, mask.width, mask.height);
+      if (!flag.src) return;
+      drawFlag(m, flag, mask.width);
+      m.globalCompositeOperation = 'source-out';
+      m.fillStyle = getComputedStyle(root!).getPropertyValue('--surface').trim() || '#fff';
+      m.fillRect(0, 0, mask.width, mask.height);
+      m.globalCompositeOperation = 'source-over';
+    }
+
+    async function setFlag(next: Flag) {
+      const token = ++loadToken;
+      flag = next;
+      $('[data-name]').textContent = flag.name;
+      canvas.setAttribute('aria-label', S.canvasLabel.replace('{name}', flag.name));
+      canvas.width = CANVAS_W;
+      canvas.height = Math.round((CANVAS_W * flag.h) / flag.w);
+      wrap.style.setProperty('--ratio', String(flag.w / flag.h));
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      undo = [];
+      $('[data-skip]').hidden = mode === 'daily';
+      const notes = [mode === 'daily' ? S.oneTry : '', flag.level === 4 ? S.impossibleNote : ''].filter(Boolean);
+      $('[data-note]').textContent = notes.join(' ');
+      if (mode === 'practice') {
+        const recent = load<string[]>(KEYS.recent, []).filter((c) => c !== flag.code);
+        save(KEYS.recent, [flag.code, ...recent].slice(0, RECENT_MAX));
+        history.replaceState(history.state, '', `${location.pathname}?f=${flag.code}`);
+      } else {
+        history.replaceState(history.state, '', location.pathname);
+      }
+      const done = $<HTMLButtonElement>('[data-done]');
+      if (flag.src) {
+        done.disabled = true;
+        $('[data-note]').textContent = S.loading;
+        try {
+          await prepareFlag(flag);
+        } catch {
+          /* drawn without the real flag; the score then says 0 */
+        }
+        if (token !== loadToken) return;
+        $('[data-note]').textContent = notes.join(' ');
+        done.disabled = false;
+      }
+      drawMask();
+    }
+
+    /** Daily: today's flag of the level, or the stored result if already played. */
+    async function openLevel() {
+      window.clearInterval(countdownTimer);
+      renderHeader();
+      if (mode === 'practice') {
+        const wanted = findFlag(params.get('f'));
+        params.delete('f');
+        if (wanted) {
+          level = wanted.level;
+          renderHeader();
+        }
+        await setFlag(wanted && wanted.level === level ? wanted : randomFlag());
+        show('paint');
+        return;
+      }
+      const day = today();
+      await setFlag(dailyFlag(level, day));
+      const done = todays(day)[String(level)];
+      if (done && done.code === flag.code) {
+        const img = new Image();
+        img.src = done.png;
+        await img.decode().catch(() => undefined);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        showResult(done.score, false);
+      } else {
+        show('paint');
+      }
+    }
+
+    /* ---- painting ------------------------------------------------------- */
+
+    function pointFrom(e: PointerEvent) {
+      const r = canvas.getBoundingClientRect();
+      return {
+        x: ((e.clientX - r.left) * canvas.width) / r.width,
+        y: ((e.clientY - r.top) * canvas.height) / r.height,
+      };
+    }
+
+    function snapshot() {
+      undo.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      if (undo.length > UNDO_MAX) undo.shift();
+    }
+
+    function segment(a: { x: number; y: number }, b: { x: number; y: number }) {
+      ctx.strokeStyle = HEX[color];
+      ctx.lineWidth = SIZES[size];
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+
+    /** Bucket fill with a tolerance so anti-aliased brush edges do not leave gaps. */
+    function floodFill(sx: number, sy: number) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const x0 = Math.floor(sx);
+      const y0 = Math.floor(sy);
+      if (x0 < 0 || y0 < 0 || x0 >= w || y0 >= h) return;
+      const img = ctx.getImageData(0, 0, w, h);
+      const d = img.data;
+      const hex = HEX[color];
+      const fr = parseInt(hex.slice(1, 3), 16);
+      const fg = parseInt(hex.slice(3, 5), 16);
+      const fb = parseInt(hex.slice(5, 7), 16);
+      const i0 = (y0 * w + x0) * 4;
+      const [tr, tg, tb, ta] = [d[i0], d[i0 + 1], d[i0 + 2], d[i0 + 3]];
+      if (ta === 255 && tr === fr && tg === fg && tb === fb) return;
+      const emptyTarget = ta < 128;
+      const matches = (i: number) => {
+        const a = d[i + 3];
+        if (emptyTarget) return a < 160;
+        if (a < 96) return false;
+        return Math.abs(d[i] - tr) + Math.abs(d[i + 1] - tg) + Math.abs(d[i + 2] - tb) <= 150;
+      };
+      const seen = new Uint8Array(w * h);
+      const stack = [x0, y0];
+      while (stack.length) {
+        const y = stack.pop()!;
+        const x = stack.pop()!;
+        const p = y * w + x;
+        if (seen[p]) continue;
+        seen[p] = 1;
+        const i = p * 4;
+        if (!matches(i)) continue;
+        d[i] = fr;
+        d[i + 1] = fg;
+        d[i + 2] = fb;
+        d[i + 3] = 255;
+        if (x > 0) stack.push(x - 1, y);
+        if (x < w - 1) stack.push(x + 1, y);
+        if (y > 0) stack.push(x, y - 1);
+        if (y < h - 1) stack.push(x, y + 1);
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      snapshot();
+      const p = pointFrom(e);
+      if (tool === 'fill') {
+        floodFill(p.x, p.y);
+        return;
+      }
+      canvas.setPointerCapture(e.pointerId);
+      drawing = true;
+      last = p;
+      segment(p, p);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!drawing || !last) return;
+      const events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [e];
+      for (const ev of events.length ? events : [e]) {
+        const p = pointFrom(ev);
+        segment(last, p);
+        last = p;
+      }
+    });
+
+    const end = () => {
+      drawing = false;
+      last = null;
+    };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+
+    $$('[data-color]').forEach((b) =>
+      b.addEventListener('click', () => {
+        color = b.dataset.color as ColorKey;
+        press('[data-color]', 'color', color);
+      }),
+    );
+    $$('[data-tool]').forEach((b) =>
+      b.addEventListener('click', () => {
+        tool = b.dataset.tool as 'brush' | 'fill';
+        press('[data-tool]', 'tool', tool);
+        canvas.style.cursor = tool === 'fill' ? 'cell' : 'crosshair';
+      }),
+    );
+    $$('[data-size]').forEach((b) =>
+      b.addEventListener('click', () => {
+        size = b.dataset.size as keyof typeof SIZES;
+        press('[data-size]', 'size', size);
+        tool = 'brush';
+        press('[data-tool]', 'tool', tool);
+      }),
+    );
+
+    const doUndo = () => {
+      const prev = undo.pop();
+      if (prev) ctx.putImageData(prev, 0, 0);
+    };
+    $('[data-undo]').addEventListener('click', doUndo);
+    $('[data-clear]').addEventListener('click', () => {
+      snapshot();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!root.isConnected || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+      e.preventDefault();
+      doUndo();
+    });
+
+    /* ---- mode and level switches ---------------------------------------- */
+
+    $$('[data-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        if (b.dataset.mode === mode) return;
+        mode = b.dataset.mode as Mode;
+        openLevel();
+      }),
+    );
+    $$('[data-level]').forEach((b) =>
+      b.addEventListener('click', () => {
+        level = Number(b.dataset.level) as Level;
+        save(KEYS.level, level);
+        openLevel();
+      }),
+    );
+    $('[data-skip]').addEventListener('click', async () => {
+      await setFlag(randomFlag());
+      show('paint');
+    });
+
+    /* ---- result --------------------------------------------------------- */
+
+    function copyInto(target: HTMLCanvasElement, draw: (c: CanvasRenderingContext2D) => void) {
+      target.width = canvas.width;
+      target.height = canvas.height;
+      const c = target.getContext('2d')!;
+      c.clearRect(0, 0, target.width, target.height);
+      draw(c);
+    }
+
+    function tickCountdown() {
+      const s = secondsToNextDay();
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      $('[data-countdown]').textContent = S.countdown.replace('{t}', `${h}h ${String(m).padStart(2, '0')}m`);
+      if (s <= 30) window.setTimeout(openLevel, (s + 2) * 1000);
+    }
+
+    /** Fills the result view. `fresh` = just painted (updates bests). */
+    function showResult(score: number, fresh: boolean) {
+      lastScore = score;
+      $('[data-score]').textContent = String(score);
+      $('[data-result-name]').textContent = flag.name;
+      $('[data-comment]').textContent = S.comments.find((c) => score >= c.min)?.text ?? '';
+      copyInto($<HTMLCanvasElement>('[data-mine]'), (c) => c.drawImage(canvas, 0, 0));
+      copyInto($<HTMLCanvasElement>('[data-real]'), (c) => drawFlag(c, flag, canvas.width));
+
+      const best = load<Record<string, number>>(KEYS.best, {});
+      const prev = best[flag.code];
+      if (fresh && (prev === undefined || score > prev)) {
+        best[flag.code] = score;
+        save(KEYS.best, best);
+      }
+      $('[data-best]').textContent =
+        mode === 'practice' && fresh && prev !== undefined ? (score > prev ? S.newBest : S.best.replace('{s}', String(prev))) : '';
+
+      const daily = mode === 'daily';
+      const results = todays(today());
+      const nextOpen = ([1, 2, 3, 4] as Level[]).find((l) => !results[String(l)] && l !== level);
+      $('[data-again]').hidden = daily;
+      $('[data-next]').hidden = daily;
+      $('[data-next-level]').hidden = !daily || nextOpen === undefined;
+      $('[data-next-level]').dataset.target = String(nextOpen ?? '');
+      $('[data-to-practice]').hidden = !daily || nextOpen !== undefined;
+
+      window.clearInterval(countdownTimer);
+      $('[data-countdown]').textContent = '';
+      if (daily) {
+        tickCountdown();
+        countdownTimer = window.setInterval(tickCountdown, 30_000);
+      }
+      $('[data-share-label]').textContent = S.share;
+      show('result');
+    }
+
+    $('[data-done]').addEventListener('click', () => {
+      const score = scorePainting(flag, canvas);
+      if (mode === 'daily') {
+        const day = today();
+        const results = todays(day);
+        results[String(level)] = { code: flag.code, score, png: canvas.toDataURL('image/png') };
+        save(KEYS.daily, { day, results });
+        bumpStreak(day);
+        renderHeader();
+      }
+      showResult(score, true);
+      root.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+
+    $('[data-again]').addEventListener('click', () => {
+      snapshot();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      show('paint');
+    });
+    $('[data-next]').addEventListener('click', async () => {
+      await setFlag(randomFlag());
+      show('paint');
+    });
+    $('[data-next-level]').addEventListener('click', () => {
+      const target = Number($('[data-next-level]').dataset.target) as Level;
+      if (!target) return;
+      level = target;
+      save(KEYS.level, level);
+      openLevel();
+    });
+    $('[data-to-practice]').addEventListener('click', () => {
+      mode = 'practice';
+      openLevel();
+    });
+
+    /* ---- share ---------------------------------------------------------- */
+
+    /** 1200×630 picture: your painting next to the real flag, with the score. */
+    function shareCard(): Promise<Blob | null> {
+      const W = 1200;
+      const H = 630;
+      const card = document.createElement('canvas');
+      card.width = W;
+      card.height = H;
+      const c = card.getContext('2d')!;
+      const css = getComputedStyle(document.documentElement);
+      const display = css.getPropertyValue('--font-display').trim() || 'sans-serif';
+      const mono = css.getPropertyValue('--font-mono').trim() || 'monospace';
+
+      c.fillStyle = '#fff8e7';
+      c.fillRect(0, 0, W, H);
+      c.fillStyle = '#111';
+      c.font = `700 22px ${mono}`;
+      const head = mode === 'daily' ? `${S.title} #${today()} · ${levelNames[level - 1]}` : S.title;
+      c.fillText(head.toUpperCase(), 70, 76);
+      c.font = `56px ${display}`;
+      c.fillText(flag.name, 70, 140);
+
+      const boxW = 470;
+      const boxH = 290;
+      const scale = Math.min(boxW / canvas.width, boxH / canvas.height);
+      const iw = Math.round(canvas.width * scale);
+      const ih = Math.round(canvas.height * scale);
+      const panels: [string, number, (x: number, y: number) => void][] = [
+        [S.mine, 70, (x, y) => c.drawImage(canvas, x, y, iw, ih)],
+        [
+          S.real,
+          660,
+          (x, y) => {
+            c.save();
+            c.translate(x, y);
+            drawFlag(c, flag, iw);
+            c.restore();
+          },
+        ],
+      ];
+      for (const [label, x0, paint] of panels) {
+        const x = x0 + Math.round((boxW - iw) / 2);
+        const y = 175 + Math.round((boxH - ih) / 2);
+        c.fillStyle = '#111';
+        c.fillRect(x + 8, y + 8, iw, ih);
+        c.fillStyle = '#ece7da';
+        c.fillRect(x, y, iw, ih);
+        paint(x, y);
+        c.lineWidth = 5;
+        c.strokeStyle = '#111';
+        c.strokeRect(x, y, iw, ih);
+        c.fillStyle = '#111';
+        c.font = `700 20px ${mono}`;
+        c.fillText(label.toUpperCase(), x, y + ih + 40);
+      }
+
+      c.font = `64px ${display}`;
+      c.fillText(`${lastScore}% ${S.accurate}`, 70, 590);
+      c.font = `700 24px ${mono}`;
+      c.textAlign = 'right';
+      c.fillText(S.shareUrl.replace('https://', ''), W - 70, 590);
+      return new Promise((resolve) => card.toBlob(resolve, 'image/png'));
+    }
+
+    $('[data-share]').addEventListener('click', async () => {
+      const label = $('[data-share-label]');
+      const daily = mode === 'daily';
+      const url = daily ? S.shareUrl : `${S.shareUrl}?f=${flag.code}`;
+      const text = daily
+        ? S.shareDaily
+            .replace('{n}', String(today()))
+            .replace('{level}', levelNames[level - 1])
+            .replace('{emoji}', emoji(flag.code))
+            .replace('{score}', String(lastScore))
+        : S.shareText.replace('{emoji}', emoji(flag.code)).replace('{score}', String(lastScore)).replace('{name}', flag.name);
+      const blob = await shareCard();
+      const file = blob ? new File([blob], `paint-the-flag-${flag.code}.png`, { type: 'image/png' }) : null;
+
+      if (file && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], text: `${text}\n${url}`, title: S.title });
+        } catch {
+          /* cancelled */
+        }
+        return;
+      }
+      if (navigator.share) {
+        try {
+          await navigator.share({ text, url, title: S.title });
+        } catch {
+          /* cancelled */
+        }
+        return;
+      }
+      // Desktop without a share sheet: image into the clipboard, or save it
+      try {
+        if (!blob) throw new Error('no image');
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        label.textContent = S.copied;
+      } catch {
+        if (blob) {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `paint-the-flag-${flag.code}.png`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }
+        try {
+          await navigator.clipboard.writeText(`${text}\n${url}`);
+        } catch {
+          /* ignore */
+        }
+        label.textContent = S.downloaded;
+      }
+    });
+
+    document.addEventListener('astro:before-swap', () => window.clearInterval(countdownTimer), { once: true });
+
+    openLevel();
+  }
+
+  document.addEventListener('astro:page-load', init);
+</script>
