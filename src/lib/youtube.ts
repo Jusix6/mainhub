@@ -6,6 +6,7 @@
  * there is no fallback either does the page hide the video block.
  */
 import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { SITE } from '@/data/site';
 import fallback from '@/data/latest-video.json';
 
@@ -85,7 +86,8 @@ async function fetchLatestVideo(): Promise<LatestVideo | null> {
   }
 }
 
-const FALLBACK_PATH = new URL('../data/latest-video.json', import.meta.url);
+// Relative to the project root: at build time import.meta.url points into the bundled output
+const FALLBACK_PATH = resolve(process.cwd(), 'src/data/latest-video.json');
 
 function fallbackVideo(): LatestVideo | null {
   if (!fallback?.id) return null;

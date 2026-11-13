@@ -28,8 +28,17 @@
   },
   // One Durable Object (SQLite-backed, included in the free plan) holds every
   // click on The Button, so the counter is global, atomic and never resets.
+  // VideoFeed keeps the newest YouTube upload, refreshed by the cron below.
   "durable_objects": {
-    "bindings": [{ "name": "THE_BUTTON", "class_name": "TheButton" }]
+    "bindings": [
+      { "name": "THE_BUTTON", "class_name": "TheButton" },
+      { "name": "VIDEO_FEED", "class_name": "VideoFeed" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TheButton"] }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TheButton"] },
+    { "tag": "v2", "new_sqlite_classes": ["VideoFeed"] }
+  ],
+  // Every 30 minutes: read the YouTube feed (worker.js scheduled()). Free plan includes cron triggers.
+  "triggers": { "crons": ["*/30 * * * *"] }
 }

@@ -26,7 +26,9 @@ Kommentare und Code auf Englisch.
   `image()`-Schema-Helper. Nichts Grosses in `public/`.
 - **View Transitions** über Astros `<ClientRouter />` für Seitenwechsel.
 - **Keine externen Requests zur Laufzeit**, ausser eingebettete YouTube-Player
-  (nur über `youtube-nocookie.com`). Der YouTube-Feed wird beim Build gelesen.
+  (nur über `youtube-nocookie.com`) und dem Thumbnail eines nach dem Build
+  hochgeladenen Videos (`i.ytimg.com`). Den YouTube-Feed liest der Build und
+  der Worker-Cron, nie der Browser.
 - **Kein Tracking-Script.** Falls Statistik gewünscht: Cloudflare Web Analytics,
   sonst nichts.
 - **Deployment**: Cloudflare Workers mit Static Assets, kein Adapter. Der
@@ -513,13 +515,22 @@ wird abgefangen.
 
 - **YouTube**: `src/lib/youtube.ts` liest beim Build den öffentlichen RSS-Feed
   `https://www.youtube.com/feeds/videos.xml?channel_id=<ID>` (kein API-Key).
-  Neuestes Video auf `/` mit Thumbnail und Link, Embed nur nach Klick
+  Neuestes Video auf `/hub` mit Thumbnail und Link, Embed nur nach Klick
   (Facade-Pattern, `youtube-nocookie.com`). Schlägt der Fetch fehl, darf der Build
   nicht brechen: dann kommt das Video aus `src/data/latest-video.json`, dem
   letzten Stand, den ein erfolgreicher Feed-Abruf dort gespeichert hat (Datei
   mitcommitten, wenn sie sich nach einem Build ändert). Erst ohne Fallback
-  wird der Block ausgeblendet. Seit 2026-11-04 liefern die YouTube-RSS-Feeds
-  von hier aus 404; der Fallback hält den Block am Leben.
+  wird der Block ausgeblendet.
+- **Neue Uploads ohne Rebuild**: Ein Cron-Trigger im Worker (`*/30 * * * *`,
+  `scheduled()` in `worker.js`) liest denselben Feed in das Durable Object
+  `VideoFeed` (Migration `v2`). Beim Ausliefern von `/hub` ersetzt der Worker
+  per `HTMLRewriter` den Video-Block, wenn das gespeicherte Video neuer ist als
+  das beim Build eingebackene (`data-video-published` in `LatestVideo.astro`).
+  Ausgetauschte Thumbnails kommen direkt von `i.ytimg.com` (in der CSP
+  erlaubt). Ist der Stand älter als 2 h, stösst auch ein Seitenaufruf einen
+  Abruf an (höchstens einer pro 10 min). Kanal-ID steht doppelt: `site.ts`
+  und `YOUTUBE_CHANNEL_ID` in `worker.js`. Lokal testen: `npm run fun:www`,
+  dann `http://localhost:8787/__scheduled` aufrufen und `/hub` laden.
 - **Twitch**: nur Link + optionaler Sendeplan-Text aus `site.ts`. Kein Live-Status
   (bräuchte API-Token).
 - **Devlog**: Updates-Collection, RSS-Feed, Verknüpfung zu Projekten.

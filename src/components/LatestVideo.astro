@@ -1,8 +1,10 @@
 ---
 /**
  * Latest YouTube video as a click-to-play facade. The thumbnail is fetched and
- * optimized at build time (no runtime request to YouTube); the privacy-friendly
- * youtube-nocookie.com player is loaded only after a click.
+ * optimized at build time; the privacy-friendly youtube-nocookie.com player is
+ * loaded only after a click. worker.js swaps in a newer upload at request time
+ * (cron-refreshed feed), using the data-video-* attributes and the classes
+ * below, so keep them stable.
  */
 import { Image } from 'astro:assets';
 import type { LatestVideo } from '@/lib/youtube';
@@ -16,7 +18,7 @@ interface Props {
 const { video } = Astro.props;
 ---
 
-<div class="video" data-video data-video-id={video.id}>
+<div class="video" data-video data-video-id={video.id} data-video-published={video.published.toISOString()}>
   <button class="video__poster" type="button" data-video-play aria-label={`Play: ${video.title}`}>
     <Image src={video.thumbnail} alt="" inferSize widths={[480, 960]} sizes="(min-width: 900px) 50vw, 100vw" />
     <span class="video__play" aria-hidden="true">

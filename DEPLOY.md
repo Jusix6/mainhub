@@ -49,6 +49,14 @@ angezeigten DS-Eintrag bei hosttech unter "DNSSEC Einstellungen" eintragen.
 `_redirects` kann den Apex-Redirect nicht: Bei Workers sind dort nur relative
 Ziele erlaubt.
 
+## Neuestes YouTube-Video (Cron)
+
+- `wrangler.jsonc` hat einen Cron-Trigger (`*/30 * * * *`) und das Durable
+  Object `VideoFeed` (Migration `v2`). Beides wird beim Deploy angelegt.
+- Kontrolle im Dashboard: Workers & Pages → `mainhub` → Settings → Triggers
+  (Cron) und Logs. Ein fehlgeschlagener Feed-Abruf steht als `[video] refresh
+  failed` im Log; die Seite zeigt dann einfach weiter das letzte bekannte Video.
+
 ## Fun-Subdomain und Durable Object
 
 - `fun.jxsi.ch` ist als dritte Custom Domain in `wrangler.jsonc` eingetragen

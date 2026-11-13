@@ -7,6 +7,9 @@
  *    build assets (/_astro/*) are shared. www.jxsi.ch/fun/* redirects over.
  * 3. API for the fun games under /api/*, backed by a Durable Object so the
  *    counters are global, atomic and never reset.
+ * 4. Latest YouTube video: a cron trigger reads the channel feed every 30
+ *    minutes into the VideoFeed Durable Object; when /hub is served, a newer
+ *    upload than the one baked in at build time is swapped into the HTML.
  *
  * Everything else is handed straight to the static assets (dist/).
  *
@@ -28,11 +31,25 @@ const OUR_ORIGINS = [`https://${CANONICAL_HOST}`, `https://${FUN_HOST}`];
 /** Short links on www and the apex that point at a fun game (jxsi.ch/10s → fun.jxsi.ch/10s). */
 const FUN_SHORT_LINKS = { '/10s': '/10s', '/flag': '/flag' };
 
+/** Main YouTube channel. Keep in sync with SITE.youtube.channelId in src/data/site.ts. */
+const YOUTUBE_CHANNEL_ID = 'UCWHDPzJa99zS3XHaetPjdig';
+/** Pages that contain the latest-video block. */
+const VIDEO_PAGES = ['/hub'];
+/** Older than this, a page request also triggers a refresh (in case the cron missed runs). */
+const VIDEO_STALE_MS = 2 * 60 * 60 * 1000;
+/** At most one feed request per this interval, whoever asks. */
+const VIDEO_MIN_FETCH_MS = 10 * 60 * 1000;
+
 /** Files at the site root that fun pages reference as well. */
 const SHARED_ROOT_FILES = ['/favicon.svg', '/apple-touch-icon.png', '/robots.txt'];
 
 export default {
-  async fetch(request, env) {
+  /** Cron trigger (wrangler.jsonc "triggers"): keep the latest video fresh. */
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(refreshVideo(env, true));
+  },
+
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // `wrangler dev --var DEV:1` (npm run fun) talks plain http to a simulated host
@@ -64,9 +81,153 @@ export default {
       return Response.redirect(url.toString(), 302);
     }
 
+    if (url.hostname === CANONICAL_HOST && request.method === 'GET' && VIDEO_PAGES.includes(url.pathname)) {
+      return withLatestVideo(request, env, ctx);
+    }
+
     return env.ASSETS.fetch(request);
   },
 };
+
+/* ---------------------------------------------------------------------------
+ * Latest YouTube video
+ * ------------------------------------------------------------------------- */
+
+const feedStub = (env) => env.VIDEO_FEED.get(env.VIDEO_FEED.idFromName('youtube'));
+
+function decodeXml(text) {
+  return text
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/** First <entry> of a channel feed, same rules as src/lib/youtube.ts. */
+function parseFeed(xml) {
+  const entry = xml.match(/<entry>([\s\S]*?)<\/entry>/)?.[1];
+  if (!entry) return null;
+  const pick = (tag) => entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))?.[1]?.trim();
+  const id = pick('yt:videoId');
+  const title = pick('title');
+  const published = pick('published');
+  if (!id || !/^[\w-]{11}$/.test(id) || !title || !published || Number.isNaN(Date.parse(published))) return null;
+  return { id, title: decodeXml(title), published: new Date(published).toISOString() };
+}
+
+/** Reads the channel feed into the VideoFeed object. Never throws. */
+async function refreshVideo(env, force = false) {
+  try {
+    const stub = feedStub(env);
+    if (!(await stub.claim(force ? 0 : VIDEO_MIN_FETCH_MS))) return;
+    const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`, {
+      headers: { accept: 'application/atom+xml, application/xml;q=0.9' },
+    });
+    if (!res.ok) throw new Error(`feed HTTP ${res.status}`);
+    const video = parseFeed(await res.text());
+    if (!video) throw new Error('feed had no usable entry');
+    await stub.set({ ...video, checkedAt: Date.now() });
+  } catch (err) {
+    console.warn('[video] refresh failed:', err?.message ?? err);
+  }
+}
+
+const videoDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/**
+ * Serves a page with the newest known upload in its video block. The build
+ * bakes in whatever was latest then; if the feed has something newer, the
+ * block is rewritten on the fly. Thumbnails of swapped-in videos come straight
+ * from i.ytimg.com (allowed in the CSP), the rest of the page stays static.
+ */
+async function withLatestVideo(request, env, ctx) {
+  // No conditional requests: the HTML may change without a rebuild
+  const headers = new Headers(request.headers);
+  headers.delete('if-none-match');
+  headers.delete('if-modified-since');
+  const res = await env.ASSETS.fetch(new Request(request, { headers }));
+  if (!res.ok || !(res.headers.get('content-type') ?? '').includes('text/html')) return res;
+
+  let video = null;
+  try {
+    video = await feedStub(env).get();
+    if (!video || Date.now() - video.checkedAt > VIDEO_STALE_MS) ctx.waitUntil(refreshVideo(env));
+  } catch (err) {
+    console.warn('[video] store unavailable:', err?.message ?? err);
+  }
+
+  const out = new Response(res.body, res);
+  out.headers.delete('etag');
+  out.headers.set('cache-control', 'public, max-age=0, must-revalidate');
+  if (!video) return out;
+
+  const thumb = `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`;
+  const when = new Date(video.published);
+  let swap = false;
+  return new HTMLRewriter()
+    .on('[data-video]', {
+      element(el) {
+        const builtId = el.getAttribute('data-video-id');
+        const builtAt = Date.parse(el.getAttribute('data-video-published') ?? '') || 0;
+        // Only replace with something newer than the build already knew about
+        swap = builtId !== video.id && when.getTime() > builtAt;
+        if (!swap) return;
+        el.setAttribute('data-video-id', video.id);
+        el.setAttribute('data-video-published', video.published);
+      },
+    })
+    .on('[data-video] [data-video-play]', {
+      element(el) {
+        if (swap) el.setAttribute('aria-label', `Play: ${video.title}`);
+      },
+    })
+    .on('[data-video] img', {
+      element(el) {
+        if (!swap) return;
+        el.setAttribute('src', thumb);
+        el.removeAttribute('srcset');
+        el.removeAttribute('sizes');
+      },
+    })
+    .on('[data-video] .video__title', {
+      element(el) {
+        if (!swap) return;
+        el.setAttribute('href', `https://www.youtube.com/watch?v=${video.id}`);
+        el.setInnerContent(video.title);
+      },
+    })
+    .on('[data-video] time', {
+      element(el) {
+        if (!swap) return;
+        el.setAttribute('datetime', video.published.slice(0, 10));
+        el.setInnerContent(videoDate.format(when));
+      },
+    })
+    .transform(out);
+}
+
+export class VideoFeed extends DurableObject {
+  /** The newest upload seen in the feed: { id, title, published, checkedAt } or null. */
+  async get() {
+    return (await this.ctx.storage.get('latest')) ?? null;
+  }
+
+  async set(video) {
+    await this.ctx.storage.put('latest', video);
+  }
+
+  /** True if a feed request may go out now; records the attempt. */
+  async claim(minMs) {
+    const last = (await this.ctx.storage.get('attempt')) ?? 0;
+    if (Date.now() - last < minMs) return false;
+    await this.ctx.storage.put('attempt', Date.now());
+    return true;
+  }
+}
 
 /** fun.jxsi.ch: map the root to the dist/fun/ pages, keep shared assets reachable. */
 async function serveFun(request, env, url) {
