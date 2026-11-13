@@ -70,6 +70,18 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
       <Button href={SITE.fun.url} color="--surface" iconAfter="arrow">{UI.fun.allGames}</Button>
     </div>
     <div class="fun-grid">
+      <a class="fun-card fun-card--colors" href={`${SITE.fun.url}/colors`}>
+        <span class="fun-card__drops" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="fun-card__body">
+          <span class="fun-card__tag">{UI.fun.hubNew}</span>
+          <strong class="fun-card__title">{UI.fun.colors.title}</strong>
+          <span>{UI.fun.hubColors}</span>
+          <span class="fun-card__cta">
+            {UI.fun.hubColorsCta}
+            <Icon name="arrow" size={18} />
+          </span>
+        </span>
+      </a>
       <a class="fun-card fun-card--flag" href={`${SITE.fun.url}/flag`}>
         <span class="fun-card__flag" aria-hidden="true"></span>
         <span class="fun-card__body">
@@ -214,6 +226,11 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
     .fun-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    /* The newest game spans the full row above the other two */
+    .fun-card--colors {
+      grid-column: 1 / -1;
+    }
   }
 
   .fun-card {
@@ -268,6 +285,68 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
 
   .fun-card--flag {
     background: var(--c-green);
+  }
+
+  .fun-card--colors {
+    background: var(--c-purple);
+  }
+
+  /* Yellow + blue drops that run together into green on hover */
+  .fun-card__drops {
+    position: relative;
+    width: clamp(88px, 24vw, 120px);
+    aspect-ratio: 1;
+  }
+
+  .fun-card__drops i {
+    position: absolute;
+    width: 52%;
+    aspect-ratio: 1;
+    border: var(--line) solid var(--ink);
+    border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+    box-shadow: var(--shadow-sm);
+    transition:
+      transform var(--t-slow) var(--ease-pop),
+      opacity var(--t-base);
+  }
+
+  .fun-card__drops i:nth-child(1) {
+    top: 4%;
+    left: 0;
+    background: #ffff14;
+  }
+
+  .fun-card__drops i:nth-child(2) {
+    top: 4%;
+    right: 0;
+    background: #0343df;
+  }
+
+  .fun-card__drops i:nth-child(3) {
+    bottom: 0;
+    left: 24%;
+    background: #39ad48;
+    transform: scale(0.7);
+  }
+
+  .fun-card--colors:hover .fun-card__drops i:nth-child(1) {
+    transform: translate(45%, 55%) scale(0.6);
+    opacity: 0;
+  }
+
+  .fun-card--colors:hover .fun-card__drops i:nth-child(2) {
+    transform: translate(-45%, 55%) scale(0.6);
+    opacity: 0;
+  }
+
+  .fun-card--colors:hover .fun-card__drops i:nth-child(3) {
+    transform: translate(0, -25%) scale(1.25);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fun-card__drops i {
+      transition: none;
+    }
   }
 
   /* A half-painted Swiss flag: red and cross on the left, still unpainted on the right */

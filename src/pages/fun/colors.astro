@@ -1,0 +1,2331 @@
+---
+/**
+ * Color Hunter: mix colours like paint and collect every named colour of the
+ * xkcd colour survey. Board in the style of Infinite Craft: drag colours from
+ * the side list onto the board and drop one drop onto another to merge them
+ * (spectral.js, Kubelka-Munk, so yellow + blue = green). A mix counts for the
+ * nearest named colour if it lands within that colour's tolerance (tighter for
+ * rarer tiers), otherwise it is kept in the palette.
+ * Collection book (families, ??? tiles, details, hints), milestones (palette
+ * slots, ratios, magenta, cyan, thermometer), daily target for everyone,
+ * sounds, export/import. Colour list: src/data/colors.json from
+ * scripts/build-colors.mjs. Runs in the browser, progress in localStorage.
+ */
+import Fun from '@/layouts/Fun.astro';
+import Icon from '@/components/Icon.astro';
+import Sticker from '@/components/Sticker.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import og from '@/assets/fun/colors-og.png';
+
+const T = UI.fun.colors;
+const ogImage = new URL(og.src, SITE.fun.url).href;
+const { title: _t, description: _d, tagline: _g, intro: _i, noJs: _n, ...strings } = T;
+---
+
+<Fun title={T.title} description={T.description} path="/colors" indexHref="./" image={ogImage} bare>
+  <div class="container ch" data-ch data-mode="collect" data-strings={JSON.stringify(strings)}>
+    <header class="topbar">
+      <a class="topbar__fun" href="./" aria-label={UI.fun.indexTitle}><Sticker color="--c-pink" rotate={-4}>{UI.fun.title}</Sticker></a>
+      <h1 class="topbar__title">{T.title}</h1>
+      <div class="progress" aria-live="polite" title={T.intro}>
+        <p class="progress__text"><strong data-count>0</strong> / <span data-total>0</span> <span class="progress__label">{T.found}</span></p>
+        <div class="progress__bar"><span data-bar></span></div>
+      </div>
+      <div class="modes" role="group" aria-label={T.modeLabel}>
+        <button class="mode" type="button" data-mode="collect" aria-pressed="true">{T.modeCollect}</button>
+        <button class="mode" type="button" data-mode="daily" aria-pressed="false">{T.modeDaily}</button>
+      </div>
+      <a class="topbar__back" href={`${SITE.url}/hub`} aria-label={UI.fun.backToSite}>
+        <span class="topbar__backtext">{UI.fun.backToSite}</span>
+        <Icon name="arrow" size={16} />
+      </a>
+    </header>
+
+    <section class="daily" data-only="daily" aria-labelledby="ch-daily-title">
+      <div class="daily__target">
+        <div class="daily__swatch" data-target></div>
+        <div class="daily__info">
+          <p class="daily__kicker" id="ch-daily-title" data-daily-title></p>
+          <p class="daily__name" data-daily-name></p>
+          <p class="daily__meta">{T.mixesLabel}: <strong data-daily-count>0</strong> <span data-daily-bonus></span></p>
+        </div>
+      </div>
+      <p class="daily__intro" data-daily-intro>{T.dailyIntro}</p>
+      <div class="match" data-match hidden>
+        <span class="match__track"><span data-match-fill></span></span>
+        <strong data-match-text></strong>
+      </div>
+      <p class="daily__row" data-daily-row aria-hidden="true"></p>
+      <div class="daily__done" data-daily-done hidden>
+        <p class="daily__solved" data-daily-solved></p>
+        <p class="daily__stats" data-daily-stats></p>
+        <button class="tbtn" type="button" data-daily-share>{T.share}</button>
+        <p class="daily__stats" data-daily-countdown></p>
+      </div>
+    </section>
+
+    <div class="app">
+      <div class="board" data-board role="application" aria-label={T.boardLabel}>
+        <div class="board__tools">
+          <div class="ratios" role="group" aria-label={T.ratio} data-ratios hidden>
+            <button type="button" data-ratio="1" aria-pressed="true">1:1</button>
+            <button type="button" data-ratio="2" aria-pressed="false">1:2</button>
+            <button type="button" data-ratio="3" aria-pressed="false">1:3</button>
+          </div>
+          <button class="tool" type="button" data-clear title={T.clearBoard} aria-label={T.clearBoard}>🧹</button>
+          <button class="tool" type="button" data-sound aria-pressed="true" title={T.soundOn} aria-label={T.soundOn}>🔊</button>
+          <button class="tool" type="button" data-fullscreen hidden title={T.fullscreen} aria-label={T.fullscreen}>⛶</button>
+        </div>
+        <p class="board__empty" data-board-empty>{T.boardEmpty}</p>
+        <div class="board__status">
+          <p class="verdict" data-verdict role="status">{T.howTo}</p>
+          <div class="thermo" data-only="collect" data-thermo hidden>
+            <span class="thermo__label">{T.thermo}</span>
+            <span class="thermo__track"><span data-thermo-fill></span></span>
+            <strong data-thermo-text></strong>
+          </div>
+        </div>
+        <div class="board__layer" data-layer></div>
+      </div>
+
+      <aside class="side" data-side>
+        <div class="side__top">
+          <button class="tbtn" type="button" data-open-book>📖 {T.book}</button>
+          <span class="tokens" data-only="collect" data-tokens></span>
+        </div>
+        <section class="side__section">
+          <h2 class="side__title">{T.base}</h2>
+          <div class="items" data-base></div>
+        </section>
+        <section class="side__section" data-only="daily">
+          <h2 class="side__title">{T.todayMixes}</h2>
+          <div class="items" data-today></div>
+        </section>
+        <section class="side__section" data-only="collect">
+          <h2 class="side__title">{T.work}</h2>
+          <div class="items" data-work></div>
+        </section>
+        <section class="side__section side__section--grow" data-only="collect">
+          <h2 class="side__title">{T.collection} <span data-found-count></span></h2>
+          <input class="search" type="search" data-search placeholder={T.search} aria-label={T.search} />
+          <div class="items items--found" data-found></div>
+        </section>
+        <p class="side__hint">{T.dragHint}</p>
+        <p class="foot">
+          <button class="linkish" type="button" data-export>{T.exportSave}</button>
+          <button class="linkish" type="button" data-import>{T.importSave}</button>
+          <button class="linkish" type="button" data-reset>{T.reset}</button>
+        </p>
+      </aside>
+    </div>
+    <noscript><p class="side__hint">{T.noJs}</p></noscript>
+
+    <!-- Discovery / unlock card -->
+    <div class="reveal" data-reveal hidden>
+      <div class="reveal__card" role="dialog" aria-modal="true" aria-labelledby="ch-reveal-name">
+        <p class="reveal__kicker" data-reveal-kicker></p>
+        <div class="reveal__swatch" data-reveal-swatch></div>
+        <p class="reveal__name" id="ch-reveal-name" data-reveal-name></p>
+        <p class="reveal__meta" data-reveal-meta></p>
+        <ul class="reveal__extra" data-reveal-extra></ul>
+        <button class="reveal__close" type="button" data-reveal-close>{T.close}</button>
+      </div>
+      <div class="confetti" data-confetti aria-hidden="true"></div>
+    </div>
+
+    <!-- Collection book -->
+    <div class="book" data-book hidden>
+      <div class="book__panel" role="dialog" aria-modal="true" aria-labelledby="ch-book-title">
+        <div class="book__head">
+          <h2 id="ch-book-title">{T.book}</h2>
+          <button class="tbtn" type="button" data-close-book>{T.bookClose}</button>
+        </div>
+        <p class="progress__text"><strong data-book-count>0</strong> / <span data-book-total>0</span> {T.found} · <span data-book-tokens></span></p>
+        <div class="progress__bar"><span data-book-bar></span></div>
+        <div class="detail" data-detail hidden></div>
+        <div class="families" data-families></div>
+      </div>
+    </div>
+  </div>
+</Fun>
+
+<style>
+  /* Full window, like Infinite Craft: top bar, optional daily strip, then board + list */
+  .ch {
+    --common: #9a9a9a;
+    --uncommon: #2fbf71;
+    --rare: #4d8dff;
+    --legendary: #f5b301;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+  }
+
+  .topbar__fun {
+    text-decoration: none;
+  }
+
+  .topbar__title {
+    font-size: var(--text-xl);
+    line-height: 1;
+  }
+
+  .topbar .progress {
+    flex: 1 1 160px;
+    min-width: 140px;
+  }
+
+  .topbar__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 38px;
+    padding: 4px 12px;
+    background: var(--c-yellow);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+  }
+
+  @media (max-width: 640px) {
+    .ch {
+      padding: 6px;
+      gap: 6px;
+    }
+
+    .topbar {
+      gap: 6px 10px;
+    }
+
+    .topbar__title,
+    .topbar__backtext,
+    .progress__label {
+      display: none;
+    }
+
+    .topbar .progress {
+      order: 5;
+      flex-basis: 100%;
+    }
+  }
+
+  .ch[data-mode='collect'] [data-only='daily'],
+  .ch[data-mode='daily'] [data-only='collect'] {
+    display: none !important;
+  }
+
+  .modes {
+    display: inline-flex;
+    padding: 3px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .mode {
+    min-height: 38px;
+    padding: 4px 16px;
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+  }
+
+  .mode[aria-pressed='true'] {
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  .progress {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .progress__text {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .progress__text strong {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 400;
+  }
+
+  .progress__bar {
+    height: 10px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .progress__bar span {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #e50000, #f9bc08, #15b01a, #0343df, #7e1e9c);
+    transition: width var(--t-slow) var(--ease-out);
+  }
+
+  .tbtn {
+    min-height: 40px;
+    padding: 6px 14px;
+    background: var(--c-yellow);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .tokens {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  /* ---- daily panel ---- */
+  .daily {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    padding: 8px 12px;
+    background: var(--c-purple);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+  }
+
+  .daily__intro {
+    flex: 1 1 260px;
+    max-width: 60ch;
+    font-size: var(--text-sm);
+  }
+
+  .daily__target {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .daily__swatch {
+    flex: none;
+    width: 52px;
+    aspect-ratio: 1;
+    background: var(--c, #ccc);
+    border: var(--line) solid var(--ink);
+    border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .daily__info {
+    display: grid;
+    gap: 2px;
+  }
+
+  .daily__kicker,
+  .daily__meta,
+  .daily__stats {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .daily__name {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    line-height: 1.05;
+    text-transform: capitalize;
+  }
+
+  .match {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-weight: 700;
+  }
+
+  .match[hidden],
+  .daily__done[hidden] {
+    display: none;
+  }
+
+  .match__track {
+    flex: 1;
+    width: 160px;
+    max-width: 220px;
+    height: 16px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .match__track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--c-green);
+    transition: width var(--t-base) var(--ease-out);
+  }
+
+  .daily__row {
+    max-width: none;
+    min-height: 1.4em;
+    font-size: 1.3rem;
+    letter-spacing: 2px;
+    overflow-wrap: anywhere;
+  }
+
+  .daily__done {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+  }
+
+  .daily__solved {
+    font-weight: 700;
+  }
+
+  /* ---- board + side list ---- */
+  .app {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 40%);
+    gap: 10px;
+    min-height: 0;
+  }
+
+  @media (min-width: 860px) {
+    .app {
+      grid-template-columns: minmax(0, 1fr) 300px;
+      grid-template-rows: minmax(0, 1fr);
+    }
+  }
+
+  .board {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle, rgb(17 17 17 / 0.13) 1.2px, transparent 1.6px) 0 0 / 22px 22px,
+      var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    touch-action: none;
+  }
+
+  .board__tools {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tool {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+
+  .tool:hover {
+    background: var(--c-yellow);
+  }
+
+  .tool[hidden] {
+    display: none;
+  }
+
+  .ratios {
+    display: inline-flex;
+    padding: 2px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .ratios[hidden] {
+    display: none;
+  }
+
+  .ratios button {
+    min-height: 34px;
+    padding: 2px 12px;
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .ratios button[aria-pressed='true'] {
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  .board__empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: var(--space-5);
+    margin: 0;
+    max-width: none;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    color: rgb(17 17 17 / 0.25);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .board__empty[hidden] {
+    display: none;
+  }
+
+  .board__status {
+    position: absolute;
+    left: 12px;
+    bottom: 10px;
+    z-index: 3;
+    display: grid;
+    gap: 4px;
+    max-width: calc(100% - 24px);
+    pointer-events: none;
+  }
+
+  .verdict {
+    justify-self: start;
+    max-width: 46ch;
+    padding: 4px 10px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .verdict:empty {
+    display: none;
+  }
+
+  .verdict b {
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 400;
+    text-transform: capitalize;
+  }
+
+  .thermo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 4px 10px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .thermo[hidden] {
+    display: none;
+  }
+
+  .thermo__track {
+    position: relative;
+    width: 120px;
+    height: 10px;
+    background: linear-gradient(90deg, #4d8dff, #9b5de5, #ff5a1f, #e50000);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .thermo__track span {
+    position: absolute;
+    top: -5px;
+    left: 0;
+    width: 4px;
+    height: 16px;
+    background: var(--ink);
+    border-radius: 2px;
+    transition: left var(--t-base) var(--ease-out);
+  }
+
+  .board__layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+
+  /* A paint drop on the board: blob plus label, like the pills in Infinite Craft */
+  :global(.blob) {
+    --c: #ccc;
+    position: absolute;
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  :global(.blob__drop) {
+    width: 58px;
+    height: 58px;
+    background: var(--c);
+    border: var(--line) solid var(--ink);
+    border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+    box-shadow: var(--shadow-sm);
+    transition:
+      background 300ms var(--ease-out),
+      transform var(--t-fast) var(--ease-pop);
+  }
+
+  :global(.blob__label) {
+    max-width: 150px;
+    padding: 1px 8px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: capitalize;
+  }
+
+  :global(.blob--unnamed .blob__label) {
+    font-family: var(--font-mono);
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  :global(.blob:hover .blob__drop),
+  :global(.blob.is-dragging .blob__drop) {
+    transform: scale(1.08);
+  }
+
+  :global(.blob.is-dragging) {
+    z-index: 10;
+    cursor: grabbing;
+  }
+
+  :global(.blob.is-dragging .blob__drop) {
+    box-shadow: var(--shadow);
+  }
+
+  :global(.blob.is-target .blob__drop) {
+    transform: scale(1.2);
+    box-shadow:
+      0 0 0 4px var(--surface),
+      0 0 0 7px var(--ink);
+  }
+
+  :global(.blob.is-selected .blob__drop) {
+    box-shadow:
+      0 0 0 3px var(--surface),
+      0 0 0 6px var(--ink);
+  }
+
+  :global(.blob:focus-visible) {
+    outline: var(--line) dashed var(--ink);
+    outline-offset: 4px;
+  }
+
+  :global(.blob.is-merged .blob__drop) {
+    animation: ch-blob 650ms var(--ease-pop);
+  }
+
+  :global(.blob.is-new .blob__label) {
+    background: var(--c-yellow);
+  }
+
+  :global(.ch-ghost) {
+    position: fixed;
+    z-index: 200;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+
+  /* A column: on phones it scrolls as a whole, on desktop only "your colours" scrolls */
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  .side > * {
+    flex: none;
+  }
+
+  @media (min-width: 860px) {
+    .side {
+      overflow: hidden;
+    }
+
+    .side > .side__section--grow {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+  }
+
+  .side__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .side__section {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+  }
+
+  .side__section--grow {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .side__title {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .side__hint {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .search {
+    min-height: 36px;
+    padding: 4px 10px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+  }
+
+  .items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .items--found {
+    max-height: 320px;
+    overflow-y: auto;
+    align-content: flex-start;
+    padding: 2px;
+  }
+
+  @media (min-width: 860px) {
+    .items--found {
+      max-height: none;
+      min-height: 0;
+    }
+  }
+
+  /* Side list entries: a small drop and the name, draggable onto the board */
+  .items :global(.item) {
+    --c: #ccc;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-height: 34px;
+    padding: 3px 10px 3px 4px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: grab;
+    text-transform: capitalize;
+  }
+
+  .items :global(.item i) {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    background: var(--c);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .items :global(.item span) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .items :global(.item--hex span) {
+    font-family: var(--font-mono);
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  .items :global(.item--empty) {
+    width: 34px;
+    padding: 0;
+    border-style: dashed;
+    border-color: var(--muted);
+    cursor: default;
+  }
+
+  .items :global(.item--new) {
+    background: var(--c-yellow);
+  }
+
+  .items :global(.item:hover) {
+    background: var(--bg);
+  }
+
+  .items :global(.item:focus-visible) {
+    outline: 2px dashed var(--ink);
+    outline-offset: 2px;
+  }
+
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    max-width: none;
+  }
+
+  .linkish {
+    padding: 0;
+    background: none;
+    border: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  /* ---- discovery / unlock card ---- */
+  .reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 160;
+    display: grid;
+    place-items: center;
+    padding: var(--space-3);
+    background: rgb(17 17 17 / 0.55);
+  }
+
+  .reveal[hidden] {
+    display: none;
+  }
+
+  .reveal__card {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    gap: var(--space-2);
+    width: min(100%, 360px);
+    padding: var(--space-4);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    animation: ch-pop 400ms var(--ease-pop);
+  }
+
+  .reveal__kicker {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .reveal__swatch {
+    width: 140px;
+    aspect-ratio: 1;
+    border: var(--line) solid var(--ink);
+    border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+    box-shadow: var(--shadow);
+    animation: ch-blob 700ms var(--ease-pop);
+  }
+
+  .reveal__name {
+    min-height: 1.1em;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    line-height: 1.05;
+    text-transform: capitalize;
+  }
+
+  .reveal__meta {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .reveal__extra {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-weight: 700;
+  }
+
+  .reveal__extra:empty {
+    display: none;
+  }
+
+  .reveal__extra li {
+    max-width: none;
+    padding: 6px 12px;
+    background: var(--c-yellow);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+  }
+
+  .reveal__close {
+    min-height: 44px;
+    padding: 6px 18px;
+    background: var(--c-yellow);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .confetti {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .confetti :global(i) {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    width: 10px;
+    height: 14px;
+    background: var(--c);
+    border: 2px solid var(--ink);
+    animation: ch-confetti 1100ms var(--ease-out) forwards;
+  }
+
+  /* ---- collection book ---- */
+  .book {
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    display: grid;
+    padding: var(--space-3);
+    background: rgb(17 17 17 / 0.55);
+    overflow-y: auto;
+  }
+
+  .book[hidden] {
+    display: none;
+  }
+
+  .book__panel {
+    display: grid;
+    align-content: start;
+    gap: var(--space-3);
+    width: min(100%, 980px);
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-3);
+    background: var(--bg);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .book__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .detail {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+  }
+
+  .detail[hidden] {
+    display: none;
+  }
+
+  .detail :global(.detail__swatch) {
+    width: 72px;
+    height: 72px;
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .detail :global(.detail__swatch--blur) {
+    filter: blur(8px);
+  }
+
+  .detail :global(.detail__swatch--unknown) {
+    display: grid;
+    place-items: center;
+    background: #ddd8cc;
+    font-family: var(--font-display);
+  }
+
+  .detail :global(.detail__name) {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    text-transform: capitalize;
+  }
+
+  .detail :global(.detail__meta) {
+    max-width: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .detail :global(.detail__mix) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .detail :global(.detail__mix i) {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .detail :global(.detail__hint) {
+    justify-self: start;
+    margin-top: 6px;
+    min-height: 36px;
+    padding: 4px 12px;
+    background: var(--c-yellow);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .families {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .families :global(.fam__title) {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .families :global(.fam__badge) {
+    padding: 0 8px;
+    background: var(--legendary);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .families :global(.fam__grid) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
+    gap: 5px;
+  }
+
+  .families :global(.tile) {
+    --c: #ddd8cc;
+    --frame: var(--common);
+    aspect-ratio: 1;
+    padding: 0;
+    background: var(--c);
+    border: 3px solid var(--frame);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: #8a8478;
+    cursor: pointer;
+  }
+
+  .families :global(.tile[data-tier='uncommon']) {
+    --frame: var(--uncommon);
+  }
+
+  .families :global(.tile[data-tier='rare']) {
+    --frame: var(--rare);
+  }
+
+  .families :global(.tile[data-tier='legendary']) {
+    --frame: var(--legendary);
+  }
+
+  .families :global(.tile.is-found[data-tier='legendary']) {
+    box-shadow: 0 0 8px 1px var(--legendary);
+  }
+
+  .families :global(.tile.is-hinted) {
+    background: radial-gradient(circle, var(--hint) 0, var(--hint) 30%, #ddd8cc 75%);
+  }
+
+  .families :global(.tile:focus-visible) {
+    outline: var(--line) dashed var(--ink);
+    outline-offset: 2px;
+  }
+
+  @keyframes ch-blob {
+    0% {
+      transform: scale(0.55, 0.45);
+    }
+    45% {
+      transform: scale(1.18, 0.9);
+    }
+    70% {
+      transform: scale(0.94, 1.08);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes ch-pop {
+    from {
+      transform: scale(0.7);
+      opacity: 0;
+    }
+  }
+
+  @keyframes ch-confetti {
+    to {
+      transform: translate(var(--x), var(--y)) rotate(var(--r));
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal__card,
+    .reveal__swatch,
+    .confetti :global(i),
+    :global(.blob.is-merged .blob__drop) {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  import spectral from 'spectral.js';
+  import DATA from '@/data/colors.json';
+  import { deltaE, hexToOklab } from '@/lib/color-math.mjs';
+  import { dailyPick, dayIndex, secondsToNextDay, zurichWeekday } from '@/lib/daily';
+
+  type Tier = 'common' | 'uncommon' | 'rare' | 'legendary';
+
+  interface NamedColor {
+    id: number;
+    name: string;
+    hex: string;
+    lab: number[];
+    family: string;
+    tier: Tier;
+    steps: number | null;
+    tol: number;
+    /** Fewest mixing levels from the start colours for the daily, null = not a daily target */
+    daily: number | null;
+  }
+
+  type Strings = Record<string, string> & {
+    thermoLevels: string[];
+    tiers: Record<Tier, string>;
+    families: Record<string, string>;
+    milestones: { at: number; text: string }[];
+  };
+
+  interface FoundEntry {
+    at: number;
+    a: string;
+    b: string;
+    /** b's share: a:b = 1:r */
+    r?: number;
+    /** start colour or unlock gift, not mixed */
+    gift?: boolean;
+  }
+
+  /** A drop on the board; x/y as a fraction of the board size */
+  interface Drop {
+    hex: string;
+    x: number;
+    y: number;
+  }
+
+  interface Save {
+    found: Record<string, FoundEntry>;
+    /** Unnamed mixes, newest first */
+    work: string[];
+    seen: number[];
+    hints: number[];
+    badges: string[];
+    board: Drop[];
+  }
+
+  interface DailyState {
+    day: number;
+    mixes: string[];
+    row: string[];
+    solved: boolean;
+    board: Drop[];
+  }
+
+  interface DailyStats {
+    streak: { last: number; count: number };
+    best: number | null;
+  }
+
+  const KEY = 'jxsi_colors_v1';
+  const DAILY_KEY = 'jxsi_colors_daily';
+  const STATS_KEY = 'jxsi_colors_daily_stats';
+  const SOUND_KEY = 'jxsi_colors_sound';
+  const SAVE_PREFIX = 'CH1:';
+  const DAILY_LAUNCH = Date.UTC(2026, 10, 13);
+  const HIT_PERCENT = 97;
+  const MAX_DROPS = 40;
+  /** Distance in px between drop centres that counts as "dropped onto" */
+  const HIT_RADIUS = 46;
+
+  const COLORS = DATA.colors as NamedColor[];
+  const BY_ID = new Map(COLORS.map((c) => [c.id, c]));
+  const BY_HEX = new Map(COLORS.map((c) => [c.hex, c]));
+  const byName = (n: string) => COLORS.find((c) => c.name === n)!;
+  const START = DATA.start.map(byName);
+  const [MAGENTA, CYAN] = DATA.unlockBases.map(byName);
+  const FAMILY_ORDER = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'brown', 'grey'];
+  const UNLOCK = { slots4: 25, ratios: 75, magenta: 150, cyan: 250, thermo: 400, slots8: 600 };
+  const HINT_EVERY = 10;
+
+  function loadJson<T>(key: string, fallback: T): T {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? fallback : (JSON.parse(raw) as T);
+    } catch {
+      return fallback;
+    }
+  }
+
+  function saveJson(key: string, value: unknown) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* private mode: progress lasts until the tab closes */
+    }
+  }
+
+  function emptySave(): Save {
+    return { found: {}, work: [], seen: [], hints: [], badges: [], board: [] };
+  }
+
+  function validSave(raw: unknown): raw is Partial<Save> {
+    return Boolean(raw && typeof raw === 'object' && (raw as Save).found && typeof (raw as Save).found === 'object');
+  }
+
+  function mixPaint(a: string, b: string, r = 1): string {
+    return spectral.mix([new spectral.Color(a), 1], [new spectral.Color(b), r]).toString().toLowerCase();
+  }
+
+  function identify(hex: string): { color: NamedColor; hit: boolean } {
+    const lab = hexToOklab(hex);
+    let best = COLORS[0];
+    let bestD = Infinity;
+    for (const c of COLORS) {
+      const d = deltaE(lab, c.lab);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return { color: best, hit: bestD <= best.tol };
+  }
+
+  function dailyTarget(day: number): NamedColor {
+    const rare = zurichWeekday() === 1;
+    const pool = COLORS.filter((c) => c.daily !== null && (rare ? c.tier === 'rare' : c.tier === 'common' || c.tier === 'uncommon')).sort(
+      (a, b) => a.id - b.id,
+    );
+    return dailyPick(pool, day, rare ? 77 : 33);
+  }
+
+  function matchPercent(lab: number[], target: NamedColor): number {
+    const d = deltaE(lab, target.lab);
+    return Math.max(0, Math.min(100, Math.floor(100 - ((100 - HIT_PERCENT) * d) / target.tol)));
+  }
+
+  function emojiFor(lab: number[]): string {
+    const [L, a, b] = lab;
+    const C = Math.hypot(a, b);
+    const h = ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
+    if (C < 0.04) return L > 0.6 ? '⬜' : '⬛';
+    if (h >= 20 && h < 100 && L < 0.55 && C < 0.16) return '🟫';
+    if (h < 20 || h >= 345) return '🟥';
+    if (h < 70) return '🟧';
+    if (h < 115) return '🟨';
+    if (h < 175) return '🟩';
+    if (h < 270) return '🟦';
+    return '🟪';
+  }
+
+  /* ---- sound: tiny synthesized blips, no files ------------------------------ */
+
+  let audio: AudioContext | null = null;
+  function tone(freq: number, to: number, dur: number, type: OscillatorType, gain: number, delay = 0) {
+    audio ??= new AudioContext();
+    const t = audio.currentTime + delay;
+    const osc = audio.createOscillator();
+    const g = audio.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g).connect(audio.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+  const SOUNDS = {
+    blub: () => {
+      tone(320, 140, 0.16, 'sine', 0.22);
+      tone(520, 260, 0.12, 'sine', 0.12, 0.07);
+    },
+    ping: () => {
+      tone(880, 880, 0.18, 'triangle', 0.18);
+      tone(1320, 1320, 0.32, 'triangle', 0.16, 0.1);
+    },
+    fanfare: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.22, 'triangle', 0.15, i * 0.09)),
+    pop: () => tone(600, 300, 0.08, 'sine', 0.12),
+  };
+
+  function init() {
+    const root = document.querySelector<HTMLElement>('[data-ch]');
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = 'true';
+
+    const S = JSON.parse(root.dataset.strings ?? '{}') as Strings;
+    const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    const board = $('[data-board]');
+    const layer = $('[data-layer]');
+    const side = $('[data-side]');
+
+    let save: Save = { ...emptySave(), ...loadJson<Partial<Save>>(KEY, {}) };
+    if (!validSave(save)) save = emptySave();
+    const giftStart = () => {
+      for (const c of START) save.found[String(c.id)] ??= { at: 0, a: '', b: '', gift: true };
+    };
+    giftStart();
+
+    let mode: 'collect' | 'daily' = 'collect';
+    let ratio = 1;
+    let freshId: number | null = null;
+    let lastMixLab: number[] | null = null;
+    let soundOn = loadJson<boolean>(SOUND_KEY, true);
+    let selected: HTMLElement | null = null;
+    let countdownTimer: number | undefined;
+
+    const today = dayIndex(DAILY_LAUNCH);
+    const target = dailyTarget(today);
+    const freshDaily = (): DailyState => ({ day: today, mixes: [], row: [], solved: false, board: [] });
+    let daily = { ...freshDaily(), ...loadJson<Partial<DailyState>>(DAILY_KEY, {}) } as DailyState;
+    if (daily.day !== today) daily = freshDaily();
+
+    const dateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const foundCount = () => Object.keys(save.found).length;
+    const mixedCount = () => Object.values(save.found).filter((f) => !f.gift).length;
+    const isFound = (id: number) => Boolean(save.found[String(id)]);
+    const tokens = () => Math.max(0, Math.floor(mixedCount() / HINT_EVERY) - save.hints.length);
+    const has = (at: number) => foundCount() >= at;
+    const bases = () => [...START, ...(has(UNLOCK.magenta) ? [MAGENTA] : []), ...(has(UNLOCK.cyan) ? [CYAN] : [])];
+    const workSlots = () => 8 + (has(UNLOCK.slots4) ? 4 : 0) + (has(UNLOCK.slots8) ? 8 : 0);
+    const drops = () => (mode === 'daily' ? daily.board : save.board);
+    const play = (s: keyof typeof SOUNDS) => {
+      if (!soundOn) return;
+      try {
+        SOUNDS[s]();
+      } catch {
+        /* no audio */
+      }
+    };
+    const persist = () => {
+      saveJson(KEY, save);
+      saveJson(DAILY_KEY, daily);
+    };
+
+    /* ---- side list ------------------------------------------------------------ */
+
+    function item(hex: string, label: string, extra = ''): HTMLButtonElement {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `item ${extra}`.trim();
+      b.style.setProperty('--c', hex);
+      b.dataset.hex = hex;
+      b.title = label;
+      const dot = document.createElement('i');
+      const text = document.createElement('span');
+      text.textContent = label;
+      b.append(dot, text);
+      return b;
+    }
+
+    function renderProgress() {
+      const n = foundCount();
+      for (const [count, total, bar] of [
+        ['[data-count]', '[data-total]', '[data-bar]'],
+        ['[data-book-count]', '[data-book-total]', '[data-book-bar]'],
+      ]) {
+        $(count).textContent = String(n);
+        $(total).textContent = String(COLORS.length);
+        $(bar).style.width = `${(n / COLORS.length) * 100}%`;
+      }
+      const t = `💡 ${tokens()} ${S.hints}`;
+      $('[data-tokens]').textContent = t;
+      $('[data-book-tokens]').textContent = t;
+      const ratiosOn = mode === 'daily' || has(UNLOCK.ratios);
+      $('[data-ratios]').hidden = !ratiosOn;
+      if (!ratiosOn) setRatio(1);
+      $('[data-thermo]').hidden = !has(UNLOCK.thermo) || !lastMixLab;
+    }
+
+    function renderSide() {
+      $('[data-base]').replaceChildren(...(mode === 'daily' ? START : bases()).map((c) => item(c.hex, c.name)));
+      if (mode === 'daily') {
+        const seen = [...new Set([...daily.mixes].reverse())];
+        $('[data-today]').replaceChildren(...seen.map((hex) => item(hex, hex, 'item--hex')));
+        return;
+      }
+      const slotsN = workSlots();
+      save.work = save.work.slice(0, slotsN);
+      const work: HTMLElement[] = save.work.map((hex) => item(hex, hex, 'item--hex'));
+      while (work.length < slotsN) {
+        const empty = document.createElement('span');
+        empty.className = 'item item--empty';
+        empty.setAttribute('aria-hidden', 'true');
+        work.push(empty);
+      }
+      $('[data-work]').replaceChildren(...work);
+      renderFound();
+    }
+
+    function renderFound() {
+      const q = $<HTMLInputElement>('[data-search]').value.trim().toLowerCase();
+      const baseIds = new Set(bases().map((c) => String(c.id)));
+      const list = Object.entries(save.found)
+        .filter(([id]) => !baseIds.has(id))
+        .sort((x, y) => y[1].at - x[1].at)
+        .map(([id]) => BY_ID.get(Number(id)))
+        .filter((c): c is NamedColor => Boolean(c));
+      $('[data-found-count]').textContent = `(${list.length})`;
+      const shown = list.filter((c) => !q || c.name.includes(q));
+      const box = $('[data-found]');
+      if (shown.length) box.replaceChildren(...shown.map((c) => item(c.hex, c.name, c.id === freshId ? 'item--new' : '')));
+      else {
+        const p = document.createElement('p');
+        p.className = 'side__hint';
+        p.textContent = list.length ? '—' : S.collectionEmpty;
+        box.replaceChildren(p);
+      }
+    }
+    $('[data-search]').addEventListener('input', renderFound);
+
+    /* ---- board ---------------------------------------------------------------- */
+
+    function labelFor(hex: string): { text: string; named: boolean } {
+      const c = BY_HEX.get(hex);
+      return c ? { text: c.name, named: true } : { text: hex, named: false };
+    }
+
+    function setBlobColor(el: HTMLElement, hex: string) {
+      el.dataset.hex = hex;
+      el.style.setProperty('--c', hex);
+      const { text, named } = labelFor(hex);
+      el.classList.toggle('blob--unnamed', !named);
+      el.querySelector('.blob__label')!.textContent = text;
+      el.setAttribute('aria-label', text);
+    }
+
+    function makeBlob(d: Drop): HTMLElement {
+      const el = document.createElement('div');
+      el.className = 'blob';
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.style.left = `${d.x * 100}%`;
+      el.style.top = `${d.y * 100}%`;
+      const drop = document.createElement('div');
+      drop.className = 'blob__drop';
+      const label = document.createElement('div');
+      label.className = 'blob__label';
+      el.append(drop, label);
+      setBlobColor(el, d.hex);
+      return el;
+    }
+
+    function renderBoard() {
+      layer.replaceChildren(...drops().map(makeBlob));
+      selected = null;
+      $('[data-board-empty]').hidden = drops().length > 0;
+    }
+
+    /** Board state from the DOM, as fractions, so it survives resizes and reloads */
+    function syncBoard() {
+      const w = board.clientWidth || 1;
+      const h = board.clientHeight || 1;
+      const list = [...layer.querySelectorAll<HTMLElement>('.blob')].map((el) => ({
+        hex: el.dataset.hex!,
+        x: Math.min(0.97, Math.max(0.03, el.offsetLeft / w)),
+        y: Math.min(0.95, Math.max(0.05, el.offsetTop / h)),
+      }));
+      if (mode === 'daily') daily.board = list.slice(-MAX_DROPS);
+      else save.board = list.slice(-MAX_DROPS);
+      $('[data-board-empty]').hidden = list.length > 0;
+      persist();
+    }
+
+    function placeAt(el: HTMLElement, px: number, py: number) {
+      const w = board.clientWidth;
+      const h = board.clientHeight;
+      el.style.left = `${(Math.min(w - 40, Math.max(40, px)) / w) * 100}%`;
+      el.style.top = `${(Math.min(h - 40, Math.max(40, py)) / h) * 100}%`;
+    }
+
+    /** A free-ish spot for tapped colours */
+    function freeSpot(): [number, number] {
+      const w = board.clientWidth;
+      const h = board.clientHeight;
+      const taken = [...layer.querySelectorAll<HTMLElement>('.blob')].map((el) => [el.offsetLeft, el.offsetTop]);
+      let best: [number, number] = [w / 2, h / 2];
+      let bestGap = -1;
+      for (let i = 0; i < 24; i++) {
+        const p: [number, number] = [w * (0.15 + Math.random() * 0.7), h * (0.2 + Math.random() * 0.6)];
+        const gap = taken.length ? Math.min(...taken.map(([x, y]) => Math.hypot(x - p[0], y - p[1]))) : Infinity;
+        if (gap > bestGap) {
+          bestGap = gap;
+          best = p;
+        }
+        if (gap > 110) break;
+      }
+      return best;
+    }
+
+    function addBlob(hex: string, px: number, py: number): HTMLElement {
+      const el = makeBlob({ hex, x: 0.5, y: 0.5 });
+      placeAt(el, px, py);
+      layer.append(el);
+      const all = layer.querySelectorAll('.blob');
+      if (all.length > MAX_DROPS) all[0].remove();
+      el.classList.add('is-merged');
+      setTimeout(() => el.classList.remove('is-merged'), 700);
+      play('pop');
+      syncBoard();
+      return el;
+    }
+
+    function blobAt(px: number, py: number, except?: Element | null): HTMLElement | null {
+      let best: HTMLElement | null = null;
+      let bestD = HIT_RADIUS;
+      for (const el of layer.querySelectorAll<HTMLElement>('.blob')) {
+        if (el === except) continue;
+        const d = Math.hypot(el.offsetLeft - px, el.offsetTop - py);
+        if (d < bestD) {
+          bestD = d;
+          best = el;
+        }
+      }
+      return best;
+    }
+
+    /** `fromHex` lands on the drop `onto`; both become one drop of the mix. */
+    function merge(fromHex: string, onto: HTMLElement, fromEl: HTMLElement | null) {
+      const toHex = onto.dataset.hex!;
+      fromEl?.remove();
+      const result = doMix(fromHex, toHex);
+      setBlobColor(onto, result);
+      onto.classList.remove('is-merged', 'is-new');
+      void onto.offsetWidth;
+      onto.classList.add('is-merged');
+      if (freshId !== null && BY_HEX.get(result)?.id === freshId) onto.classList.add('is-new');
+      setTimeout(() => onto.classList.remove('is-merged'), 700);
+      syncBoard();
+    }
+
+    /* ---- verdict, thermometer --------------------------------------------------- */
+
+    function verdict(nodes: (Node | string)[]) {
+      $('[data-verdict]').replaceChildren(...nodes);
+    }
+
+    function renderThermo() {
+      if (!has(UNLOCK.thermo) || !lastMixLab || mode !== 'collect') return;
+      let d = Infinity;
+      for (const c of COLORS) if (!isFound(c.id)) d = Math.min(d, deltaE(lastMixLab, c.lab));
+      const heat = Math.max(0, Math.min(1, 1 - d / 0.12));
+      const levels = S.thermoLevels;
+      $('[data-thermo-fill]').style.left = `calc(${heat * 100}% - 2px)`;
+      $('[data-thermo-text]').textContent = d === Infinity ? '' : levels[Math.min(levels.length - 1, Math.floor(heat * levels.length))];
+      $('[data-thermo]').hidden = false;
+    }
+
+    /* ---- reveal card ---------------------------------------------------------- */
+
+    const queue: (() => void)[] = [];
+    let open = false;
+    let typeTimer: number | undefined;
+
+    function card(kicker: string, name: string, meta: string, swatch: string | null, extra: string[] = [], sound: keyof typeof SOUNDS = 'ping') {
+      queue.push(() => {
+        open = true;
+        play(sound);
+        $('[data-reveal-kicker]').textContent = kicker;
+        const sw = $('[data-reveal-swatch]');
+        sw.style.display = swatch ? '' : 'none';
+        if (swatch) sw.style.background = swatch;
+        // The name types itself in
+        const nameEl = $('[data-reveal-name]');
+        window.clearInterval(typeTimer);
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) nameEl.textContent = name;
+        else {
+          let i = 0;
+          nameEl.textContent = '';
+          typeTimer = window.setInterval(() => {
+            i++;
+            nameEl.textContent = name.slice(0, i);
+            if (i >= name.length) window.clearInterval(typeTimer);
+          }, 45);
+        }
+        $('[data-reveal-meta]').textContent = meta;
+        $('[data-reveal-extra]').replaceChildren(
+          ...extra.map((t) => {
+            const li = document.createElement('li');
+            li.textContent = t;
+            return li;
+          }),
+        );
+        confetti(swatch);
+        $('[data-reveal]').hidden = false;
+        $('[data-reveal-close]').focus();
+      });
+      if (!open) queue.shift()!();
+    }
+
+    function confetti(hex: string | null) {
+      const box = $('[data-confetti]');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const palette = hex ? [hex] : ['#e50000', '#f9bc08', '#15b01a', '#0343df', '#7e1e9c'];
+      box.replaceChildren(
+        ...(reduced
+          ? []
+          : Array.from({ length: 30 }, (_, n) => {
+              const i = document.createElement('i');
+              const angle = Math.random() * Math.PI * 2;
+              const dist = 140 + Math.random() * 260;
+              i.style.setProperty('--c', palette[n % palette.length]);
+              i.style.setProperty('--x', `${Math.cos(angle) * dist}px`);
+              i.style.setProperty('--y', `${Math.sin(angle) * dist}px`);
+              i.style.setProperty('--r', `${Math.round(Math.random() * 720 - 360)}deg`);
+              return i;
+            })),
+      );
+    }
+
+    function closeCard() {
+      window.clearInterval(typeTimer);
+      $('[data-reveal]').hidden = true;
+      open = false;
+      const next = queue.shift();
+      if (next) next();
+    }
+    $('[data-reveal-close]').addEventListener('click', closeCard);
+    $('[data-reveal]').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeCard();
+    });
+
+    function celebrate() {
+      for (const m of S.milestones) {
+        if (!has(m.at) || save.seen.includes(m.at)) continue;
+        save.seen.push(m.at);
+        for (const [at, c] of [
+          [UNLOCK.magenta, MAGENTA],
+          [UNLOCK.cyan, CYAN],
+        ] as const) {
+          if (m.at === at && !isFound(c.id)) save.found[String(c.id)] = { at: Date.now(), a: '', b: '', gift: true };
+        }
+        card(S.unlocked, `${m.at} ${S.found}`, '', null, [m.text], 'fanfare');
+      }
+      for (const fam of FAMILY_ORDER) {
+        if (save.badges.includes(fam)) continue;
+        const all = COLORS.filter((c) => c.family === fam);
+        if (all.length && all.every((c) => isFound(c.id))) {
+          save.badges.push(fam);
+          card(S.familyDone, S.families[fam] ?? fam, `${all.length} / ${all.length}`, all[Math.floor(all.length / 2)].hex, [], 'fanfare');
+        }
+      }
+      persist();
+    }
+
+    /* ---- mixing ------------------------------------------------------------------ */
+
+    /** Mixes a with b (a:b = 1:ratio), applies the rules, returns the colour the drop becomes. */
+    function doMix(a: string, b: string): string {
+      play('blub');
+      return mode === 'daily' ? mixDaily(a, b) : mixCollect(a, b);
+    }
+
+    function mixCollect(a: string, b: string): string {
+      const r = ratio;
+      const hex = mixPaint(a, b, r);
+      lastMixLab = hexToOklab(hex);
+      const { color, hit } = identify(hex);
+      const name = document.createElement('b');
+      name.textContent = color.name;
+      let out = hex;
+      if (hit && !isFound(color.id)) {
+        save.found[String(color.id)] = { at: Date.now(), a, b, r };
+        freshId = color.id;
+        out = color.hex;
+        verdict([`${S.discovered} `, name]);
+        card(S.discovered, color.name, `${color.hex} · ${S.tiers[color.tier]} · ${S.families[color.family] ?? color.family}`, color.hex);
+      } else if (hit) {
+        out = color.hex;
+        verdict([`${S.already}: `, name]);
+      } else {
+        save.work = [hex, ...save.work.filter((h) => h !== hex)].slice(0, workSlots());
+        verdict([S.unnamed]);
+      }
+      celebrate();
+      persist();
+      renderProgress();
+      renderSide();
+      renderThermo();
+      return out;
+    }
+
+    function mixDaily(a: string, b: string): string {
+      const hex = mixPaint(a, b, ratio);
+      const lab = hexToOklab(hex);
+      const p = matchPercent(lab, target);
+      if (daily.solved) {
+        verdict([S.match.replace('{p}', String(p))]);
+        return hex;
+      }
+      daily.mixes.push(hex);
+      const hit = p >= HIT_PERCENT;
+      daily.row.push(hit ? '✅' : emojiFor(lab));
+      verdict([`${S.match.replace('{p}', String(p))}${hit ? '' : ` · ${S.matchHint}`}`]);
+      let out = hex;
+      if (hit) {
+        out = target.hex;
+        daily.solved = true;
+        const stats = loadJson<DailyStats>(STATS_KEY, { streak: { last: 0, count: 0 }, best: null });
+        stats.streak = { last: today, count: stats.streak.last === today - 1 ? stats.streak.count + 1 : 1 };
+        stats.best = stats.best === null ? daily.mixes.length : Math.min(stats.best, daily.mixes.length);
+        saveJson(STATS_KEY, stats);
+        const extra: string[] = [];
+        if (!isFound(target.id)) {
+          save.found[String(target.id)] = { at: Date.now(), a, b, r: ratio };
+          freshId = target.id;
+          extra.push(S.addedToBook);
+        }
+        card(S.solvedKicker, target.name, S.solvedText.replace('{name}', target.name).replace('{n}', String(daily.mixes.length)), target.hex, extra, 'fanfare');
+        celebrate();
+        renderProgress();
+      }
+      persist();
+      renderDaily();
+      renderSide();
+      return out;
+    }
+
+    /* ---- daily panel -------------------------------------------------------------- */
+
+    function renderDaily() {
+      $('[data-target]').style.setProperty('--c', target.hex);
+      $('[data-daily-title]').textContent = S.dailyTitle.replace('{n}', String(today));
+      $('[data-daily-name]').textContent = daily.solved ? target.name : S.hiddenName;
+      $('[data-daily-count]').textContent = String(daily.mixes.length);
+      $('[data-daily-bonus]').textContent = target.tier === 'rare' ? `· ${S.mondayBonus}` : '';
+      $('[data-daily-row]').textContent = daily.row.join('');
+      $('[data-daily-intro]').hidden = daily.mixes.length > 0;
+      const last = daily.mixes.at(-1);
+      if (last) {
+        const p = matchPercent(hexToOklab(last), target);
+        $('[data-match]').hidden = false;
+        $('[data-match-fill]').style.width = `${p}%`;
+        $('[data-match-text]').textContent = S.match.replace('{p}', String(p));
+      } else $('[data-match]').hidden = true;
+
+      $('[data-daily-done]').hidden = !daily.solved;
+      window.clearInterval(countdownTimer);
+      if (daily.solved) {
+        const stats = loadJson<DailyStats>(STATS_KEY, { streak: { last: 0, count: 0 }, best: null });
+        $('[data-daily-solved]').textContent = S.solvedText.replace('{name}', target.name).replace('{n}', String(daily.mixes.length));
+        const days = stats.streak.count;
+        const parts = [`🔥 ${S.streak.replace('{n}', `${days} ${days === 1 ? S.streakDay : S.streakDays}`)}`];
+        if (stats.best !== null) parts.push(S.best.replace('{n}', String(stats.best)));
+        $('[data-daily-stats]').textContent = parts.join(' · ');
+        const tick = () => {
+          const s = secondsToNextDay();
+          $('[data-daily-countdown]').textContent = S.countdown.replace('{t}', `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m`);
+        };
+        tick();
+        countdownTimer = window.setInterval(tick, 30_000);
+      }
+    }
+
+    $('[data-daily-share]').addEventListener('click', async () => {
+      const text = S.shareText
+        .replace('{n}', String(today))
+        .replace('{name}', target.name)
+        .replace('{m}', String(daily.mixes.length))
+        .replace('{row}', daily.row.join(''));
+      const full = `${text}\n${S.shareUrl.replace('https://', '')}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ text: full });
+        } catch {
+          /* cancelled */
+        }
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(full);
+        $('[data-daily-share]').textContent = S.copied;
+        setTimeout(() => ($('[data-daily-share]').textContent = S.share), 2000);
+      } catch {
+        /* clipboard blocked */
+      }
+    });
+
+    /* ---- mode, ratio, sound, clear -------------------------------------------------- */
+
+    function setRatio(r: number) {
+      ratio = r;
+      root!.querySelectorAll('[data-ratio]').forEach((x) => x.setAttribute('aria-pressed', String(x.getAttribute('data-ratio') === String(r))));
+    }
+    root.querySelectorAll<HTMLButtonElement>('[data-ratio]').forEach((b) => b.addEventListener('click', () => setRatio(Number(b.dataset.ratio))));
+
+    function setMode(next: 'collect' | 'daily') {
+      mode = next;
+      root!.dataset.mode = mode;
+      root!.querySelectorAll('button[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === mode)));
+      setRatio(1);
+      verdict([S.howTo]);
+      renderProgress();
+      renderSide();
+      renderBoard();
+      if (mode === 'daily') renderDaily();
+    }
+    root.querySelectorAll<HTMLButtonElement>('button[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode as 'collect' | 'daily')));
+
+    function renderSound() {
+      const b = $('[data-sound]');
+      b.textContent = soundOn ? '🔊' : '🔇';
+      b.setAttribute('aria-pressed', String(soundOn));
+      b.setAttribute('aria-label', soundOn ? S.soundOn : S.soundOff);
+      b.title = soundOn ? S.soundOn : S.soundOff;
+    }
+    $('[data-sound]').addEventListener('click', () => {
+      soundOn = !soundOn;
+      saveJson(SOUND_KEY, soundOn);
+      renderSound();
+    });
+
+    // Real browser full screen where the platform allows it (not on iPhone Safari)
+    const fsBtn = $<HTMLButtonElement>('[data-fullscreen]');
+    const renderFs = () => {
+      const on = Boolean(document.fullscreenElement);
+      fsBtn.setAttribute('aria-pressed', String(on));
+      fsBtn.setAttribute('aria-label', on ? S.exitFullscreen : S.fullscreen);
+      fsBtn.title = on ? S.exitFullscreen : S.fullscreen;
+    };
+    if (document.fullscreenEnabled) {
+      fsBtn.hidden = false;
+      fsBtn.addEventListener('click', async () => {
+        try {
+          if (document.fullscreenElement) await document.exitFullscreen();
+          else await document.documentElement.requestFullscreen();
+        } catch {
+          /* refused by the browser */
+        }
+      });
+      document.addEventListener('fullscreenchange', () => {
+        renderFs();
+        if (root.isConnected) renderBoard();
+      });
+      renderFs();
+    }
+
+    $('[data-clear]').addEventListener('click', () => {
+      layer.replaceChildren();
+      selected = null;
+      syncBoard();
+    });
+
+    /* ---- input: drag from the list or on the board, tap two to mix ------------------- */
+
+    interface DragState {
+      hex: string;
+      fromBoard: HTMLElement | null;
+      ghost: HTMLElement | null;
+      startX: number;
+      startY: number;
+      moved: boolean;
+      id: number;
+    }
+    let drag: DragState | null = null;
+    let suppressClick = false;
+
+    function boardPoint(e: PointerEvent): [number, number] | null {
+      const r = board.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      return x >= 0 && y >= 0 && x <= r.width && y <= r.height ? [x, y] : null;
+    }
+
+    root.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const t = e.target as Element;
+      const blob = t.closest<HTMLElement>('.blob');
+      const listItem = t.closest<HTMLElement>('.item:not(.item--empty)');
+      if (blob) {
+        e.preventDefault();
+        try {
+          blob.setPointerCapture(e.pointerId);
+        } catch {
+          /* synthetic or already released pointer: window listeners still track it */
+        }
+        drag = { hex: blob.dataset.hex!, fromBoard: blob, ghost: null, startX: e.clientX, startY: e.clientY, moved: false, id: e.pointerId };
+      } else if (listItem && e.pointerType !== 'touch') {
+        // On touch the list scrolls; a tap adds the colour to the board instead
+        drag = { hex: listItem.dataset.hex!, fromBoard: null, ghost: null, startX: e.clientX, startY: e.clientY, moved: false, id: e.pointerId };
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 6) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        if (drag.fromBoard) drag.fromBoard.classList.add('is-dragging');
+        else {
+          const g = makeBlob({ hex: drag.hex, x: 0, y: 0 });
+          g.classList.add('ch-ghost', 'is-dragging');
+          document.body.append(g);
+          drag.ghost = g;
+        }
+      }
+      const r = board.getBoundingClientRect();
+      if (drag.fromBoard) {
+        drag.fromBoard.style.left = `${e.clientX - r.left}px`;
+        drag.fromBoard.style.top = `${e.clientY - r.top}px`;
+      } else if (drag.ghost) {
+        drag.ghost.style.left = `${e.clientX}px`;
+        drag.ghost.style.top = `${e.clientY}px`;
+      }
+      const p = boardPoint(e);
+      layer.querySelectorAll('.is-target').forEach((el) => el.classList.remove('is-target'));
+      if (p) blobAt(p[0], p[1], drag.fromBoard)?.classList.add('is-target');
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const d = drag;
+      drag = null;
+      layer.querySelectorAll('.is-target').forEach((el) => el.classList.remove('is-target'));
+      d.ghost?.remove();
+      d.fromBoard?.classList.remove('is-dragging');
+      if (!d.moved) return; // a tap: handled by click
+      suppressClick = true;
+      setTimeout(() => (suppressClick = false), 0);
+      const p = boardPoint(e);
+      const sr = side.getBoundingClientRect();
+      const overSide = e.clientX >= sr.left && e.clientX <= sr.right && e.clientY >= sr.top && e.clientY <= sr.bottom;
+      if (d.fromBoard && overSide) {
+        d.fromBoard.remove();
+        syncBoard();
+        return;
+      }
+      if (!p) {
+        if (d.fromBoard) {
+          const r = board.getBoundingClientRect();
+          placeAt(d.fromBoard, e.clientX - r.left, e.clientY - r.top);
+          syncBoard();
+        }
+        return;
+      }
+      const onto = blobAt(p[0], p[1], d.fromBoard);
+      if (onto) merge(d.hex, onto, d.fromBoard);
+      else if (d.fromBoard) {
+        placeAt(d.fromBoard, p[0], p[1]);
+        syncBoard();
+      } else addBlob(d.hex, p[0], p[1]);
+    });
+
+    window.addEventListener('pointercancel', () => {
+      drag?.ghost?.remove();
+      drag?.fromBoard?.classList.remove('is-dragging');
+      drag = null;
+    });
+
+    root.addEventListener('click', (e) => {
+      if (suppressClick) return;
+      const t = e.target as Element;
+      if (t.closest('[data-book], [data-reveal]')) return;
+      const listItem = t.closest<HTMLElement>('.item:not(.item--empty)');
+      if (listItem?.dataset.hex) {
+        // A tapped colour goes onto the board; with a drop selected, straight into it
+        if (selected?.isConnected) {
+          const onto = selected;
+          onto.classList.remove('is-selected');
+          selected = null;
+          merge(listItem.dataset.hex, onto, null);
+        } else {
+          const [x, y] = freeSpot();
+          addBlob(listItem.dataset.hex, x, y);
+        }
+        return;
+      }
+      const blob = t.closest<HTMLElement>('.blob');
+      if (!blob) {
+        if (t.closest('[data-board]')) {
+          selected?.classList.remove('is-selected');
+          selected = null;
+        }
+        return;
+      }
+      if (selected && selected !== blob && selected.isConnected) {
+        const a = selected;
+        a.classList.remove('is-selected');
+        selected = null;
+        merge(a.dataset.hex!, blob, a);
+      } else if (selected === blob) {
+        blob.classList.remove('is-selected');
+        selected = null;
+      } else {
+        selected?.classList.remove('is-selected');
+        selected = blob;
+        blob.classList.add('is-selected');
+      }
+    });
+
+    // Double-click copies a drop (Infinite Craft style)
+    root.addEventListener('dblclick', (e) => {
+      const blob = (e.target as Element).closest<HTMLElement>('.blob');
+      if (!blob) return;
+      selected?.classList.remove('is-selected');
+      selected = null;
+      addBlob(blob.dataset.hex!, blob.offsetLeft + 70, blob.offsetTop + 20);
+    });
+
+    // Keyboard: Enter/Space acts like a tap, Delete removes a drop
+    layer.addEventListener('keydown', (e) => {
+      const blob = (e.target as Element).closest<HTMLElement>('.blob');
+      if (!blob) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        blob.click();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        if (selected === blob) selected = null;
+        blob.remove();
+        syncBoard();
+      }
+    });
+
+    /* ---- collection book -------------------------------------------------------------- */
+
+    function renderBook() {
+      const families = FAMILY_ORDER.map((fam) => {
+        const all = COLORS.filter((c) => c.family === fam).sort((x, y) => y.lab[0] - x.lab[0]);
+        const done = all.filter((c) => isFound(c.id)).length;
+        const section = document.createElement('section');
+        const title = document.createElement('h3');
+        title.className = 'fam__title';
+        title.textContent = `${S.families[fam] ?? fam} ${done} / ${all.length}`;
+        if (done === all.length) {
+          const badge = document.createElement('span');
+          badge.className = 'fam__badge';
+          badge.textContent = '★';
+          title.append(badge);
+        }
+        const gridEl = document.createElement('div');
+        gridEl.className = 'fam__grid';
+        gridEl.append(
+          ...all.map((c) => {
+            const t = document.createElement('button');
+            t.type = 'button';
+            t.className = 'tile';
+            t.dataset.id = String(c.id);
+            t.dataset.tier = c.tier;
+            if (isFound(c.id)) {
+              t.classList.add('is-found');
+              t.style.setProperty('--c', c.hex);
+              t.setAttribute('aria-label', `${c.name}, ${S.tiers[c.tier]}`);
+              t.title = c.name;
+            } else {
+              t.textContent = '?';
+              t.setAttribute('aria-label', `${S.unknown}, ${S.tiers[c.tier]}`);
+              if (save.hints.includes(c.id)) {
+                t.classList.add('is-hinted');
+                t.style.setProperty('--hint', c.hex);
+              }
+            }
+            return t;
+          }),
+        );
+        section.append(title, gridEl);
+        return section;
+      });
+      $('[data-families]').replaceChildren(...families);
+    }
+
+    function showDetail(c: NamedColor) {
+      const box = $('[data-detail]');
+      const sw = document.createElement('div');
+      sw.className = 'detail__swatch';
+      const body = document.createElement('div');
+      const name = document.createElement('p');
+      name.className = 'detail__name';
+      const meta = document.createElement('p');
+      meta.className = 'detail__meta';
+      const tierFam = `${S.tiers[c.tier]} · ${S.families[c.family] ?? c.family}`;
+      const f = save.found[String(c.id)];
+
+      if (f) {
+        sw.style.background = c.hex;
+        name.textContent = c.name;
+        meta.textContent = `${c.hex} · ${tierFam}`;
+        body.append(name, meta);
+        const how = document.createElement('p');
+        how.className = 'detail__meta';
+        if (f.gift || !f.a) how.textContent = f.at ? `${S.gift} · ${dateFmt.format(f.at)}` : S.startColour;
+        else {
+          const mixEl = document.createElement('span');
+          mixEl.className = 'detail__mix';
+          const dot = (hex: string) => {
+            const i = document.createElement('i');
+            i.style.background = hex;
+            i.title = hex;
+            return i;
+          };
+          mixEl.append(`${S.mixedFrom} `, dot(f.a), f.r && f.r > 1 ? ` + ${f.r}× ` : ' + ', dot(f.b));
+          how.append(`${S.foundOn} ${dateFmt.format(f.at)} · `, mixEl);
+        }
+        body.append(how);
+      } else {
+        const hinted = save.hints.includes(c.id);
+        sw.classList.add(hinted ? 'detail__swatch--blur' : 'detail__swatch--unknown');
+        if (hinted) sw.style.background = c.hex;
+        else sw.textContent = '?';
+        name.textContent = S.unknownDetail;
+        meta.textContent = tierFam;
+        body.append(name, meta);
+        const note = document.createElement('p');
+        note.className = 'detail__meta';
+        if (hinted) note.textContent = S.hintUsed;
+        else if (tokens() > 0) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'detail__hint';
+          btn.textContent = `💡 ${S.useHint} (${tokens()})`;
+          btn.addEventListener('click', () => {
+            if (tokens() <= 0) return;
+            save.hints.push(c.id);
+            persist();
+            renderProgress();
+            renderBook();
+            showDetail(c);
+          });
+          body.append(btn);
+        } else note.textContent = S.noHints;
+        if (note.textContent) body.append(note);
+      }
+      box.replaceChildren(sw, body);
+      box.hidden = false;
+    }
+
+    $('[data-families]').addEventListener('click', (e) => {
+      const t = (e.target as Element).closest<HTMLElement>('.tile');
+      const c = t && BY_ID.get(Number(t.dataset.id));
+      if (c) showDetail(c);
+    });
+
+    let lastFocus: HTMLElement | null = null;
+    function openBook() {
+      lastFocus = document.activeElement as HTMLElement | null;
+      renderBook();
+      $('[data-detail]').hidden = true;
+      $('[data-book]').hidden = false;
+      document.documentElement.style.overflow = 'hidden';
+      $('[data-close-book]').focus();
+    }
+    function closeBook() {
+      $('[data-book]').hidden = true;
+      document.documentElement.style.overflow = '';
+      lastFocus?.focus();
+    }
+    $('[data-open-book]').addEventListener('click', openBook);
+    $('[data-close-book]').addEventListener('click', closeBook);
+    $('[data-book]').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeBook();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !root.isConnected) return;
+      if (!$('[data-reveal]').hidden) closeCard();
+      else if (!$('[data-book]').hidden) closeBook();
+    });
+
+    /* ---- export / import / reset --------------------------------------------------------- */
+
+    $('[data-export]').addEventListener('click', async () => {
+      const payload = { v: 1, save: { ...save, board: [] }, stats: loadJson(STATS_KEY, null) };
+      const code = SAVE_PREFIX + btoa(JSON.stringify(payload));
+      try {
+        await navigator.clipboard.writeText(code);
+        window.alert(S.exportDone);
+      } catch {
+        window.prompt(S.exportSave, code);
+      }
+    });
+
+    $('[data-import]').addEventListener('click', () => {
+      const code = window.prompt(S.importPrompt)?.trim();
+      if (!code) return;
+      try {
+        if (!code.startsWith(SAVE_PREFIX)) throw new Error('prefix');
+        const payload = JSON.parse(atob(code.slice(SAVE_PREFIX.length)));
+        if (!validSave(payload?.save)) throw new Error('shape');
+        // Keep only ids that exist and sane entries, so a broken code cannot poison the save
+        const found: Record<string, FoundEntry> = {};
+        for (const [id, f] of Object.entries(payload.save.found as Record<string, FoundEntry>)) {
+          if (BY_ID.has(Number(id)) && f && typeof f.at === 'number') found[id] = f;
+        }
+        if (!window.confirm(S.importConfirm)) return;
+        const asNumbers = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === 'number') : []);
+        const asStrings = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && /^#[0-9a-f]{6}$/.test(x)) : []);
+        save = {
+          ...emptySave(),
+          found,
+          work: asStrings(payload.save.work),
+          seen: asNumbers(payload.save.seen),
+          hints: asNumbers(payload.save.hints),
+          badges: Array.isArray(payload.save.badges) ? payload.save.badges.filter((x: unknown) => FAMILY_ORDER.includes(String(x))) : [],
+        };
+        giftStart();
+        if (payload.stats && typeof payload.stats === 'object') saveJson(STATS_KEY, payload.stats);
+        persist();
+        location.reload();
+      } catch {
+        window.alert(S.importBad);
+      }
+    });
+
+    $('[data-reset]').addEventListener('click', () => {
+      if (!window.confirm(S.resetConfirm)) return;
+      save = emptySave();
+      giftStart();
+      freshId = null;
+      lastMixLab = null;
+      persist();
+      setMode(mode);
+    });
+
+    document.addEventListener('astro:before-swap', () => window.clearInterval(countdownTimer), { once: true });
+
+    // Catch up on milestones reached in an older version, without a flood of cards
+    for (const m of S.milestones) if (has(m.at) && !save.seen.includes(m.at)) save.seen.push(m.at);
+    persist();
+    renderSound();
+    setMode(new URLSearchParams(location.search).get('mode') === 'daily' ? 'daily' : 'collect');
+  }
+
+  document.addEventListener('astro:page-load', init);
+</script>

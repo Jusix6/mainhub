@@ -53,11 +53,11 @@ export const SITE = {
     addressLines: ['MADE IN SWITZERLAND', 'WWW.JXSI.CH'],
     // Photo: src/assets/portrait.png (600x750), cropped 4:5 around the face.
     // The stats row shows project counts per category; override a value here when the real
-    // number lives elsewhere (e.g. videos published on YouTube, not listed as projects).
+    // number lives elsewhere. Videos is counted automatically from YouTube
+    // (src/data/video-count.json, src/lib/video-count.mjs), not set here.
     statOverrides: {
       music: '3',
-      videos: '184',
-    } as Partial<Record<'apps' | 'games' | 'music' | 'videos', string>>,
+    } as Partial<Record<'apps' | 'games' | 'music', string>>,
   },
   /** Fun games live on their own subdomain; the worker maps it to the pages under src/pages/fun/. */
   fun: {

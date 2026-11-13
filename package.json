@@ -22,7 +22,8 @@
     "@fontsource/archivo-black": "^5.0.0",
     "astro": "^7.4.4",
     "sharp": "^0.35.5",
-    "simple-icons": "^15.22.0"
+    "simple-icons": "^15.22.0",
+    "spectral.js": "^3.0.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",

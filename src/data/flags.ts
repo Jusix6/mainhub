@@ -15,6 +15,7 @@
  * of arms included, which is the point.
  */
 import WORLD_META from './world-flags.json';
+import { dailyPick, dayIndex, secondsToNextDay } from '@/lib/daily';
 
 export type ColorKey = 'white' | 'black' | 'red' | 'maroon' | 'orange' | 'yellow' | 'green' | 'sky' | 'blue' | 'navy';
 
@@ -594,31 +595,14 @@ export function scorePainting(flag: Flag, painting: HTMLCanvasElement): number {
 
 /** Day 1 of the daily game. */
 const LAUNCH_UTC = Date.UTC(2026, 10, 8);
-const zurichDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit' });
-const zurichTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 
 /** Daily puzzle number, changing at midnight Swiss time. Day 1 = 2026-11-08. */
 export function dayNumber(now = new Date()): number {
-  const [y, m, d] = zurichDate.format(now).split('-').map(Number);
-  return Math.max(1, Math.round((Date.UTC(y, m - 1, d) - LAUNCH_UTC) / 86_400_000) + 1);
+  return dayIndex(LAUNCH_UTC, now);
 }
 
 /** Seconds until the next daily flags (midnight in Zurich). */
-export function secondsToNextDay(now = new Date()): number {
-  const [h, m, s] = zurichTime.format(now).split(':').map(Number);
-  return 86_400 - (h * 3600 + m * 60 + s);
-}
-
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-  };
-}
+export { secondsToNextDay };
 
 /**
  * Today's flag of a level, the same for everyone. Each level walks through a
@@ -626,13 +610,5 @@ function mulberry32(seed: number) {
  * Adding flags to a level reshuffles that level's future days.
  */
 export function dailyFlag(level: Level, day = dayNumber()): Flag {
-  const pool = flagsOf(level);
-  const cycle = Math.floor((day - 1) / pool.length);
-  const order = pool.map((_, i) => i);
-  const rnd = mulberry32(level * 1_000_003 + cycle * 7919 + 20261108);
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
-  }
-  return pool[order[(day - 1) % pool.length]];
+  return dailyPick(flagsOf(level), day, level * 1_000_003);
 }

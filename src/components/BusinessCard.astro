@@ -12,6 +12,7 @@ import { Image } from 'astro:assets';
 import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
 import { CATEGORIES } from '@/data/categories';
+import { getVideoCount } from '@/lib/youtube';
 import { getLinkType } from '@/data/linkTypes';
 import portrait from '@/assets/portrait.png';
 import signature from '@/assets/signature.png';
@@ -27,13 +28,18 @@ interface Props {
 const { standalone = false, class: className } = Astro.props;
 const lic = SITE.license;
 
-// "HT / WT / HAIR / EYES" row of the license: project counts per category, live from the collection
+// "HT / WT / HAIR / EYES" row of the license: project counts per category, live from the
+// collection. Videos is the YouTube upload count (worker.js keeps it current between builds
+// through data-stat="videos").
 const projects = await getCollection('projects');
+const videos = String(await getVideoCount());
 const stats = CATEGORIES.slice(0, 4).map((c) => ({
+  slug: c.slug,
   label: c.label.split(' ')[0],
   value:
-    (lic.statOverrides as Partial<Record<string, string>>)[c.slug] ??
-    String(projects.filter((p) => p.data.category === c.slug).length),
+    c.slug === 'videos'
+      ? videos
+      : ((lic.statOverrides as Partial<Record<string, string>>)[c.slug] ?? String(projects.filter((p) => p.data.category === c.slug).length)),
 }));
 ---
 
@@ -69,9 +75,9 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
           <span class="lic__row lic__row--stats">
             {
               stats.map((s) => (
-                <span>
+                <span data-stat={s.slug}>
                   <b>{s.label}</b>
-                  {s.value}
+                  <span data-stat-value>{s.value}</span>
                 </span>
               ))
             }

@@ -9,6 +9,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { SITE } from '@/data/site';
 import fallback from '@/data/latest-video.json';
+import videoCount from '@/data/video-count.json';
+import { fetchVideoSum } from './video-count.mjs';
 
 export interface LatestVideo {
   id: string;
@@ -111,4 +113,33 @@ async function rememberVideo(video: LatestVideo) {
   } catch {
     /* read-only or missing: nothing to do */
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Video count for the business card (offset + all channels, see video-count.mjs)
+ * ------------------------------------------------------------------------- */
+
+const COUNT_PATH = resolve(process.cwd(), 'src/data/video-count.json');
+let countCached: Promise<number> | undefined;
+
+/** "Videos" stat at build time. Falls back to the last sum in video-count.json. */
+export function getVideoCount(): Promise<number> {
+  countCached ??= (async () => {
+    const sum = await fetchVideoSum(videoCount.channels);
+    if (sum === null) {
+      console.warn('[youtube] could not read the channel video counts, using the last known sum');
+      return videoCount.offset + videoCount.lastSum;
+    }
+    if (sum !== videoCount.lastSum) {
+      try {
+        const data = { ...videoCount, lastSum: sum };
+        await writeFile(COUNT_PATH, JSON.stringify(data, null, 2) + '\n');
+        console.log(`[youtube] video count ${videoCount.lastSum} -> ${sum}, commit src/data/video-count.json`);
+      } catch {
+        /* read-only: the number is still right for this build */
+      }
+    }
+    return videoCount.offset + sum;
+  })();
+  return countCached;
 }

@@ -143,7 +143,7 @@ Komponenten-Code wird dafür nie angefasst.
 | Route              | Inhalt |
 |--------------------|--------|
 | `/`                | Startseite = die Visitenkarte im Vollbild (Bare-Layout, JSON-LD Person), "Explore the site" → `/hub` auf der Kartenrückseite. Gruss bei `?src=print` |
-| `/hub`             | Der Hub: Karte als Hero, Kategorien, Featured-Projekte, zwei Fun-Karten (Paint the Flag als Daily, The Button → fun.jxsi.ch), Coming up, letzte 2 Updates, YouTube-Video, Twitch. "Home" in der Nav zeigt hierhin |
+| `/hub`             | Der Hub: Karte als Hero, Kategorien, Featured-Projekte, drei Fun-Karten (Color Hunter, Paint the Flag, The Button → fun.jxsi.ch), Coming up, letzte 2 Updates, YouTube-Video, Twitch. "Home" in der Nav zeigt hierhin |
 | `/projects`        | alle Projekte, Filter nach Kategorie und Status, Zustand in der URL (`?cat=games&status=released`) |
 | `/projects/[slug]` | Cover, Tagline, Status, Body, Galerie, Link-Buttons, zugehörige Updates |
 | `/updates`         | Devlog chronologisch, optional `?project=slug` |
@@ -175,12 +175,13 @@ diesen Dateien: `fun.jxsi.ch/` → `dist/fun.html`, `fun.jxsi.ch/the-button` →
 `www.jxsi.ch/fun/*` leitet nach `fun.jxsi.ch/*` um, die Sitemap lässt `/fun`
 aus (Filter in `astro.config.mjs`), Canonical ist die Fun-URL (`SITE.fun.url`).
 Erreichbar von der Hauptseite über den Nav-Punkt "Fun" (absolute URL) und die
-zwei Teaser-Karten auf `/hub` (Paint the Flag als Daily, The Button). Links zwischen Fun-Seiten sind **relativ** (`the-button`, `./`), damit sie auf
+Teaser-Karten auf `/hub` (Color Hunter, Paint the Flag, The Button). Links zwischen Fun-Seiten sind **relativ** (`the-button`, `./`), damit sie auf
 beiden Hosts stimmen; zurück zur Hauptseite absolut (`SITE.url`).
 
 | Route (fun-Host)  | Inhalt |
 |-------------------|--------|
 | `/`               | Liste der Spiele (`src/pages/fun/index.astro`) |
+| `/colors`         | Color Hunter (alle 4 Phasen, Plan im Doc "Color Hunter – Umsetzungsplan"): Vollbild-Layout (Fun-Layout mit `bare`: ohne Kopf/Fuss, eigene kompakte Leiste mit FUN-Link, Fortschritt, Modus und Main-Site-Link; Seite genau 100dvh, nur die Farbliste scrollt; Knopf für Browser-Vollbild, wo `document.fullscreenEnabled`), Spielfläche im Stil von Infinite Craft, Farben aus der Seitenliste auf das Brett ziehen (oder antippen), einen Tropfen auf einen anderen fallen lassen, beide verschmelzen; Doppelklick kopiert, zurück in die Liste ziehen entfernt, Brett wird gespeichert. Gemischt wird wie Malfarbe (`spectral.js`, MIT, Kubelka-Munk). Die Mischung zählt für die nächste benannte Farbe, wenn sie innerhalb deren Toleranz `tol` liegt (OKLab-ΔE), sonst landet sie in der Palette (8 Plätze, älteste fliegt raus). Seltenheit aus den Mindest-Mischschritten ab den 5 Startfarben (Common 1–2, Uncommon 3–4, Rare 5–7, Legendary 8+), Toleranz nach Stufe 0.06/0.04/0.025/0.015, vom Build-Skript nur so weit gelockert, dass jede Farbe mit allen Freischaltungen treffbar ist. Sammelbuch mit Familien, «???»-Feldern (Rahmenfarbe = Seltenheit), Detailansicht und Hinweisen (alle 10 gemischten Funde einer, deckt eine verschwommene Vorschau auf). Meilensteine: 25 +4 Plätze, 75 Mischverhältnis 1:1/1:2/1:3, 150 Magenta, 250 Cyan, 400 Heiss/Kalt-Thermometer, 600 +8 Plätze. Farbliste `src/data/colors.json` aus `scripts/build-colors.mjs` (Quelle `scripts/data/xkcd-colors.txt`, CC0; Fäkal-Namen gefiltert; 7 Neontöne fliegen raus, weil keine Pigmentmischung sie trifft; 927 Farben). Abweichung vom Plan: keine 45-%-Nachbarregel, weil die xkcd-Farben im Median nur ΔE 0.015 auseinanderliegen; stattdessen gewinnt immer die nächste Farbe. **Daily** (Umschalter Collect/Daily, `?mode=daily`): eine Zielfarbe für alle (`dailyPick` aus `src/lib/daily.ts`, Tag 1 = 2026-11-13, Wechsel Mitternacht Zürich), Common/Uncommon, montags eine Rare; nur Farben, die das Build-Skript in höchstens drei Mischebenen aus den Startfarben trifft (`daily` in colors.json, 589 + 80 Montags-Kandidaten). Start nur mit den 5 Grundfarben, alle Verhältnisse, eigene Tagesmischungen; Anzeige «87 % match» (97 % = Toleranz der Zielfarbe), Emoji-Reihe pro Mischung, beim Treffer Name, Eintrag ins Sammelbuch, Teilen-Text, Streak und Bestwert. Kleine synthetische Sounds per Web Audio (Mischen, Fund, Meilenstein), Stummschalter. Export/Import des Spielstands als Code `CH1:…` (Base64-JSON, beim Import gefiltert). Vorschaubild `src/assets/fun/colors-og.png`. Verlinkt in der Spieleliste und als Karte auf `/hub`. Spielstand in `localStorage` (`jxsi_colors_v1`, `jxsi_colors_daily`, `jxsi_colors_daily_stats`, `jxsi_colors_sound`). Paint the Flag nutzt dieselben Tages-Helfer aus `src/lib/daily.ts`. Kurzlink `jxsi.ch/colors` |
 | `/flag`           | Paint the Flag, ein Daily-Game: jeden Tag vier Flaggen, eine pro Stufe, für alle gleich (`dailyFlag` in `src/data/flags.ts`, Tageswechsel Mitternacht Zürich, Tag 1 = 2026-11-08, jede Stufe läuft eine gemischte Reihenfolge ohne Wiederholung durch). Pro Stufe und Tag ein gewerteter Versuch, Ergebnis samt Bild in `localStorage` (`jxsi_flag_daily`), Serie in `jxsi_flag_streak`. Practice-Modus unbegrenzt, `?f=<code>` öffnet eine Flagge dort. Stufen: **Easy** zwei Farben, einfach (Polen, Japan, Schweiz, Dänemark); **Medium** drei+ Farben, einfache Embleme (Frankreich, Chile, Kuwait, Katar); **Hard** viele Teile, Sterne, Diagonalen (UK, USA, Seychellen, Guyana); diese drei von Hand als Formen, nur Palettenfarben, exakte Kopie = 100 %. **Impossible** = alle 197 Länder (UN + Vatikan, Palästina, Taiwan, Kosovo) als echte SVGs in `src/assets/flags`, importiert mit `scripts/import-world-flags.mjs` (gemeinfrei, Quelle npm `svg-country-flags`, nur zum Import mit `--no-save` installieren); exakte Kopie ≥ 95 %, weil echte Farben ausserhalb der Palette liegen; nicht rechteckige Flaggen (Nepal) bekommen ihren echten Umriss. Bewertung `scorePainting`: pro Farbfläche der echten Flagge der Anteil in dieser Farbe (ähnliche Farben Teilpunkte, Ungemaltes falsch), Flächen gleich gewichtet; bei SVG-Flaggen zählen Palettenfarben ab 1,5 % Fläche. Teilen: 1200×630-Bild "Mine vs. echt", Text mit Daily-Nummer und Stufe, Kurzlink `jxsi.ch/flag`. Neue Flaggen in einer Stufe mischen deren künftige Tage neu |
 | `/10s`            | How long is 10 seconds? Start drücken, bei gefühlt 10 s stoppen, keine Uhr. Ergebnis, Abweichung, geschätzter Prozentrang (Normalverteilung, keine echten Spielerdaten), Kommentar, Teilen (Web Share / Zwischenablage), Bestwert in `localStorage` (`jxsi_10s_best`). Rein clientseitig. Kurzlink `jxsi.ch/10s` (auch `www.`), Worker leitet per `FUN_SHORT_LINKS` weiter. Vorschaubild `src/assets/fun/10s-og.png` |
 | `/the-button`     | The Button: roter Knopf, globaler Zähler aller Klicks aller Menschen, nie zurückgesetzt. Stats: eigene Klicks, Anzahl Klicker, Klicks heute, längste Serie (global, mit Name), eigene beste Serie, eigener Rang, Top 5, optionaler Name |
@@ -454,7 +455,13 @@ die Website ist die eigentliche Karte.
   `scripts/portrait-placeholder.mjs`, durch echtes Foto ersetzen), rote
   Nummer, Zeilen DOB/EXP, Projektzahlen je Kategorie statt HT/WT/HAIR/EYES
   (live aus der Collection, einzelne Werte über `license.statOverrides`
-  überschreibbar, z. B. Videos = Anzahl auf YouTube), Issue/Class/Restr/Endorse,
+  überschreibbar; **Videos** zählt automatisch: `offset` + Summe der
+  öffentlichen Videos aller Kanäle aus `src/data/video-count.json`, gelesen
+  aus dem Kanal-Header "34 videos" in `src/lib/video-count.mjs`, beim Build
+  und alle 30 min vom Worker-Cron, der die Zahl auf `/`, `/card` und `/hub`
+  über `data-stat="videos"` einsetzt. Offset 92 verankert am 2026-11-13:
+  Kanäle 93 = Karte 185. Neuer Kanal: in `channels` eintragen und `offset` um
+  dessen aktuelle Anzahl senken), Issue/Class/Restr/Endorse,
   Barcode, Jusis echte
   Unterschrift (`src/assets/signature.png`, aus einem Foto freigestellt mit
   `scripts/signature-from-photo.mjs <foto> [schwelle]`), Name und "Adresse".
@@ -529,7 +536,8 @@ wird abgefangen.
   Ausgetauschte Thumbnails kommen direkt von `i.ytimg.com` (in der CSP
   erlaubt). Ist der Stand älter als 2 h, stösst auch ein Seitenaufruf einen
   Abruf an (höchstens einer pro 10 min). Kanal-ID steht doppelt: `site.ts`
-  und `YOUTUBE_CHANNEL_ID` in `worker.js`. Lokal testen: `npm run fun:www`,
+  und `YOUTUBE_CHANNEL_ID` in `worker.js`. Derselbe Lauf aktualisiert die
+  Videos-Zahl der Karte (siehe Visitenkarte). Lokal testen: `npm run fun:www`,
   dann `http://localhost:8787/__scheduled` aufrufen und `/hub` laden.
 - **Twitch**: nur Link + optionaler Sendeplan-Text aus `site.ts`. Kein Live-Status
   (bräuchte API-Token).
@@ -578,7 +586,8 @@ Zeichen-Whitelist); wer das braucht, hängt eine Wortliste in `cleanName` an.
 3. **Keine neuen Abhängigkeiten ohne Grund.** Bevor ein Paket installiert wird:
    kurz begründen. Erlaubt ohne Nachfrage: `@astrojs/sitemap`, `@astrojs/rss`,
    `@fontsource/*`, `sharp`, `simple-icons` (Marken-Icons, nur zur Build-Zeit),
-   `wrangler` (Dev-Dependency für `npm run fun` und `npm run deploy`).
+   `wrangler` (Dev-Dependency für `npm run fun` und `npm run deploy`),
+   `spectral.js` (MIT, realistisches Farbmischen für Color Hunter).
 4. **Jede Seite mobil prüfen** (360px) bevor sie als fertig gilt. Bei
    UI-Änderungen Screenshot in Mobile und Desktop machen.
 5. **Barrierefreiheit ist Pflicht**: semantisches HTML, Skip-Link, sichtbarer

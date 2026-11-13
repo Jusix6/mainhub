@@ -7,9 +7,10 @@
  *    build assets (/_astro/*) are shared. www.jxsi.ch/fun/* redirects over.
  * 3. API for the fun games under /api/*, backed by a Durable Object so the
  *    counters are global, atomic and never reset.
- * 4. Latest YouTube video: a cron trigger reads the channel feed every 30
- *    minutes into the VideoFeed Durable Object; when /hub is served, a newer
- *    upload than the one baked in at build time is swapped into the HTML.
+ * 4. YouTube: a cron trigger reads the channel feed (latest video) and the
+ *    channel pages (video count) every 30 minutes into the VideoFeed Durable
+ *    Object; pages with the video block or the business card get the fresher
+ *    values swapped into their HTML.
  *
  * Everything else is handed straight to the static assets (dist/).
  *
@@ -20,6 +21,8 @@
  * it reaches the object.
  */
 import { DurableObject } from 'cloudflare:workers';
+import VIDEO_COUNT from './src/data/video-count.json';
+import { fetchVideoSum } from './src/lib/video-count.mjs';
 
 const CANONICAL_HOST = 'www.jxsi.ch';
 const APEX_HOST = 'jxsi.ch';
@@ -29,12 +32,12 @@ const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST];
 const OUR_ORIGINS = [`https://${CANONICAL_HOST}`, `https://${FUN_HOST}`];
 
 /** Short links on www and the apex that point at a fun game (jxsi.ch/10s → fun.jxsi.ch/10s). */
-const FUN_SHORT_LINKS = { '/10s': '/10s', '/flag': '/flag' };
+const FUN_SHORT_LINKS = { '/10s': '/10s', '/flag': '/flag', '/colors': '/colors' };
 
 /** Main YouTube channel. Keep in sync with SITE.youtube.channelId in src/data/site.ts. */
 const YOUTUBE_CHANNEL_ID = 'UCWHDPzJa99zS3XHaetPjdig';
-/** Pages that contain the latest-video block. */
-const VIDEO_PAGES = ['/hub'];
+/** Pages with the latest-video block and/or the business card ("Videos" stat). */
+const VIDEO_PAGES = ['/', '/card', '/hub'];
 /** Older than this, a page request also triggers a refresh (in case the cron missed runs). */
 const VIDEO_STALE_MS = 2 * 60 * 60 * 1000;
 /** At most one feed request per this interval, whoever asks. */
@@ -134,6 +137,13 @@ async function refreshVideo(env, force = false) {
   } catch (err) {
     console.warn('[video] refresh failed:', err?.message ?? err);
   }
+  try {
+    const sum = await fetchVideoSum(VIDEO_COUNT.channels);
+    if (sum === null) throw new Error('a channel page could not be read');
+    await feedStub(env).setCount(VIDEO_COUNT.offset + sum);
+  } catch (err) {
+    console.warn('[video] count failed:', err?.message ?? err);
+  }
 }
 
 const videoDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -153,8 +163,10 @@ async function withLatestVideo(request, env, ctx) {
   if (!res.ok || !(res.headers.get('content-type') ?? '').includes('text/html')) return res;
 
   let video = null;
+  let count = null;
   try {
-    video = await feedStub(env).get();
+    const stub = feedStub(env);
+    [video, count] = await Promise.all([stub.get(), stub.getCount()]);
     if (!video || Date.now() - video.checkedAt > VIDEO_STALE_MS) ctx.waitUntil(refreshVideo(env));
   } catch (err) {
     console.warn('[video] store unavailable:', err?.message ?? err);
@@ -163,14 +175,21 @@ async function withLatestVideo(request, env, ctx) {
   const out = new Response(res.body, res);
   out.headers.delete('etag');
   out.headers.set('cache-control', 'public, max-age=0, must-revalidate');
-  if (!video) return out;
+  if (!video && count === null) return out;
 
-  const thumb = `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`;
-  const when = new Date(video.published);
+  const thumb = video ? `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg` : '';
+  const when = video ? new Date(video.published) : new Date(0);
   let swap = false;
   return new HTMLRewriter()
+    .on('[data-stat="videos"] [data-stat-value]', {
+      element(el) {
+        // Latest count from the cron (it can also go down, e.g. after deleting a video)
+        if (typeof count === 'number') el.setInnerContent(String(count));
+      },
+    })
     .on('[data-video]', {
       element(el) {
+        if (!video) return;
         const builtId = el.getAttribute('data-video-id');
         const builtAt = Date.parse(el.getAttribute('data-video-published') ?? '') || 0;
         // Only replace with something newer than the build already knew about
@@ -218,6 +237,15 @@ export class VideoFeed extends DurableObject {
 
   async set(video) {
     await this.ctx.storage.put('latest', video);
+  }
+
+  /** The "Videos" stat for the business card (offset already added), or null. */
+  async getCount() {
+    return (await this.ctx.storage.get('count')) ?? null;
+  }
+
+  async setCount(n) {
+    await this.ctx.storage.put('count', n);
   }
 
   /** True if a feed request may go out now; records the attempt. */

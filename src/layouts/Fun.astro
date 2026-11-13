@@ -20,9 +20,11 @@ interface Props {
   indexHref?: string;
   /** Absolute URL of a social preview image for this game. */
   image?: string;
+  /** Full-window game: no header, footer or padding; the page brings its own top bar. */
+  bare?: boolean;
 }
 
-const { title, description, path, indexHref, image } = Astro.props;
+const { title, description, path, indexHref, image, bare = false } = Astro.props;
 const canonical = new URL(path, SITE.fun.url).href;
 ---
 
@@ -33,6 +35,7 @@ const canonical = new URL(path, SITE.fun.url).href;
   </head>
   <body>
     <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>
+    {!bare && (
     <header class="fun-header">
       <div class="container fun-header__inner">
         {
@@ -52,18 +55,25 @@ const canonical = new URL(path, SITE.fun.url).href;
         </a>
       </div>
     </header>
-    <main id="main" tabindex="-1">
+    )}
+    <main id="main" tabindex="-1" class:list={[{ 'is-bare': bare }]}>
       <slot />
     </main>
+    {!bare && (
     <footer class="fun-footer">
       <p class="container meta">
         © {new Date().getFullYear()} {SITE.name} · {UI.footer.madeIn} · <a href={SITE.url}>{SITE.url.replace('https://', '')}</a>
       </p>
     </footer>
+    )}
   </body>
 </html>
 
 <style>
+  main.is-bare {
+    padding: 0;
+  }
+
   .fun-header {
     border-bottom: var(--line) solid var(--ink);
     background: var(--surface);
