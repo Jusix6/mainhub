@@ -1,62 +1,152 @@
 ---
 /**
- * fun.jxsi.ch – list of the browser games. Served at the fun host root; on
- * www.jxsi.ch the worker redirects /fun to the fun host.
+ * fun.jxsi.ch – list of the browser games, laid out like a video feed:
+ * big 16:9 thumbnails (drawn by scripts/fun-thumbs.mjs), a chip on the
+ * thumbnail, and avatar + title + meta line below. Filter chips on top.
+ * Served at the fun host root; on www.jxsi.ch the worker redirects /fun here.
+ * Links stay relative so they work on both hosts.
  */
+import { Image } from 'astro:assets';
 import Fun from '@/layouts/Fun.astro';
-import Button from '@/components/Button.astro';
-import Icon from '@/components/Icon.astro';
 import { UI } from '@/data/ui';
+import logo from '@/assets/logo.png';
+import colorsThumb from '@/assets/fun/thumbs/colors.png';
+import flagThumb from '@/assets/fun/thumbs/flag.png';
+import tenThumb from '@/assets/fun/thumbs/10s.png';
+import buttonThumb from '@/assets/fun/thumbs/the-button.png';
 
-const games = [
+const L = UI.fun.list;
+
+type Tag = 'daily' | 'multiplayer' | 'quick';
+type Chip = 'daily' | 'live' | 'quick';
+
+interface Game {
+  href: string;
+  title: string;
+  tagline: string;
+  thumb: ImageMetadata;
+  meta: string;
+  /** Release day, shown as "x days ago" on the card. */
+  added: string;
+  tags: Tag[];
+  chip: Chip;
+  /** Live number filled in by the script below (The Button only). */
+  live?: boolean;
+}
+
+const games: Game[] = [
   {
     href: 'colors',
     title: UI.fun.colors.title,
     tagline: UI.fun.colors.tagline,
-    color: '--c-purple',
-  },
-  {
-    href: 'the-button',
-    title: UI.fun.theButton.title,
-    tagline: UI.fun.theButton.tagline,
-    color: '--c-pink',
-  },
-  {
-    href: '10s',
-    title: UI.fun.tenSeconds.title,
-    tagline: UI.fun.tenSeconds.tagline,
-    color: '--c-blue',
+    thumb: colorsThumb,
+    meta: L.meta.colors,
+    added: '2026-11-13',
+    tags: ['daily'],
+    chip: 'daily',
   },
   {
     href: 'flag',
     title: UI.fun.flag.title,
     tagline: UI.fun.flag.tagline,
-    color: '--c-green',
+    thumb: flagThumb,
+    meta: L.meta.flag,
+    added: '2026-11-08',
+    tags: ['daily'],
+    chip: 'daily',
+  },
+  {
+    href: '10s',
+    title: UI.fun.tenSeconds.title,
+    tagline: UI.fun.tenSeconds.tagline,
+    thumb: tenThumb,
+    meta: L.meta.tenSeconds,
+    added: '2026-11-04',
+    tags: ['quick'],
+    chip: 'quick',
+  },
+  {
+    href: 'the-button',
+    title: UI.fun.theButton.title,
+    tagline: UI.fun.theButton.tagline,
+    thumb: buttonThumb,
+    meta: L.meta.theButton,
+    added: '2026-10-02',
+    tags: ['multiplayer', 'quick'],
+    chip: 'live',
+    live: true,
   },
 ];
+
+/** Newest game gets the "New" badge. */
+const newest = games.reduce((a, b) => (b.added > a.added ? b : a)).href;
+
+const filters = [
+  { id: 'all', label: L.filters.all },
+  { id: 'daily', label: L.filters.daily },
+  { id: 'multiplayer', label: L.filters.multiplayer },
+  { id: 'quick', label: L.filters.quick },
+];
+
+const monthDay = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 ---
 
 <Fun title={UI.fun.indexTitle} description={UI.fun.indexIntro} path="/">
-  <div class="container">
+  <div class="container feed">
     <header class="head">
       <h1><span class="marker" style="--marker: var(--c-pink)">{UI.fun.indexTitle}</span></h1>
       <p>{UI.fun.indexIntro}</p>
     </header>
 
-    <ul class="games" aria-label={UI.fun.indexTitle}>
+    <div class="chips" role="group" aria-label={L.filterLabel} data-filters>
+      {
+        filters.map((f, i) => (
+          <button type="button" class="chip" data-filter={f.id} aria-pressed={i === 0 ? 'true' : 'false'}>
+            {f.label}
+          </button>
+        ))
+      }
+    </div>
+
+    <ul class="grid" aria-label={UI.fun.indexTitle}>
       {
         games.map((g) => (
-          <li class="game" style={`--c: var(${g.color})`}>
-            <span class="game__dot" aria-hidden="true">
-              <Icon name="games" size={28} />
-            </span>
-            <div class="game__body">
-              <h2 class="game__title">{g.title}</h2>
-              <p class="game__tagline">{g.tagline}</p>
-            </div>
-            <Button href={g.href} color={g.color} iconAfter="arrow">
-              {UI.fun.play}
-            </Button>
+          <li class="tile" data-tags={g.tags.join(' ')}>
+            <a class="tile__link" href={g.href}>
+              <span class="tile__thumb">
+                <Image
+                  src={g.thumb}
+                  alt=""
+                  widths={[480, 720, 1080, 1280]}
+                  sizes="(min-width: 760px) 540px, 100vw"
+                  loading={g.href === newest ? 'eager' : 'lazy'}
+                />
+                {g.href === newest && <span class="badge badge--new">{L.chips.new}</span>}
+                <span class:list={['badge', 'badge--chip', `badge--${g.chip}`]}>
+                  {g.chip === 'live' && <span class="dot" aria-hidden="true" />}
+                  {L.chips[g.chip]}
+                </span>
+              </span>
+              <span class="tile__info">
+                <Image src={logo} alt="" width={44} height={44} class="tile__avatar" />
+                <span class="tile__text">
+                  <span class="tile__title">{g.title}</span>
+                  <span class="tile__tagline">{g.tagline}</span>
+                  <span class="tile__meta">
+                    <span>{L.by}</span>
+                    <span aria-hidden="true">·</span>
+                    {g.live ? (
+                      <span data-live-clicks data-suffix={L.clicks}>{g.meta}</span>
+                    ) : (
+                      <span>{g.meta}</span>
+                    )}
+                    <span aria-hidden="true">·</span>
+                    <time datetime={g.added} data-ago>{monthDay(g.added)}</time>
+                  </span>
+                </span>
+              </span>
+            </a>
           </li>
         ))
       }
@@ -70,69 +160,303 @@ const games = [
   .head {
     display: grid;
     gap: var(--space-3);
-    margin-bottom: var(--space-5);
+    margin-bottom: var(--space-4);
   }
 
-  .games {
+  /* Filter chips, like the row above a video feed */
+  .chips {
+    display: flex;
+    gap: var(--space-2);
+    margin: 0 calc(var(--gutter) * -1) var(--space-4);
+    padding: var(--space-1) var(--gutter) var(--space-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .chip {
+    flex: none;
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font: 700 var(--text-sm) / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    cursor: pointer;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  .chip:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .chip[aria-pressed='true'] {
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  /* The feed */
+  .grid {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-5) var(--space-4);
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .game {
+  @media (min-width: 760px) {
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .tile[hidden] {
+    display: none;
+  }
+
+  .tile__link {
     display: grid;
-    grid-template-columns: auto 1fr;
     gap: var(--space-3);
-    align-items: center;
-    max-width: none;
-    padding: var(--space-4);
-    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .tile__thumb {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
     border: var(--line) solid var(--ink);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow);
+    background: var(--c-grey);
+    transition:
+      transform var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-pop);
   }
 
-  .game__dot {
-    display: grid;
-    place-items: center;
-    width: 56px;
-    height: 56px;
-    background: var(--c);
+  .tile__thumb :global(img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform var(--t-slow) var(--ease-out);
+  }
+
+  .tile__link:hover .tile__thumb,
+  .tile__link:focus-visible .tile__thumb {
+    transform: translate(-4px, -4px) rotate(-0.6deg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .tile__link:hover .tile__thumb :global(img) {
+    transform: scale(1.04);
+  }
+
+  .tile__link:focus-visible {
+    outline: none;
+  }
+
+  .tile__link:focus-visible .tile__thumb {
+    outline: var(--line) solid var(--c-blue);
+    outline-offset: 4px;
+  }
+
+  .badge {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
     border: var(--line) solid var(--ink);
     border-radius: var(--radius);
-    transform: rotate(-6deg);
+    font: 700 var(--text-sm) / 1.1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink);
   }
 
-  .game__body {
+  .badge--chip {
+    right: 12px;
+    bottom: 12px;
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  .badge--daily {
+    background: var(--c-yellow);
+    color: var(--ink);
+  }
+
+  .badge--live {
+    background: #e0241b;
+    color: #fff;
+  }
+
+  .badge--new {
+    top: 12px;
+    right: 12px;
+    background: var(--c-yellow);
+    transform: rotate(4deg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  @media (max-width: 480px) {
+    .badge {
+      padding: 2px 7px;
+      font-size: 0.72rem;
+      border-width: 2px;
+    }
+
+    .badge--chip {
+      right: 8px;
+      bottom: 8px;
+    }
+
+    .badge--new {
+      top: 8px;
+      right: 8px;
+    }
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: blink 1.4s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  .tile__info {
     display: grid;
-    gap: var(--space-1);
+    grid-template-columns: auto 1fr;
+    gap: var(--space-3);
+    align-items: start;
   }
 
-  .game__title {
+  .tile__avatar {
+    width: 44px;
+    height: 44px;
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+    background: var(--ink);
+    object-fit: cover;
+  }
+
+  .tile__text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .tile__title {
+    font-family: var(--font-display);
     font-size: var(--text-xl);
+    line-height: 1.15;
   }
 
-  .game__tagline {
+  .tile__link:hover .tile__title {
+    text-decoration: underline;
+    text-decoration-thickness: 3px;
+    text-underline-offset: 3px;
+  }
+
+  .tile__tagline {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--ink);
+  }
+
+  .tile__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 6px;
+    margin-top: 2px;
     color: var(--muted);
-  }
-
-  .game :global(.btn) {
-    grid-column: 1 / -1;
-  }
-
-  @media (min-width: 640px) {
-    .game {
-      grid-template-columns: auto 1fr auto;
-    }
-
-    .game :global(.btn) {
-      grid-column: auto;
-    }
+    font-size: var(--text-sm);
   }
 
   .more {
-    margin-top: var(--space-5);
+    margin-top: var(--space-6);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tile__thumb,
+    .tile__thumb :global(img),
+    .chip {
+      transition: none;
+    }
+
+    .dot {
+      animation: none;
+    }
   }
 </style>
+
+<script>
+  /** "3 days ago" from an ISO day, in Swiss time so it flips at local midnight. */
+  function ago(iso: string): string {
+    const day = (d: Date) => {
+      const [y, m, dd] = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' }).split('-').map(Number);
+      return Date.UTC(y, m - 1, dd) / 86_400_000;
+    };
+    const days = Math.round(day(new Date()) - day(new Date(`${iso}T12:00:00Z`)));
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 14) return `${days} days ago`;
+    if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+    if (days < 365) return `${Math.floor(days / 30)} months ago`;
+    const years = Math.floor(days / 365);
+    return years === 1 ? '1 year ago' : `${years} years ago`;
+  }
+
+  async function liveClicks(el: HTMLElement) {
+    try {
+      const res = await fetch('/api/the-button', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { total?: unknown };
+      if (typeof data.total !== 'number') return;
+      el.textContent = `${data.total.toLocaleString('en-US')} ${el.dataset.suffix ?? ''}`.trim();
+    } catch {
+      // Offline or blocked: keep the static text.
+    }
+  }
+
+  function init() {
+    const bar = document.querySelector<HTMLElement>('[data-filters]');
+    if (!bar) return;
+
+    for (const t of document.querySelectorAll<HTMLTimeElement>('time[data-ago]')) {
+      t.title = t.textContent ?? '';
+      t.textContent = ago(t.dateTime);
+    }
+
+    const live = document.querySelector<HTMLElement>('[data-live-clicks]');
+    if (live) liveClicks(live);
+
+    const chips = [...bar.querySelectorAll<HTMLButtonElement>('[data-filter]')];
+    const tiles = [...document.querySelectorAll<HTMLElement>('.tile')];
+    bar.addEventListener('click', (e) => {
+      const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-filter]');
+      if (!chip) return;
+      const f = chip.dataset.filter ?? 'all';
+      for (const c of chips) c.setAttribute('aria-pressed', String(c === chip));
+      for (const t of tiles) t.hidden = f !== 'all' && !(t.dataset.tags ?? '').split(' ').includes(f);
+    });
+  }
+
+  document.addEventListener('astro:page-load', init);
+</script>

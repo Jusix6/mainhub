@@ -101,6 +101,21 @@ export const UI = {
     hubColorsCta: 'Start mixing',
     hubNew: 'New',
     allGames: 'All games',
+    /** Game list on the fun index, laid out like a video feed. */
+    list: {
+      by: 'JXSI',
+      filterLabel: 'Filter games',
+      filters: { all: 'All', daily: 'Daily', multiplayer: 'Everyone together', quick: 'Quick' },
+      chips: { new: 'New', daily: 'Daily', live: 'Live', quick: '0:10' },
+      clicks: 'clicks so far',
+      added: 'added',
+      meta: {
+        colors: '927 colours to find',
+        theButton: 'one global counter',
+        tenSeconds: 'one round, ten seconds',
+        flag: '197 countries',
+      },
+    },
     theButton: {
       title: 'The Button',
       tagline: 'One button. One number. Everyone who ever clicked, added up. It never resets.',
