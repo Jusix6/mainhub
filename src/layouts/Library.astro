@@ -1,0 +1,207 @@
+---
+/**
+ * Layout for the knowledge library on library.jxsi.ch. The pages live under
+ * src/pages/library/ and are built to dist/library/, the worker serves them at
+ * the root of the library host. Links between library pages are relative so
+ * they work on both hosts.
+ *
+ * Look: an old library. Dark walnut bars top and bottom, a classic serif
+ * (Playfair Display, self-hosted, only loaded here) for headings. `room` turns
+ * the whole page into the dark reading room (used by the shelf).
+ */
+import '@fontsource-variable/playfair-display/wght.css';
+import '@fontsource-variable/playfair-display/wght-italic.css';
+import Head from '@/components/Head.astro';
+import Icon from '@/components/Icon.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Path on the library host, e.g. "/flags". Used for the canonical URL. */
+  path: string;
+  /** Relative link back to the shelf, "./" from a book. */
+  indexHref?: string;
+  /** Absolute URL of a social preview image. */
+  image?: string;
+  /** Dark reading-room background for the whole page. */
+  room?: boolean;
+}
+
+const { title, description, path, indexHref, image, room = false } = Astro.props;
+const canonical = new URL(path, SITE.library.url).href;
+---
+
+<!doctype html>
+<html lang="en" class="library">
+  <head>
+    <Head title={title.toLowerCase() === UI.library.brand.toLowerCase() ? UI.library.brand : `${title} · ${UI.library.brand}`} description={description} canonical={canonical} image={image} />
+  </head>
+  <body class:list={{ 'is-room': room }}>
+    <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>
+    <header class="lib-header">
+      <div class="container lib-header__inner">
+        {
+          indexHref ? (
+            <a class="lib-brand" href={indexHref}>
+              <Icon name="book" size={20} />
+              <span>{UI.library.brand}</span>
+            </a>
+          ) : (
+            <span class="lib-brand">
+              <Icon name="book" size={20} />
+              <span>{UI.library.brand}</span>
+            </span>
+          )
+        }
+        <a class="lib-header__back" href={`${SITE.url}/hub`}>
+          {UI.library.backToSite}
+          <Icon name="arrow" size={16} />
+        </a>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="lib-footer">
+      <p class="container">
+        © {new Date().getFullYear()} {SITE.name} · {UI.footer.madeIn} · <a href={SITE.url}>{SITE.url.replace('https://', '')}</a> · <a href={SITE.fun.url}>{UI.footer.fun}</a>
+      </p>
+    </footer>
+  </body>
+</html>
+
+<style>
+  /* Library-wide: headings in the old-book serif */
+  :global(html.library) {
+    --font-display: 'Playfair Display Variable', Georgia, 'Times New Roman', serif;
+    /* Walnut, brass and paper */
+    --wood-dark: #24150c;
+    --wood: #4a2c18;
+    --wood-light: #6b4325;
+    --brass: #d4ad5a;
+    --brass-light: #f1d48a;
+    --paper: #fbf5e6;
+    --cream: #f3e8cf;
+
+    /* The site tokens, aged: parchment instead of white, brown ink, muted
+       colours, finer lines. Components keep working, they just look older. */
+    --bg: #f4ead3;
+    --surface: #fffaf0;
+    --ink: #2a1a0f;
+    --muted: #6e5c46;
+    --c-yellow: #e2bf6a;
+    --c-blue: #a9bfdd;
+    --c-green: #9cc79a;
+    --c-pink: #e6aaa0;
+    --c-purple: #c3b0d6;
+    --c-grey: #e4d8bd;
+    --line: 2px;
+    --shadow: 3px 3px 0 rgb(42 26 15 / 0.8);
+    --shadow-lg: 6px 6px 0 rgb(42 26 15 / 0.8);
+    --shadow-sm: 2px 2px 0 rgb(42 26 15 / 0.8);
+    --radius: 4px;
+    --radius-lg: 8px;
+  }
+
+  :global(html.library body:not(.is-room)) {
+    background-image: radial-gradient(ellipse at 50% 0%, rgb(255 255 255 / 0.5), transparent 60%);
+  }
+
+  :global(html.library h1),
+  :global(html.library h2) {
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  :global(body.is-room) {
+    background-color: var(--wood-dark);
+    color: var(--cream);
+  }
+
+  .lib-header,
+  .lib-footer {
+    color: var(--cream);
+    background:
+      repeating-linear-gradient(0deg, rgb(0 0 0 / 0.12) 0 1px, transparent 1px 7px),
+      repeating-linear-gradient(0deg, rgb(255 255 255 / 0.04) 0 2px, transparent 2px 13px),
+      linear-gradient(var(--wood), var(--wood-dark));
+  }
+
+  .lib-header {
+    border-bottom: 4px solid var(--brass);
+    box-shadow: 0 4px 0 rgb(0 0 0 / 0.35);
+  }
+
+  .lib-header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 64px;
+  }
+
+  .lib-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--brass-light);
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-style: italic;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+  }
+
+  a.lib-brand:hover span {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+
+  .lib-header__back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+    color: var(--wood-dark);
+    background: linear-gradient(var(--brass-light), var(--brass));
+    border: 2px solid var(--wood-dark);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .lib-header__back:hover {
+    transform: translateY(-2px);
+  }
+
+  main {
+    padding-block: var(--space-5) var(--space-6);
+  }
+
+  :global(body.is-room) main {
+    padding-block: 0;
+  }
+
+  .lib-footer {
+    border-top: 4px solid var(--brass);
+    padding-block: var(--space-4);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .lib-footer a {
+    color: var(--brass-light);
+  }
+</style>

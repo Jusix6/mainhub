@@ -12,7 +12,8 @@
   "routes": [
     { "pattern": "www.jxsi.ch", "custom_domain": true },
     { "pattern": "jxsi.ch", "custom_domain": true },
-    { "pattern": "fun.jxsi.ch", "custom_domain": true }
+    { "pattern": "fun.jxsi.ch", "custom_domain": true },
+    { "pattern": "library.jxsi.ch", "custom_domain": true }
   ],
   "assets": {
     "directory": "./dist",

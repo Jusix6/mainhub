@@ -1,0 +1,975 @@
+---
+/**
+ * library.jxsi.ch/flags – the Flags book. Four modes on one page (?mode=…):
+ * browse all flags, learn them with flashcards (Leitner boxes in localStorage,
+ * src/lib/library/progress.ts), multiple-choice quiz both ways, and typing the
+ * name. A scope (all, countries, a continent, territories) applies to every
+ * mode. Logic in src/lib/library/flags-page.ts.
+ */
+import Library from '@/layouts/Library.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import { UI } from '@/data/ui';
+import { SITE } from '@/data/site';
+import { FLAGS, SCOPES, scopeCount, statusLine } from '@/lib/library/flags';
+import og from '@/assets/library/flags-og.png';
+
+const F = UI.library.flags;
+const B = F.browse;
+const ogUrl = new URL(og.src, SITE.library.url).href;
+const modes = ['browse', 'learn', 'quiz', 'type'] as const;
+const modeIcons = { browse: 'grid', learn: 'book', quiz: 'sparkle', type: 'arrow' } as const;
+---
+
+<Library title={F.title} description={F.description} path="/flags" indexHref="./" image={ogUrl}>
+  <div class="container book" data-flags-book>
+    <header class="head">
+      <h1><span class="marker" style="--marker: var(--c-yellow)">{F.title}</span></h1>
+      <p>{F.description}</p>
+
+      <div class="progress" data-progress>
+        <div class="progress__bar" aria-hidden="true">
+          <span class="progress__known" data-bar="known"></span>
+          <span class="progress__learning" data-bar="learning"></span>
+        </div>
+        <p class="progress__legend">
+          <span><i class="sw sw--known"></i>{F.progress.known} <b data-count="known">0</b></span>
+          <span><i class="sw sw--learning"></i>{F.progress.learning} <b data-count="learning">0</b></span>
+          <span><i class="sw sw--fresh"></i>{F.progress.fresh} <b data-count="fresh">{FLAGS.length}</b></span>
+        </p>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="tabs" role="tablist" aria-label={F.modeLabel}>
+        {
+          modes.map((m, i) => (
+            <button
+              type="button"
+              class="tab"
+              role="tab"
+              id={`tab-${m}`}
+              aria-controls={`panel-${m}`}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              tabindex={i === 0 ? 0 : -1}
+              data-mode={m}
+            >
+              <Icon name={modeIcons[m]} size={18} />
+              {F.modes[m]}
+            </button>
+          ))
+        }
+      </div>
+      <label class="scope">
+        <span>{F.scopeLabel}</span>
+        <select data-scope>
+          {SCOPES.map((s) => <option value={s}>{`${F.scopes[s]} (${scopeCount(s)})`}</option>)}
+        </select>
+      </label>
+    </div>
+
+    <!-- Browse -->
+    <section class="panel" id="panel-browse" role="tabpanel" aria-labelledby="tab-browse" data-panel="browse">
+      <label class="search">
+        <span class="visually-hidden">{B.search}</span>
+        <input type="search" data-search placeholder={B.search} autocomplete="off" spellcheck="false" />
+      </label>
+      <ul class="grid" data-grid>
+        {
+          FLAGS.map((f) => (
+            <li data-code={f.code}>
+              <button type="button" class="tile" data-open={f.code}>
+                <span class="tile__flag">
+                  <img src={f.src} alt="" width={Math.round((90 * f.w) / f.h)} height="90" loading="lazy" decoding="async" />
+                </span>
+                <span class="tile__name">{f.name}</span>
+                <span class="tile__sub">{f.capital || statusLine(f, B)}</span>
+                <span class="tile__dot" data-dot aria-hidden="true" />
+              </button>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="meta" data-none hidden>{B.none}</p>
+    </section>
+
+    <!-- Learn: flashcards -->
+    <section class="panel" id="panel-learn" role="tabpanel" aria-labelledby="tab-learn" data-panel="learn" hidden>
+      <p class="intro">{F.learn.intro}</p>
+      <div class="stage" data-learn-play>
+        <div class="flash" data-flash>
+          <div class="flash__inner">
+            <div class="flash__face flash__front">
+              <img data-learn-img alt="" />
+            </div>
+            <div class="flash__face flash__back">
+              <img data-learn-img-back alt="" />
+              <p class="flash__name" data-learn-name></p>
+              <p class="flash__info" data-learn-info></p>
+              <p class="flash__note" data-learn-note></p>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <Button color="--c-yellow" data-learn-show>{F.learn.show}</Button>
+          <span class="actions__pair" data-learn-rate hidden>
+            <Button color="--c-pink" data-learn-missed>{F.learn.missed}</Button>
+            <Button color="--c-green" data-learn-knew>{F.learn.knew}</Button>
+          </span>
+        </div>
+        <p class="meta center"><b data-learn-left>0</b> {F.learn.left} · {F.learn.keys}</p>
+      </div>
+      <div class="note-box" data-learn-done hidden>
+        <h2>{F.learn.done}</h2>
+        <p>{F.learn.doneText}</p>
+        <Button color="--c-yellow" iconAfter="arrow" data-learn-next>{F.learn.next}</Button>
+      </div>
+      <div class="note-box" data-learn-empty hidden>
+        <h2>{F.learn.caughtUp}</h2>
+        <p>{F.learn.caughtUpText}</p>
+        <Button color="--c-yellow" data-learn-anyway>{F.learn.anyway}</Button>
+      </div>
+    </section>
+
+    <!-- Quiz: multiple choice -->
+    <section class="panel" id="panel-quiz" role="tabpanel" aria-labelledby="tab-quiz" data-panel="quiz" hidden>
+      <div class="setup" data-setup="quiz">
+        <p class="intro">{F.quiz.intro}</p>
+        <fieldset class="choice">
+          <legend>{F.quiz.dirLabel}</legend>
+          <label><input type="radio" name="quiz-dir" value="flag" checked /> <span>{F.quiz.flagToName}</span></label>
+          <label><input type="radio" name="quiz-dir" value="name" /> <span>{F.quiz.nameToFlag}</span></label>
+        </fieldset>
+        <fieldset class="choice">
+          <legend>{F.quiz.lengthLabel}</legend>
+          <label><input type="radio" name="quiz-len" value="10" checked /> <span>10</span></label>
+          <label><input type="radio" name="quiz-len" value="25" /> <span>25</span></label>
+          <label><input type="radio" name="quiz-len" value="0" /> <span>{F.quiz.all}</span></label>
+        </fieldset>
+        <Button color="--c-yellow" size="lg" iconAfter="arrow" data-start="quiz">{F.quiz.start}</Button>
+      </div>
+      <div class="play" data-play="quiz" hidden>
+        <p class="play__head"><span data-q-count></span><span data-q-score></span></p>
+        <div class="prompt" data-q-prompt></div>
+        <div class="options" data-q-options></div>
+        <p class="feedback" data-q-feedback aria-live="polite"></p>
+        <Button color="--c-yellow" iconAfter="arrow" data-q-next hidden>{F.quiz.next}</Button>
+      </div>
+      <div class="result" data-result="quiz" hidden></div>
+    </section>
+
+    <!-- Type it -->
+    <section class="panel" id="panel-type" role="tabpanel" aria-labelledby="tab-type" data-panel="type" hidden>
+      <div class="setup" data-setup="type">
+        <p class="intro">{F.type.intro}</p>
+        <fieldset class="choice">
+          <legend>{F.quiz.lengthLabel}</legend>
+          <label><input type="radio" name="type-len" value="10" checked /> <span>10</span></label>
+          <label><input type="radio" name="type-len" value="25" /> <span>25</span></label>
+          <label><input type="radio" name="type-len" value="0" /> <span>{F.quiz.all}</span></label>
+        </fieldset>
+        <Button color="--c-yellow" size="lg" iconAfter="arrow" data-start="type">{F.quiz.start}</Button>
+      </div>
+      <div class="play" data-play="type" hidden>
+        <p class="play__head"><span data-t-count></span><span data-t-score></span></p>
+        <div class="prompt" data-t-prompt></div>
+        <form class="typeform" data-t-form autocomplete="off">
+          <div class="typeform__field">
+            <label class="visually-hidden" for="type-answer">{F.type.placeholder}</label>
+            <input
+              id="type-answer"
+              type="text"
+              data-t-input
+              placeholder={F.type.placeholder}
+              autocomplete="off"
+              autocapitalize="words"
+              spellcheck="false"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="type-suggest"
+            />
+            <ul class="suggest" id="type-suggest" role="listbox" data-t-suggest hidden></ul>
+          </div>
+          <Button type="submit" color="--c-yellow" data-t-submit>{F.type.submit}</Button>
+          <Button variant="outline" data-t-skip>{F.type.skip}</Button>
+        </form>
+        <p class="feedback" data-t-feedback aria-live="polite"></p>
+        <Button color="--c-yellow" iconAfter="arrow" data-t-next hidden>{F.quiz.next}</Button>
+      </div>
+      <div class="result" data-result="type" hidden></div>
+    </section>
+
+    <dialog class="detail" data-detail aria-labelledby="detail-name">
+      <div class="detail__flag"><img data-d-img alt="" /></div>
+      <h2 id="detail-name" data-d-name></h2>
+      <dl class="detail__facts">
+        <div><dt>{B.capital}</dt><dd data-d-capital></dd></div>
+        <div><dt>{B.continent}</dt><dd data-d-continent></dd></div>
+        <div><dt>{B.kind}</dt><dd data-d-kind></dd></div>
+        <div data-d-stats-row><dt>{B.yourStats}</dt><dd data-d-stats></dd></div>
+      </dl>
+      <div class="detail__rel" data-d-same-row>
+        <p class="meta">{B.sameAs}</p>
+        <div class="detail__list" data-d-same></div>
+      </div>
+      <div class="detail__rel" data-d-near-row>
+        <p class="meta">{B.confused}</p>
+        <div class="detail__list" data-d-near></div>
+      </div>
+      <form method="dialog">
+        <Button type="submit" color="--c-yellow">{B.close}</Button>
+      </form>
+    </dialog>
+  </div>
+</Library>
+
+<style>
+  .book :global([hidden]) {
+    display: none !important;
+  }
+
+  .head {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  /* Progress */
+  .progress {
+    display: grid;
+    gap: var(--space-2);
+    max-width: 640px;
+  }
+
+  .progress__bar {
+    display: flex;
+    height: 22px;
+    overflow: hidden;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .progress__bar span {
+    width: 0;
+    transition: width var(--t-slow) var(--ease-out);
+  }
+
+  .progress__known {
+    background: var(--c-green);
+  }
+
+  .progress__learning {
+    background: var(--c-yellow);
+  }
+
+  .progress__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  .progress__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sw {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .sw--known {
+    background: var(--c-green);
+  }
+
+  .sw--learning {
+    background: var(--c-yellow);
+  }
+
+  .sw--fresh {
+    background: var(--surface);
+  }
+
+  /* Tabs and scope */
+  .controls {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-3);
+    margin: 0 calc(var(--gutter) * -1) var(--space-4);
+    padding: var(--space-2) var(--gutter);
+    background: var(--bg);
+    border-bottom: var(--line) solid var(--ink);
+  }
+
+  .tabs {
+    display: flex;
+    gap: var(--space-1);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tab {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-height: 42px;
+    padding: var(--space-1) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font: 700 var(--text-sm) / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .tab[aria-selected='true'] {
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  .scope {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: 700 var(--text-sm) / 1 var(--font-mono);
+    text-transform: uppercase;
+  }
+
+  .scope select {
+    min-height: 42px;
+    padding: 0 var(--space-2);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    font: 600 var(--text-base) var(--font-body);
+    color: var(--ink);
+  }
+
+  .intro {
+    margin-bottom: var(--space-4);
+    color: var(--muted);
+  }
+
+  .center {
+    text-align: center;
+  }
+
+  /* Browse */
+  .search input {
+    width: 100%;
+    max-width: 480px;
+    min-height: 48px;
+    margin-bottom: var(--space-4);
+    padding: 0 var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font: 500 var(--text-base) var(--font-body);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tile {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+    padding: var(--space-2);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    text-align: left;
+    color: var(--ink);
+    cursor: pointer;
+    transition:
+      transform var(--t-fast) var(--ease-pop),
+      box-shadow var(--t-fast) var(--ease-pop);
+  }
+
+  .tile:hover,
+  .tile:focus-visible {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow);
+  }
+
+  .tile__flag {
+    display: grid;
+    place-items: center;
+    height: 92px;
+    margin-bottom: 4px;
+  }
+
+  .tile__flag img {
+    max-width: 100%;
+    max-height: 90px;
+    width: auto;
+    height: auto;
+    border: 2px solid var(--ink);
+  }
+
+  .tile__name {
+    padding-right: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .tile__sub {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .tile__dot {
+    position: absolute;
+    right: 8px;
+    bottom: 10px;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    background: var(--surface);
+  }
+
+  .tile__dot[data-state='learning'] {
+    background: var(--c-yellow);
+  }
+
+  .tile__dot[data-state='known'] {
+    background: var(--c-green);
+  }
+
+  /* Flashcards */
+  .stage {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: center;
+  }
+
+  .flash {
+    width: min(100%, 520px);
+    aspect-ratio: 4 / 3;
+    perspective: 1200px;
+    cursor: pointer;
+  }
+
+  .flash__inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 450ms var(--ease-out);
+  }
+
+  .flash.is-flipped .flash__inner {
+    transform: rotateY(180deg);
+  }
+
+  .flash__face {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    backface-visibility: hidden;
+    text-align: center;
+  }
+
+  .flash__front img {
+    max-width: 100%;
+    max-height: 100%;
+    border: var(--line) solid var(--ink);
+  }
+
+  /* The back looks like the book's blue leather binding, gold lettering */
+  .flash__back {
+    transform: rotateY(180deg);
+    color: var(--cream, #f3e8cf);
+    background:
+      linear-gradient(90deg, rgb(0 0 0 / 0.25), rgb(255 255 255 / 0.06) 30%, rgb(0 0 0 / 0.2)),
+      repeating-linear-gradient(17deg, rgb(255 255 255 / 0.03) 0 2px, transparent 2px 5px),
+      #1d3d6b;
+    outline: 1px solid #e2bf6a;
+    outline-offset: -12px;
+  }
+
+  .flash__back img {
+    max-width: 55%;
+    max-height: 42%;
+    border: 2px solid var(--ink);
+  }
+
+  .flash__name {
+    color: #e2bf6a;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: 800;
+    line-height: 1.1;
+    text-shadow: 0 1px 0 rgb(0 0 0 / 0.6);
+  }
+
+  .flash__info {
+    font-weight: 600;
+  }
+
+  .flash__note {
+    font-size: var(--text-sm);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+    min-height: 52px;
+  }
+
+  .actions__pair {
+    display: inline-flex;
+    gap: var(--space-3);
+  }
+
+  .note-box {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+    max-width: 560px;
+    margin-inline: auto;
+    padding: var(--space-4);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  /* Quiz setup */
+  .setup {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: start;
+  }
+
+  .choice {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .choice legend {
+    width: 100%;
+    margin-bottom: var(--space-2);
+    font: 700 var(--text-sm) / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .choice label {
+    position: relative;
+  }
+
+  .choice input {
+    position: absolute;
+    opacity: 0;
+  }
+
+  .choice span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .choice input:checked + span {
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  .choice input:focus-visible + span {
+    outline: var(--line) solid var(--c-blue);
+    outline-offset: 3px;
+  }
+
+  /* Quiz play */
+  .play {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: center;
+    max-width: 720px;
+    margin-inline: auto;
+  }
+
+  .play__head {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font: 700 var(--text-sm) / 1 var(--font-mono);
+    text-transform: uppercase;
+  }
+
+  .prompt {
+    display: grid;
+    place-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 120px;
+    text-align: center;
+  }
+
+  .prompt :global(img) {
+    max-width: min(100%, 420px);
+    max-height: 260px;
+    border: var(--line) solid var(--ink);
+    box-shadow: var(--shadow);
+  }
+
+  .prompt :global(.prompt__q) {
+    color: var(--muted);
+  }
+
+  .prompt :global(.prompt__name) {
+    font-weight: 800;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    line-height: 1.1;
+  }
+
+  .options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .options :global(.opt) {
+    display: grid;
+    place-items: center;
+    min-height: 64px;
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font: 700 var(--text-base) / 1.2 var(--font-body);
+    color: var(--ink);
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .options :global(.opt:hover:not(:disabled)) {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow);
+  }
+
+  .options :global(.opt img) {
+    max-width: 100%;
+    max-height: 120px;
+    border: 2px solid var(--ink);
+  }
+
+  .options :global(.opt.is-right) {
+    background: var(--c-green);
+  }
+
+  .options :global(.opt.is-wrong) {
+    background: var(--c-pink);
+  }
+
+  .options :global(.opt:disabled) {
+    cursor: default;
+  }
+
+  .options :global(.opt:disabled:not(.is-right):not(.is-wrong)) {
+    opacity: 0.55;
+  }
+
+  .feedback {
+    min-height: 1.5em;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  /* Type it */
+  .typeform {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+  }
+
+  .typeform__field {
+    position: relative;
+    flex: 1 1 260px;
+    max-width: 420px;
+  }
+
+  .typeform input {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    font: 600 var(--text-lg) var(--font-body);
+  }
+
+  .typeform input.is-right {
+    background: var(--c-green);
+  }
+
+  .typeform input.is-wrong {
+    background: var(--c-pink);
+  }
+
+  .suggest {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 4;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .suggest :global(li) {
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .suggest :global(li[aria-selected='true']),
+  .suggest :global(li:hover) {
+    background: var(--c-yellow);
+  }
+
+  /* Results */
+  .result {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .result :global(.result__score) {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    line-height: 1;
+  }
+
+  .result :global(.result__list) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+  }
+
+  .result :global(.result__list li) {
+    display: grid;
+    gap: 4px;
+    padding: var(--space-2);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+  }
+
+  .result :global(.result__list img) {
+    width: 100%;
+    height: 70px;
+    object-fit: contain;
+  }
+
+  .result :global(.result__list s) {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .result :global(.result__actions) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+  }
+
+  /* Detail dialog */
+  .detail {
+    /* The global reset drops the UA's centring margin */
+    margin: auto;
+    max-height: 90dvh;
+    overflow-y: auto;
+    width: min(92vw, 520px);
+    padding: var(--space-4);
+    background: var(--bg);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .detail[open] {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .detail::backdrop {
+    background: rgb(17 17 17 / 0.55);
+  }
+
+  .detail__flag {
+    display: grid;
+    place-items: center;
+  }
+
+  .detail__flag img {
+    max-width: 100%;
+    max-height: 220px;
+    border: var(--line) solid var(--ink);
+    box-shadow: var(--shadow);
+  }
+
+  .detail h2 {
+    font-size: var(--text-2xl);
+  }
+
+  .detail__facts {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+  }
+
+  .detail__facts div {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: var(--space-2);
+  }
+
+  .detail__facts dt {
+    font: 700 var(--text-sm) / 1.5 var(--font-mono);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .detail__facts dd {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .detail__rel {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .detail__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .detail__list :global(button) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 4px 10px 4px 4px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font: 600 var(--text-sm) var(--font-body);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .detail__list :global(img) {
+    width: 30px;
+    height: 20px;
+    object-fit: cover;
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+  }
+
+  @media (max-width: 520px) {
+    .controls {
+      position: static;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      width: 100%;
+    }
+
+    .tab {
+      justify-content: center;
+    }
+
+    .options {
+      gap: var(--space-2);
+    }
+
+    .detail__facts div {
+      grid-template-columns: 7rem 1fr;
+    }
+
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-2);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flash__inner,
+    .progress__bar span,
+    .tile {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  import { init } from '@/lib/library/flags-page';
+
+  document.addEventListener('astro:page-load', init);
+</script>

@@ -870,6 +870,24 @@
   "h": 720
  },
  {
+  "code": "kn",
+  "name": "Saint Kitts & Nevis",
+  "w": 750,
+  "h": 500
+ },
+ {
+  "code": "lc",
+  "name": "Saint Lucia",
+  "w": 600,
+  "h": 300
+ },
+ {
+  "code": "vc",
+  "name": "Saint Vincent & the Grenadines",
+  "w": 72,
+  "h": 48
+ },
+ {
   "code": "ws",
   "name": "Samoa",
   "w": 2880,
@@ -976,24 +994,6 @@
   "name": "Sri Lanka",
   "w": 1200,
   "h": 600
- },
- {
-  "code": "kn",
-  "name": "St. Kitts & Nevis",
-  "w": 750,
-  "h": 500
- },
- {
-  "code": "lc",
-  "name": "St. Lucia",
-  "w": 600,
-  "h": 300
- },
- {
-  "code": "vc",
-  "name": "St. Vincent & Grenadines",
-  "w": 72,
-  "h": 48
  },
  {
   "code": "sd",

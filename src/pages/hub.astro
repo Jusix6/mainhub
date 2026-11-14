@@ -108,6 +108,25 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
     </div>
   </section>
 
+  <section class="container section" aria-labelledby="library-heading">
+    <div class="section-head">
+      <h2 id="library-heading">{UI.library.indexTitle}</h2>
+      <Button href={SITE.library.url} color="--surface" iconAfter="arrow">{UI.library.hubCta}</Button>
+    </div>
+    <a class="fun-card fun-card--library" href={`${SITE.library.url}/flags`}>
+      <span class="fun-card__shelf" aria-hidden="true"><i>Flags</i><i></i><i></i><i></i></span>
+      <span class="fun-card__body">
+        <span class="fun-card__tag">{UI.fun.hubNew}</span>
+        <strong class="fun-card__title">{UI.library.flags.title}</strong>
+        <span>{UI.library.hubTeaser}</span>
+        <span class="fun-card__cta">
+          {UI.library.hubFlagsCta}
+          <Icon name="arrow" size={18} />
+        </span>
+      </span>
+    </a>
+  </section>
+
   {
     nextEvents.length > 0 && (
       <section class="container section" aria-labelledby="upcoming-heading">
@@ -285,6 +304,54 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
 
   .fun-card--flag {
     background: var(--c-green);
+  }
+
+  /* library.jxsi.ch: a mini shelf, the real book pulls out on hover */
+  .fun-card--library {
+    background: var(--c-blue);
+  }
+
+  .fun-card__shelf {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    width: clamp(88px, 24vw, 120px);
+    height: clamp(88px, 24vw, 120px);
+    padding: 0 6px;
+    border-bottom: 8px solid var(--ink);
+  }
+
+  .fun-card__shelf i {
+    flex: 1;
+    height: 70%;
+    border: var(--line) dashed var(--ink);
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .fun-card__shelf i:first-child {
+    display: grid;
+    place-items: center;
+    flex: 1.5;
+    height: 100%;
+    background: var(--c-yellow);
+    border-style: solid;
+    font: normal 700 0.7rem / 1 var(--font-mono);
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    border-radius: 0 0 4px 4px;
+    border-top: 0;
+    border-bottom: var(--line) solid var(--ink);
+    transition: translate var(--t-base) var(--ease-pop);
+  }
+
+  .fun-card__shelf i:nth-child(3) {
+    height: 85%;
+  }
+
+  .fun-card:hover .fun-card__shelf i:first-child {
+    translate: 0 -10px;
   }
 
   .fun-card--colors {

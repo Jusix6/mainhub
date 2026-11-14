@@ -2,9 +2,10 @@
  * Cloudflare Worker in front of the static assets. Three jobs:
  *
  * 1. Redirects: apex and plain-http requests go to the canonical https host.
- * 2. Fun subdomain: fun.jxsi.ch serves the pages built under dist/fun/ at the
- *    root (fun.jxsi.ch/the-button → dist/fun/the-button.html). The hashed
- *    build assets (/_astro/*) are shared. www.jxsi.ch/fun/* redirects over.
+ * 2. Subdomains: fun.jxsi.ch serves the pages built under dist/fun/ at the
+ *    root (fun.jxsi.ch/the-button → dist/fun/the-button.html), library.jxsi.ch
+ *    the ones under dist/library/. The hashed build assets (/_astro/*) are
+ *    shared. www.jxsi.ch/fun/* and /library/* redirect over.
  * 3. API for the fun games under /api/*, backed by a Durable Object so the
  *    counters are global, atomic and never reset.
  * 4. YouTube: a cron trigger reads the channel feed (latest video) and the
@@ -27,8 +28,10 @@ import { fetchVideoSum } from './src/lib/video-count.mjs';
 const CANONICAL_HOST = 'www.jxsi.ch';
 const APEX_HOST = 'jxsi.ch';
 const FUN_HOST = 'fun.jxsi.ch';
-const FUN_PREFIX = '/fun';
-const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST];
+const LIBRARY_HOST = 'library.jxsi.ch';
+/** Subdomain → folder of its pages in dist/ (src/pages/<folder>/). */
+const SUBSITES = { [FUN_HOST]: '/fun', [LIBRARY_HOST]: '/library' };
+const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST, LIBRARY_HOST];
 const OUR_ORIGINS = [`https://${CANONICAL_HOST}`, `https://${FUN_HOST}`];
 
 /** Short links on www and the apex that point at a fun game (jxsi.ch/10s → fun.jxsi.ch/10s). */
@@ -75,13 +78,17 @@ export default {
 
     if (url.pathname.startsWith('/api/')) return handleApi(request, env, url);
 
-    if (url.hostname === FUN_HOST) return serveFun(request, env, url);
+    if (SUBSITES[url.hostname]) return serveSubsite(request, env, url, SUBSITES[url.hostname]);
 
-    if (url.hostname === CANONICAL_HOST && (url.pathname === FUN_PREFIX || url.pathname.startsWith(FUN_PREFIX + '/'))) {
-      url.protocol = 'https:';
-      url.hostname = FUN_HOST;
-      url.pathname = url.pathname.slice(FUN_PREFIX.length) || '/';
-      return Response.redirect(url.toString(), 302);
+    // www.jxsi.ch/fun/x → fun.jxsi.ch/x, www.jxsi.ch/library → library.jxsi.ch
+    if (url.hostname === CANONICAL_HOST) {
+      for (const [host, prefix] of Object.entries(SUBSITES)) {
+        if (url.pathname !== prefix && !url.pathname.startsWith(prefix + '/')) continue;
+        url.protocol = 'https:';
+        url.hostname = host;
+        url.pathname = url.pathname.slice(prefix.length) || '/';
+        return Response.redirect(url.toString(), 302);
+      }
     }
 
     if (url.hostname === CANONICAL_HOST && request.method === 'GET' && VIDEO_PAGES.includes(url.pathname)) {
@@ -257,11 +264,11 @@ export class VideoFeed extends DurableObject {
   }
 }
 
-/** fun.jxsi.ch: map the root to the dist/fun/ pages, keep shared assets reachable. */
-async function serveFun(request, env, url) {
-  // Someone copied a www-style /fun/... path onto the fun host
-  if (url.pathname === FUN_PREFIX || url.pathname.startsWith(FUN_PREFIX + '/')) {
-    url.pathname = url.pathname.slice(FUN_PREFIX.length) || '/';
+/** A subdomain: map its root to the dist/<prefix>/ pages, keep shared assets reachable. */
+async function serveSubsite(request, env, url, prefix) {
+  // Someone copied a www-style /fun/... path onto the subdomain
+  if (url.pathname === prefix || url.pathname.startsWith(prefix + '/')) {
+    url.pathname = url.pathname.slice(prefix.length) || '/';
     return Response.redirect(url.toString(), 301);
   }
   if (url.pathname.startsWith('/_astro/') || SHARED_ROOT_FILES.includes(url.pathname)) {
@@ -270,14 +277,14 @@ async function serveFun(request, env, url) {
 
   const assetUrl = new URL(url);
   // dist/fun.html is the index (build.format 'file'), served by the asset layer at /fun
-  assetUrl.pathname = url.pathname === '/' ? FUN_PREFIX : FUN_PREFIX + url.pathname;
+  assetUrl.pathname = url.pathname === '/' ? prefix : prefix + url.pathname;
   const res = await env.ASSETS.fetch(new Request(assetUrl, request));
 
   // The asset layer may answer with a trailing-slash redirect; strip the prefix again.
   const location = res.headers.get('location');
   if (res.status >= 300 && res.status < 400 && location) {
     const target = new URL(location, url);
-    if (target.pathname.startsWith(FUN_PREFIX)) target.pathname = target.pathname.slice(FUN_PREFIX.length) || '/';
+    if (target.pathname.startsWith(prefix)) target.pathname = target.pathname.slice(prefix.length) || '/';
     return Response.redirect(target.toString(), res.status);
   }
   return res;

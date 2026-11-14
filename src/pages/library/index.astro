@@ -1,0 +1,746 @@
+---
+/**
+ * library.jxsi.ch – the reading room. A walnut bookcase with leather-bound
+ * volumes: real books (src/data/library.ts) have gold lettering, a ribbon
+ * and pull out on hover; the untitled volumes, the globe and the hourglass are
+ * decoration. Below the case, one catalogue card per book. Served at the
+ * library host root; on www.jxsi.ch the worker redirects /library here.
+ * Links stay relative.
+ */
+import Library from '@/layouts/Library.astro';
+import Icon from '@/components/Icon.astro';
+import { UI } from '@/data/ui';
+import { BOOKS, LEATHERS, SHELVES } from '@/data/library';
+import { BY_CODE } from '@/lib/library/flags';
+import { SITE } from '@/data/site';
+import og from '@/assets/library/library-og.png';
+
+const L = UI.library;
+
+/** Stable pseudo-random numbers so the old volumes do not look like a fence. */
+const vary = (i: number, j: number, min: number, span: number) => min + (((i * 7 + j * 13 + 3) * 37) % span);
+
+const books = Object.values(BOOKS);
+const shelfOf = (slug: string) => SHELVES.find((s) => s.items.includes(slug))?.label ?? '';
+---
+
+<Library title={L.indexTitle} description={L.indexIntro} path="/" image={new URL(og.src, SITE.library.url).href} room>
+  <div class="room">
+    <div class="container">
+      <header class="head">
+        <div class="plaque">
+          <h1>{L.brand}</h1>
+        </div>
+        <p class="intro">{L.indexIntro}</p>
+      </header>
+
+      <section class="case" aria-label={L.shelfLabel}>
+        <div class="case__crown" aria-hidden="true"></div>
+        {
+          SHELVES.map((shelf, i) => (
+            <div class="shelf">
+              <ul class="row">
+                {shelf.items.map((item, j) => {
+                  const book = item ? BOOKS[item] : undefined;
+                  if (book) {
+                    return (
+                      <li class="slot">
+                        <a class="vol vol--real" href={book.slug} style={`--leather: ${book.leather}`} aria-label={`${book.title}: ${book.tagline}`}>
+                          <span class="vol__ribbon" aria-hidden="true" />
+                          <span class="vol__label" aria-hidden="true">
+                            <span class="vol__title">{book.spine}</span>
+                          </span>
+                          <span class="vol__emblem" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="26" height="26">
+                              <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6" />
+                              <path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" fill="none" stroke="currentColor" stroke-width="1.2" />
+                            </svg>
+                          </span>
+                          <span class="vol__call" aria-hidden="true">
+                            {book.callNumber.split(' ').map((p) => (
+                              <span>{p}</span>
+                            ))}
+                          </span>
+                          <span class="vol__tip" aria-hidden="true">
+                            {book.title}
+                            <Icon name="arrow" size={14} />
+                          </span>
+                        </a>
+                      </li>
+                    );
+                  }
+                  if (item === 'stack') {
+                    return (
+                      <li class="slot stack" aria-hidden="true">
+                        {[0, 1, 2].map((k) => (
+                          <span style={`--leather: ${LEATHERS[(i + k * 3) % LEATHERS.length]}; --len: ${[128, 112, 138][k]}px; --off: ${[0, 10, -6][k]}px`} />
+                        ))}
+                      </li>
+                    );
+                  }
+                  if (item === 'bookend') {
+                    return (
+                      <li class="slot" aria-hidden="true">
+                        <svg class="bookend" viewBox="0 0 40 120" width="40" height="120">
+                          <defs>
+                            <linearGradient id="brass" x1="0" x2="1">
+                              <stop offset="0" stop-color="#8a6420" />
+                              <stop offset="0.45" stop-color="#f1d48a" />
+                              <stop offset="1" stop-color="#9b7228" />
+                            </linearGradient>
+                          </defs>
+                          <path d="M4 120V18a14 14 0 0 1 28 0v102z" fill="url(#brass)" stroke="#3a2410" stroke-width="2" />
+                          <circle cx="18" cy="22" r="6" fill="none" stroke="#5a3d12" stroke-width="2" />
+                        </svg>
+                      </li>
+                    );
+                  }
+                  if (item === 'globe') {
+                    return (
+                      <li class="slot deco" aria-hidden="true">
+                        <svg class="globe" viewBox="0 0 120 160" width="120" height="160">
+                          <defs>
+                            <radialGradient id="sea" cx="0.38" cy="0.35" r="0.75">
+                              <stop offset="0" stop-color="#efe0b4" />
+                              <stop offset="0.7" stop-color="#c9ad74" />
+                              <stop offset="1" stop-color="#8f7442" />
+                            </radialGradient>
+                          </defs>
+                          <path d="M38 152h44l-6-10H44z" fill="#4a2c18" stroke="#24150c" stroke-width="2" />
+                          <rect x="56" y="112" width="8" height="32" fill="#5b3a1e" stroke="#24150c" stroke-width="2" />
+                          <circle cx="60" cy="62" r="46" fill="url(#sea)" stroke="#5a3d12" stroke-width="2" />
+                          <path
+                            d="M30 44c9 1 13 8 20 6s7-10 16-8 9 10 4 15-15 2-17 10 9 12 3 18-14 1-17-5-8-13-14-16M78 70c6-4 14-2 16 5s-4 14-10 13-9-12-6-18"
+                            fill="#7a5a2c"
+                            opacity="0.75"
+                          />
+                          <path d="M60 16v92M14 62h92" stroke="#5a3d12" stroke-width="0.8" opacity="0.5" />
+                          <ellipse cx="60" cy="62" rx="22" ry="46" fill="none" stroke="#5a3d12" stroke-width="0.8" opacity="0.5" />
+                          <path d="M22 96A54 54 0 0 1 60 8" fill="none" stroke="#d4ad5a" stroke-width="5" stroke-linecap="round" />
+                          <path d="M22 96A54 54 0 0 1 60 8" fill="none" stroke="#8a6420" stroke-width="1.5" />
+                        </svg>
+                      </li>
+                    );
+                  }
+                  if (item === 'hourglass') {
+                    return (
+                      <li class="slot" aria-hidden="true">
+                        <svg class="hourglass" viewBox="0 0 60 110" width="54" height="99">
+                          <rect x="4" y="2" width="52" height="9" rx="2" fill="#5b3a1e" stroke="#24150c" stroke-width="2" />
+                          <rect x="4" y="99" width="52" height="9" rx="2" fill="#5b3a1e" stroke="#24150c" stroke-width="2" />
+                          <path d="M14 11c0 24 14 30 14 44S14 75 14 99h32c0-24-14-30-14-44s14-20 14-44z" fill="rgb(255 240 210 / 0.22)" stroke="#e9d9b0" stroke-width="1.5" />
+                          <path d="M20 34h20c-2 8-8 14-10 20-2-6-8-12-10-20zM18 97c2-10 8-14 12-15 4 1 10 5 12 15z" fill="#d9a74a" />
+                          <path d="M30 55v27" stroke="#d9a74a" stroke-width="1.2" />
+                          <path d="M8 11v88M52 11v88" stroke="#4a2c18" stroke-width="4" />
+                        </svg>
+                      </li>
+                    );
+                  }
+                  // An old volume without a topic yet
+                  const lean = i === 0 && j === 6;
+                  const prevIsDeco = j > 0 && typeof shelf.items[j - 1] === 'string' && !BOOKS[shelf.items[j - 1] as string];
+                  return (
+                    <li
+                      class:list={['slot', 'vol', 'vol--old', { 'vol--lean': lean, 'vol--after-deco': prevIsDeco }]}
+                      style={`--leather: ${LEATHERS[(i * 4 + j * 5) % LEATHERS.length]}; --h: ${vary(i, j, 190, 80)}px; --w: ${vary(j, i, 34, 22)}px; --label: ${vary(i + 1, j, 18, 30)}%`}
+                      aria-hidden="true"
+                      title={L.comingSoon}
+                    />
+                  );
+                })}
+              </ul>
+              <div class="board" aria-hidden="true">
+                <span class="board__tag">{shelf.label}</span>
+              </div>
+            </div>
+          ))
+        }
+        <div class="case__base" aria-hidden="true"></div>
+      </section>
+
+      <section class="catalog" aria-labelledby="catalog-heading">
+        <h2 id="catalog-heading">{L.catalog}</h2>
+        {
+          books.map((book) => (
+            <article class="card">
+              <p class="card__head">
+                <span>
+                  {L.callNumber} {book.callNumber}
+                </span>
+                <span>{shelfOf(book.slug)}</span>
+              </p>
+              <h3 class="card__title">{book.title}</h3>
+              <p>{book.tagline}</p>
+              <p class="card__contents">
+                {L.contains}: {book.contents.join(' · ')}
+              </p>
+              {book.stamps && (
+                <p class="card__stamps" aria-hidden="true">
+                  {book.stamps.map((c) => (
+                    <img src={BY_CODE.get(c)?.src} alt="" width="45" height="30" loading="lazy" />
+                  ))}
+                </p>
+              )}
+              <a class="card__open" href={book.slug}>
+                {L.open}
+                <Icon name="arrow" size={16} />
+              </a>
+              <span class="card__hole" aria-hidden="true" />
+            </article>
+          ))
+        }
+        <p class="more">{L.moreSoon}</p>
+      </section>
+    </div>
+  </div>
+</Library>
+
+<style>
+  .room {
+    --gold: #e2bf6a;
+    --gold-dim: #a8873f;
+    position: relative;
+    padding-block: var(--space-5) var(--space-6);
+    overflow: hidden;
+    /* Panelled wall in warm lamp light */
+    background:
+      radial-gradient(ellipse 70% 45% at 50% 0%, rgb(255 196 120 / 0.22), transparent 70%),
+      repeating-linear-gradient(90deg, rgb(0 0 0 / 0.28) 0 3px, transparent 3px 220px),
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 11px),
+      linear-gradient(#2c1a0f, #1d110a);
+  }
+
+  .head {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    text-align: center;
+  }
+
+  /* Brass plaque with four screws */
+  .plaque {
+    padding: 14px 40px 16px;
+    background:
+      radial-gradient(circle at 12px 12px, #5a3d12 0 3px, transparent 4px),
+      radial-gradient(circle at calc(100% - 12px) 12px, #5a3d12 0 3px, transparent 4px),
+      radial-gradient(circle at 12px calc(100% - 12px), #5a3d12 0 3px, transparent 4px),
+      radial-gradient(circle at calc(100% - 12px) calc(100% - 12px), #5a3d12 0 3px, transparent 4px),
+      linear-gradient(170deg, #f6dc94, #c99a3e 45%, #e8c674 70%, #a87a2c);
+    border: 2px solid #3a2410;
+    border-radius: 6px;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.5),
+      0 8px 18px rgb(0 0 0 / 0.5);
+  }
+
+  .plaque h1 {
+    color: #3a2410;
+    font-size: clamp(2.2rem, 1.4rem + 4vw, 3.6rem);
+    line-height: 1;
+    text-shadow: 0 1px 0 rgb(255 240 200 / 0.6);
+  }
+
+  .intro {
+    max-width: 34rem;
+    color: var(--cream);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-style: italic;
+  }
+
+  /* ---- The bookcase ---- */
+  .case {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 clamp(12px, 2.5vw, 26px);
+    /* The side posts: vertical walnut grain */
+    background:
+      repeating-linear-gradient(90deg, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 6px),
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.05) 0 2px, transparent 2px 17px),
+      linear-gradient(90deg, #3d2414, #5c3820 30%, #4a2c18 70%, #34200f);
+    border-radius: 4px 4px 0 0;
+    box-shadow: 0 40px 70px rgb(0 0 0 / 0.65);
+  }
+
+  .case__crown,
+  .case__base {
+    margin-inline: calc(clamp(12px, 2.5vw, 26px) * -1 - 12px);
+    background:
+      repeating-linear-gradient(0deg, rgb(0 0 0 / 0.15) 0 1px, transparent 1px 5px),
+      linear-gradient(#7a4c2a, #4a2c18 60%, #2c1a0f);
+    border-radius: 4px;
+    box-shadow: 0 6px 10px rgb(0 0 0 / 0.5);
+  }
+
+  .case__crown {
+    height: 38px;
+    border-bottom: 3px solid var(--gold-dim);
+  }
+
+  .case__base {
+    height: 46px;
+    border-top: 3px solid var(--gold-dim);
+  }
+
+  .shelf {
+    min-width: 0;
+    /* The dark back panel, shadowed by the board above and the posts */
+    background:
+      repeating-linear-gradient(90deg, rgb(0 0 0 / 0.25) 0 2px, transparent 2px 90px),
+      linear-gradient(#1a0f08, #26170d);
+    box-shadow:
+      inset 0 26px 30px -10px rgb(0 0 0 / 0.75),
+      inset 16px 0 22px -12px rgb(0 0 0 / 0.7),
+      inset -16px 0 22px -12px rgb(0 0 0 / 0.7);
+  }
+
+  .row {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-height: 330px;
+    margin: 0;
+    padding: 30px 14px 0;
+    list-style: none;
+    /* Narrow screens: what does not fit is cut off, the pulled-out book still shows above */
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  .shelf + .shelf .row {
+    min-height: 290px;
+  }
+
+  .slot {
+    flex: none;
+  }
+
+  /* The board: a thick plank with a brass label holder */
+  .board {
+    position: relative;
+    height: 26px;
+    margin-inline: -4px;
+    background:
+      repeating-linear-gradient(0deg, rgb(0 0 0 / 0.14) 0 1px, transparent 1px 4px),
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.04) 0 40px, transparent 40px 97px),
+      linear-gradient(#8a5a32, #5c3820 45%, #3d2414);
+    border-top: 2px solid #a26c3d;
+    box-shadow: 0 8px 12px rgb(0 0 0 / 0.55);
+  }
+
+  .board__tag {
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    translate: -50% 0;
+    padding: 1px 12px;
+    background: var(--paper);
+    border: 3px solid var(--gold);
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+    color: #3a2410;
+    font: 700 0.68rem / 1.3 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* ---- Volumes ---- */
+  .vol {
+    position: relative;
+    display: block;
+    width: var(--w);
+    height: var(--h);
+    border-radius: 3px 3px 2px 2px;
+    /* Rounded spine: dark edges, a soft highlight, leather grain */
+    background:
+      linear-gradient(90deg, rgb(0 0 0 / 0.5), rgb(255 255 255 / 0.16) 20%, rgb(255 255 255 / 0.04) 42%, rgb(0 0 0 / 0.12) 70%, rgb(0 0 0 / 0.55)),
+      repeating-linear-gradient(17deg, rgb(255 255 255 / 0.03) 0 2px, transparent 2px 5px),
+      var(--leather);
+    box-shadow:
+      inset 0 0 0 1px rgb(0 0 0 / 0.45),
+      3px 0 4px rgb(0 0 0 / 0.45);
+  }
+
+  /* Raised bands with gold rules, top and bottom */
+  .vol::before,
+  .vol::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 14px;
+    background:
+      linear-gradient(var(--gold) 0 0) 0 0 / 100% 2px no-repeat,
+      linear-gradient(rgb(0 0 0 / 0.35), rgb(255 255 255 / 0.18) 50%, rgb(0 0 0 / 0.35)) 0 4px / 100% 6px no-repeat,
+      linear-gradient(var(--gold) 0 0) 0 12px / 100% 2px no-repeat;
+  }
+
+  .vol::before {
+    top: 14px;
+  }
+
+  .vol::after {
+    bottom: 14px;
+  }
+
+  /* Old volumes: a faded title panel, a bit dusty */
+  .vol--old {
+    filter: saturate(0.75) brightness(0.82);
+  }
+
+  .vol--old::before {
+    box-shadow: 0 calc(var(--h) * var(--label) / 100) 0 -4px rgb(0 0 0 / 0.25);
+  }
+
+  .vol--after-deco {
+    margin-left: 12px;
+  }
+
+  .vol--lean {
+    rotate: 9deg;
+    transform-origin: bottom left;
+    margin-left: 6px;
+  }
+
+  /* The real book: bigger, gold-lettered title panel, a ribbon, pulls out */
+  .vol--real {
+    --w: clamp(78px, 17vw, 96px);
+    --h: 300px;
+    color: var(--gold);
+    text-decoration: none;
+    transform-origin: bottom center;
+    transition:
+      translate var(--t-base) var(--ease-pop),
+      rotate var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-out),
+      filter var(--t-base);
+  }
+
+  .vol--real:hover,
+  .vol--real:focus-visible {
+    translate: 0 -26px;
+    rotate: -2deg;
+    filter: brightness(1.08);
+    box-shadow:
+      inset 0 0 0 1px rgb(0 0 0 / 0.45),
+      0 0 26px rgb(255 200 120 / 0.35),
+      6px 8px 10px rgb(0 0 0 / 0.5);
+  }
+
+  .vol--real:focus-visible {
+    outline: 3px solid var(--brass-light);
+    outline-offset: 4px;
+  }
+
+  .vol__label {
+    position: absolute;
+    top: 42px;
+    left: 9px;
+    right: 9px;
+    bottom: 104px;
+    display: grid;
+    place-items: center;
+    padding: 8px 2px;
+    background: rgb(0 0 0 / 0.28);
+    border: 1px solid var(--gold);
+    outline: 1px solid rgb(226 191 106 / 0.45);
+    outline-offset: -5px;
+  }
+
+  .vol__title {
+    writing-mode: vertical-rl;
+    max-height: 100%;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-transform: uppercase;
+    text-shadow:
+      0 1px 0 rgb(0 0 0 / 0.7),
+      0 -1px 0 rgb(255 236 180 / 0.25);
+  }
+
+  .vol__emblem {
+    position: absolute;
+    left: 50%;
+    bottom: 66px;
+    translate: -50% 0;
+    display: block;
+    color: var(--gold);
+    filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.7));
+  }
+
+  .vol__emblem svg {
+    display: block;
+  }
+
+  /* Library call-number sticker near the foot */
+  .vol__call {
+    position: absolute;
+    left: 50%;
+    bottom: 34px;
+    translate: -50% 0;
+    display: grid;
+    padding: 1px 5px;
+    background: var(--paper);
+    border-radius: 2px;
+    color: #2a1a0f;
+    font: 700 0.62rem / 1.15 var(--font-mono);
+    text-align: center;
+  }
+
+  /* Bookmark ribbon peeking out at the foot */
+  .vol__ribbon {
+    position: absolute;
+    bottom: -12px;
+    right: 16px;
+    z-index: 1;
+    width: 11px;
+    height: 30px;
+    background: linear-gradient(90deg, #8e1b1b, #d23a32 50%, #8e1b1b);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+    filter: drop-shadow(0 2px 1px rgb(0 0 0 / 0.5));
+  }
+
+  /* Paper tag that appears when the book is pulled out */
+  .vol__tip {
+    position: absolute;
+    bottom: calc(100% + 26px);
+    left: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    max-width: 230px;
+    padding: 6px 12px;
+    background: var(--paper);
+    color: #2a1a0f;
+    border: 1px solid #b89a62;
+    border-radius: 3px;
+    box-shadow: 0 6px 14px rgb(0 0 0 / 0.5);
+    font: 700 var(--text-sm) / 1.2 var(--font-mono);
+    opacity: 0;
+    translate: -30% 8px;
+    rotate: 2deg;
+    transition:
+      opacity var(--t-fast),
+      translate var(--t-base) var(--ease-pop);
+    pointer-events: none;
+  }
+
+  .vol--real:hover .vol__tip,
+  .vol--real:focus-visible .vol__tip {
+    opacity: 1;
+    translate: -30% 0;
+  }
+
+  /* Books lying flat */
+  .stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-left: 18px;
+  }
+
+  .stack span {
+    display: block;
+    flex: none;
+    width: var(--len);
+    height: 26px;
+    margin: 0;
+    translate: var(--off) 0;
+    border-radius: 2px;
+    background:
+      linear-gradient(rgb(0 0 0 / 0.5), rgb(255 255 255 / 0.14) 25%, rgb(0 0 0 / 0.1) 60%, rgb(0 0 0 / 0.55)),
+      linear-gradient(90deg, transparent 12px, var(--gold) 12px 14px, transparent 14px calc(100% - 14px), var(--gold) calc(100% - 14px) calc(100% - 12px), transparent 0),
+      var(--leather);
+    box-shadow: 0 2px 3px rgb(0 0 0 / 0.5);
+  }
+
+  .bookend,
+  .hourglass,
+  .globe {
+    display: block;
+    filter: drop-shadow(3px 4px 4px rgb(0 0 0 / 0.5));
+  }
+
+  .bookend {
+    margin-left: 4px;
+  }
+
+  .hourglass {
+    margin-inline: 10px;
+  }
+
+  .deco {
+    margin-inline: 14px 10px;
+  }
+
+  /* ---- Card catalogue ---- */
+  .catalog {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+  }
+
+  .catalog h2 {
+    color: var(--brass-light);
+    font-size: var(--text-2xl);
+    font-style: italic;
+  }
+
+  .card {
+    position: relative;
+    display: grid;
+    gap: var(--space-2);
+    width: min(100%, 560px);
+    padding: var(--space-3) var(--space-4) var(--space-5);
+    color: #2a1a0f;
+    /* Index card: blue rules, red line under the heading */
+    background:
+      linear-gradient(#d4433b, #d4433b) 0 52px / 100% 2px no-repeat,
+      repeating-linear-gradient(transparent 0 27px, rgb(80 120 200 / 0.28) 27px 28px) 0 54px / 100% calc(100% - 54px) no-repeat,
+      var(--paper);
+    border-radius: 3px;
+    box-shadow:
+      0 1px 0 rgb(0 0 0 / 0.1),
+      0 14px 28px rgb(0 0 0 / 0.55);
+    rotate: -1deg;
+    font-family: var(--font-mono);
+  }
+
+  .card__head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-height: 34px;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .card__title {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-style: italic;
+    line-height: 1.15;
+  }
+
+  .card__contents {
+    font-size: var(--text-sm);
+  }
+
+  .card__stamps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .card__stamps img {
+    width: 45px;
+    height: 30px;
+    object-fit: cover;
+    border: 1px solid #2a1a0f;
+    filter: sepia(0.25);
+  }
+
+  .card__stamps img:nth-child(odd) {
+    rotate: -4deg;
+  }
+
+  .card__stamps img:nth-child(even) {
+    rotate: 3deg;
+  }
+
+  /* A red rubber stamp */
+  .card__open {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: var(--space-2);
+    padding: 8px 14px;
+    color: #b3261e;
+    border: 3px double #b3261e;
+    border-radius: 4px;
+    font: 800 var(--text-base) / 1 var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    rotate: -3deg;
+    transition:
+      background var(--t-fast),
+      color var(--t-fast),
+      rotate var(--t-base) var(--ease-pop);
+  }
+
+  .card__open:hover,
+  .card__open:focus-visible {
+    background: #b3261e;
+    color: var(--paper);
+    rotate: 0deg;
+  }
+
+  .card__hole {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    translate: -50% 0;
+    background: var(--wood-dark);
+    border-radius: 50%;
+    box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.6);
+  }
+
+  .more {
+    max-width: 34rem;
+    color: #c9b99a;
+    font-family: var(--font-display);
+    font-style: italic;
+    text-align: center;
+  }
+
+  @media (max-width: 560px) {
+    .row {
+      min-height: 300px;
+      padding-inline: 8px;
+    }
+
+    .shelf + .shelf .row {
+      min-height: 250px;
+    }
+
+    .vol--real {
+      --h: 276px;
+    }
+
+    .vol__title {
+      font-size: 17px;
+    }
+
+    .globe {
+      width: 84px;
+      height: 112px;
+    }
+
+    .stack {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vol--real,
+    .vol__tip,
+    .card__open {
+      transition: none;
+    }
+  }
+</style>

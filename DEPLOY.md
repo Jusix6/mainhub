@@ -2,8 +2,8 @@
 
 Die Seite ist statisch (`dist/`) und läuft als Cloudflare Worker mit Static
 Assets. Das ist Cloudflares aktueller Standardweg (Pages geht darin auf).
-`worker.js` ist klein: Redirects, die Zuordnung des Hosts `fun.jxsi.ch` zu den
-Seiten unter `dist/fun*` und die API der Fun-Spiele, deren Daten in einem
+`worker.js` ist klein: Redirects, die Zuordnung der Hosts `fun.jxsi.ch` und
+`library.jxsi.ch` zu den Seiten unter `dist/fun*` und `dist/library*` und die API der Fun-Spiele, deren Daten in einem
 Durable Object (`TheButton`, SQLite) liegen. `wrangler.jsonc` beschreibt
 Assets, Domains, das DO-Binding und seine Migration.
 
@@ -59,8 +59,11 @@ Ziele erlaubt.
 
 ## Fun-Subdomain und Durable Object
 
-- `fun.jxsi.ch` ist als dritte Custom Domain in `wrangler.jsonc` eingetragen
-  und wird beim Deploy automatisch angelegt (DNS + Zertifikat), gleich wie www.
+- `fun.jxsi.ch` und `library.jxsi.ch` sind als Custom Domains in
+  `wrangler.jsonc` eingetragen und werden beim Deploy automatisch angelegt
+  (DNS + Zertifikat), gleich wie www. Eine neue Subdomain kann in den ersten
+  Minuten bei manchen Routern als "existiert nicht" hängen bleiben (negativer
+  DNS-Cache), das gibt sich von selbst.
 - Das Durable Object `TheButton` wird mit der Migration `v1`
   (`new_sqlite_classes`) beim ersten Deploy erzeugt. Die Daten (alle Klicks)
   leben nur dort: **nie** die Klasse umbenennen oder die Migration löschen,

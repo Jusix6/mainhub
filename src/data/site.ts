@@ -63,6 +63,10 @@ export const SITE = {
   fun: {
     url: 'https://fun.jxsi.ch',
   },
+  /** The knowledge library (bookshelf, one book per topic) on its own subdomain, pages under src/pages/library/. */
+  library: {
+    url: 'https://library.jxsi.ch',
+  },
   twitch: {
     url: 'https://www.twitch.tv/jusidroppop',
     // Free text shown next to the Twitch link, leave empty to hide

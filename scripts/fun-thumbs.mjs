@@ -15,7 +15,6 @@ const OUT = 'src/assets/fun/thumbs';
 mkdirSync(OUT, { recursive: true });
 
 const display = 'Arial Black, Arial, sans-serif';
-const mono = 'Courier New, monospace';
 
 /** Box with a hard offset shadow. */
 const box = (x, y, w, h, fill, r = 22, shadow = 14, stroke = 8) =>

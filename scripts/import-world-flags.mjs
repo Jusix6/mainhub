@@ -1,23 +1,40 @@
-// Copies the flags of every country (UN members plus Vatican City, Palestine,
-// Taiwan and Kosovo) into src/assets/flags/ and writes src/data/world-flags.json
-// with name and true aspect ratio. Source: the public-domain set behind the npm
-// package svg-country-flags (Wikipedia renders). Used by the Impossible level of
-// Paint the Flag.
+// Copies the flags of the world into src/assets/flags/ and writes the lists
+// that use them:
+//
+//  - src/data/world-flags.json: the 197 countries (UN members plus Vatican City,
+//    Palestine, Taiwan and Kosovo) with name and true aspect ratio. Used by the
+//    Impossible level of Paint the Flag.
+//  - src/data/library/flags.json: all 254 flags (countries, dependent
+//    territories, Antarctica and the four parts of the UK) with capital,
+//    continent, kind, parent, other accepted names, main colours and which
+//    flags look identical. Used by the Flags book on library.jxsi.ch.
+//
+// Sources: the public-domain flag set behind the npm package svg-country-flags
+// (Wikipedia renders, 256 flags; the EU and the dissolved Netherlands Antilles
+// are left out) and the npm package countries-list (MIT) for capital and
+// continent.
 //
 // One-off, re-run only to refresh the set:
-//   npm install --no-save svg-country-flags
+//   npm install --no-save svg-country-flags countries-list
 //   node scripts/import-world-flags.mjs
 //
 // The SVGs are cleaned on the way in (no scripts, no event handlers, no external
 // references) and get explicit width/height so every browser can draw them onto
 // a canvas.
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import sharp from 'sharp';
+
+const require = createRequire(import.meta.url);
+const { countries: COUNTRY_DATA } = require('countries-list');
 
 const SRC = 'node_modules/svg-country-flags/svg';
 const OUT = 'src/assets/flags';
-const META = 'src/data/world-flags.json';
+const WORLD_META = 'src/data/world-flags.json';
+const LIBRARY_META = 'src/data/library/flags.json';
 
-const CODES = `af al dz ad ao ag ar am au at az bs bh bd bb by be bz bj bt bo ba bw br bn bg bf bi cv kh cm ca cf td
+/** Sovereign countries: the Impossible level of Paint the Flag and "country" in the library. */
+const COUNTRIES = `af al dz ad ao ag ar am au at az bs bh bd bb by be bz bj bt bo ba bw br bn bg bf bi cv kh cm ca cf td
 cl cn co km cg cd cr ci hr cu cy cz dk dj dm do ec eg sv gq er ee sz et fj fi fr ga gm ge de gh gr gd gt gn gw gy
 ht hn hu is in id ir iq ie il it jm jp jo kz ke ki kw kg la lv lb ls lr ly li lt lu mg mw my mv ml mt mh mr mu mx
 fm md mc mn me ma mz mm na nr np nl nz ni ne ng kp mk no om pk pw pa pg py pe ph pl pt qa ro ru rw kn lc vc ws sm
@@ -26,33 +43,101 @@ uz vu ve vn ye zm zw va ps tw xk`
   .split(/\s+/)
   .filter(Boolean);
 
+/** In the source but not a flag of a place today. */
+const SKIP = ['eu', 'an'];
+
+/** Who a territory belongs to (shown as "Territory of …"). Missing = none / disputed. */
+const PARENT = {
+  ai: 'gb', as: 'us', aw: 'nl', ax: 'fi', bl: 'fr', bm: 'gb', bq: 'nl', bv: 'no', cc: 'au', ck: 'nz', cw: 'nl',
+  cx: 'au', fk: 'gb', fo: 'dk', gf: 'fr', gg: 'gb', gi: 'gb', gl: 'dk', gp: 'fr', gs: 'gb', gu: 'us', hk: 'cn',
+  hm: 'au', im: 'gb', io: 'gb', je: 'gb', ky: 'gb', mf: 'fr', mo: 'cn', mp: 'us', mq: 'fr', ms: 'gb', nc: 'fr',
+  nf: 'au', nu: 'nz', pf: 'fr', pm: 'fr', pn: 'gb', pr: 'us', re: 'fr', sh: 'gb', sj: 'no', sx: 'nl', tc: 'gb',
+  tf: 'fr', tk: 'nz', um: 'us', vg: 'gb', vi: 'us', wf: 'fr', yt: 'fr',
+  'gb-eng': 'gb', 'gb-nir': 'gb', 'gb-sct': 'gb', 'gb-wls': 'gb',
+};
+
+/** The four parts of the UK are not in countries-list. */
+const EXTRA = {
+  'gb-eng': { name: 'England', capital: 'London', continent: 'EU' },
+  'gb-nir': { name: 'Northern Ireland', capital: 'Belfast', continent: 'EU' },
+  'gb-sct': { name: 'Scotland', capital: 'Edinburgh', continent: 'EU' },
+  'gb-wls': { name: 'Wales', capital: 'Cardiff', continent: 'EU' },
+};
+
 // Short, common English names where the CLDR name is long or political
 const NAMES = {
+  ax: 'Åland Islands',
+  bl: 'Saint Barthélemy',
   bo: 'Bolivia',
+  bq: 'Caribbean Netherlands',
   cd: 'DR Congo',
   cg: 'Republic of the Congo',
   ci: 'Ivory Coast',
   cz: 'Czechia',
   fm: 'Micronesia',
   gb: 'United Kingdom',
+  hk: 'Hong Kong',
   ir: 'Iran',
+  kn: 'Saint Kitts & Nevis',
   kp: 'North Korea',
   kr: 'South Korea',
   la: 'Laos',
+  lc: 'Saint Lucia',
   md: 'Moldova',
+  mf: 'Saint Martin',
   mm: 'Myanmar',
+  mo: 'Macao',
+  pm: 'Saint Pierre & Miquelon',
   ps: 'Palestine',
   ru: 'Russia',
+  sh: 'Saint Helena',
   sy: 'Syria',
   tr: 'Turkey',
   tw: 'Taiwan',
   tz: 'Tanzania',
+  um: 'U.S. Outlying Islands',
   us: 'United States',
   va: 'Vatican City',
+  vc: 'Saint Vincent & the Grenadines',
   ve: 'Venezuela',
   vn: 'Vietnam',
   xk: 'Kosovo',
 };
+
+/** Other names the typing quiz accepts (on top of the CLDR and countries-list names). */
+const ALIASES = {
+  ae: ['UAE', 'Emirates'],
+  ba: ['Bosnia'],
+  cd: ['Congo-Kinshasa', 'Democratic Republic of the Congo', 'DRC'],
+  cf: ['CAR'],
+  cg: ['Congo-Brazzaville', 'Congo'],
+  ci: ["Côte d'Ivoire"],
+  cv: ['Cape Verde'],
+  cz: ['Czech Republic'],
+  do: ['Dominican Rep'],
+  gb: ['UK', 'Great Britain', 'Britain'],
+  'gb-eng': [],
+  gq: ['Eq Guinea'],
+  kn: ['Saint Kitts and Nevis', 'St Kitts'],
+  kp: ['DPRK'],
+  kr: ['Korea'],
+  mk: ['Macedonia'],
+  mm: ['Burma'],
+  nl: ['Holland'],
+  ps: ['Palestinian Territories'],
+  sz: ['Swaziland'],
+  tl: ['East Timor'],
+  tr: ['Türkiye', 'Turkiye'],
+  us: ['USA', 'US', 'America', 'United States of America'],
+  va: ['Vatican', 'Holy See'],
+  vg: ['BVI'],
+  vi: ['USVI'],
+};
+
+/** Places without an official capital, or where the data has a technicality. */
+const CAPITALS = { aq: '', hk: '', mo: '', um: '', hm: '', bv: '', gs: 'King Edward Point', io: 'Diego Garcia', tf: 'Port-aux-Français' };
+
+const CONTINENTS = { AF: 'Africa', AN: 'Antarctica', AS: 'Asia', EU: 'Europe', NA: 'North America', OC: 'Oceania', SA: 'South America' };
 
 const display = new Intl.DisplayNames(['en'], { type: 'region' });
 
@@ -76,39 +161,140 @@ function size(svg) {
   return { root, w, h, hasViewBox: Boolean(vb) };
 }
 
-/** Explicit width/height (drawImage needs an intrinsic size) and a viewBox for scaling. */
+/**
+ * Explicit width/height (drawImage needs an intrinsic size) and a viewBox for
+ * scaling. Every flag gets the same intrinsic height (600 px) so an <img> with
+ * `width: auto` is never tiny: some sources say 27×18, others 1200×800.
+ */
+const INTRINSIC_H = 600;
 function normalise(svg) {
   const { root, w, h, hasViewBox } = size(svg);
   let next = root.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '');
   if (!hasViewBox) next = next.replace(/<svg\b/i, `<svg viewBox="0 0 ${w} ${h}"`);
-  next = next.replace(/<svg\b/i, `<svg width="${w}" height="${h}"`);
+  next = next.replace(/<svg\b/i, `<svg width="${Math.round((INTRINSIC_H * w) / h)}" height="${INTRINSIC_H}"`);
   return { svg: svg.replace(root, next), w, h };
 }
 
-rmSync(OUT, { recursive: true, force: true });
-mkdirSync(OUT, { recursive: true });
+const hex = (r, g, b) => '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 
-const meta = [];
-const missing = [];
-let bytes = 0;
-for (const code of CODES) {
-  let raw;
-  try {
-    raw = readFileSync(`${SRC}/${code}.svg`, 'utf8');
-  } catch {
-    missing.push(code);
-    continue;
+/** Small render of the flag: main colours (≥ 6 % of the area) and a pixel signature for look-alikes. */
+async function analyse(svg, w) {
+  const W = 30;
+  const H = 20;
+  // Render at ~240 px wide whatever the SVG's own size, then shrink
+  const density = Math.min(2400, Math.max(1, (72 * 240) / w));
+  const { data } = await sharp(Buffer.from(svg), { density, limitInputPixels: false }).resize(W, H, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const buckets = new Map();
+  for (let i = 0; i < data.length; i += 3) {
+    // 4 levels per channel: enough to tell red from orange, merges anti-aliasing
+    const key = [data[i], data[i + 1], data[i + 2]].map((v) => Math.round(v / 85)).join('');
+    const b = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+    b.n++;
+    b.r += data[i];
+    b.g += data[i + 1];
+    b.b += data[i + 2];
+    buckets.set(key, b);
   }
-  const { svg, w, h } = normalise(clean(raw));
-  writeFileSync(`${OUT}/${code}.svg`, svg + '\n');
-  bytes += statSync(`${OUT}/${code}.svg`).size;
-  const name = NAMES[code] ?? display.of(code.toUpperCase()) ?? code.toUpperCase();
-  meta.push({ code, name, w: +w.toFixed(3), h: +h.toFixed(3) });
+  const total = W * H;
+  const colors = [...buckets.values()]
+    .filter((b) => b.n / total >= 0.06)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 4)
+    .map((b) => hex(Math.round(b.r / b.n), Math.round(b.g / b.n), Math.round(b.b / b.n)));
+  return { colors, pixels: data };
 }
 
-meta.sort((a, b) => a.name.localeCompare(b.name, 'en'));
-writeFileSync(META, JSON.stringify(meta, null, 1) + '\n');
-console.log(`${meta.length} flags, ${(bytes / 1024 / 1024).toFixed(2)} MB in ${OUT}, list in ${META}`);
+/** Mean per-channel difference of two signatures, 0..255. */
+function pixelDistance(a, b) {
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+  return sum / a.length;
+}
+
+const norm = (s) =>
+  s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+
+rmSync(OUT, { recursive: true, force: true });
+mkdirSync(OUT, { recursive: true });
+mkdirSync('src/data/library', { recursive: true });
+
+const codes = readdirSync(SRC)
+  .filter((f) => f.endsWith('.svg'))
+  .map((f) => f.slice(0, -4))
+  .filter((c) => !SKIP.includes(c));
+
+const missing = COUNTRIES.filter((c) => !codes.includes(c));
+const world = [];
+const library = [];
+const signatures = new Map();
+let bytes = 0;
+
+for (const code of codes) {
+  const { svg, w, h } = normalise(clean(readFileSync(`${SRC}/${code}.svg`, 'utf8')));
+  writeFileSync(`${OUT}/${code}.svg`, svg + '\n');
+  bytes += statSync(`${OUT}/${code}.svg`).size;
+
+  const upper = code.toUpperCase();
+  const data = COUNTRY_DATA[upper] ?? EXTRA[code];
+  if (!data) throw new Error(`no data for ${code}`);
+  const cldr = code.includes('-') ? undefined : display.of(upper);
+  const name = NAMES[code] ?? EXTRA[code]?.name ?? cldr ?? data.name;
+  const isCountry = COUNTRIES.includes(code);
+  const size = { w: +w.toFixed(3), h: +h.toFixed(3) };
+  if (isCountry) world.push({ code, name, ...size });
+
+  const { colors, pixels } = await analyse(svg, (INTRINSIC_H * w) / h);
+  signatures.set(code, pixels);
+
+  const aliases = [...new Set([cldr, data.name, ...(ALIASES[code] ?? [])].filter(Boolean))].filter((a) => norm(a) !== norm(name));
+  library.push({
+    code,
+    name,
+    aliases,
+    capital: CAPITALS[code] ?? data.capital ?? '',
+    continent: CONTINENTS[data.continent],
+    kind: isCountry ? 'country' : 'territory',
+    ...(PARENT[code] ? { parent: PARENT[code] } : {}),
+    colors,
+    ...size,
+  });
+}
+
+// How alike two flags are, from a 30×20 render (mean channel difference):
+//  - same: identical flag (Bouvet Island = Norway, Saint Martin = France …). The
+//    quizzes accept either answer and never offer one against the other.
+//  - like: practically identical (Indonesia/Monaco, Egypt/Yemen): never offered
+//    against each other, but only the right one counts.
+//  - near: look-alikes (Romania/Chad, Australia/New Zealand): good wrong options
+//    for harder questions.
+const SAME = 1;
+const LIKE = 5;
+const NEAR = 12;
+for (const a of library) {
+  const groups = { same: [], like: [], near: [] };
+  for (const b of library) {
+    if (b === a) continue;
+    const d = pixelDistance(signatures.get(a.code), signatures.get(b.code));
+    const sameRatio = Math.abs(a.w / a.h - b.w / b.h) < 0.02;
+    if (d < SAME && sameRatio) groups.same.push(b.code);
+    else if (d < LIKE) groups.like.push(b.code);
+    else if (d < NEAR) groups.near.push(b.code);
+  }
+  for (const [k, v] of Object.entries(groups)) if (v.length) a[k] = v;
+}
+
+world.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+library.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+writeFileSync(WORLD_META, JSON.stringify(world, null, 1) + '\n');
+writeFileSync(LIBRARY_META, JSON.stringify(library) + '\n');
+
+console.log(`${library.length} flags (${world.length} countries), ${(bytes / 1024 / 1024).toFixed(2)} MB in ${OUT}`);
+for (const k of ['same', 'like']) console.log(`${k}:`, library.filter((f) => f[k]).map((f) => `${f.code}=${f[k].join('/')}`).join(' '));
+const unparented = library.filter((f) => f.kind === 'territory' && !f.parent).map((f) => f.code);
+console.log('territories without parent:', unparented.join(' ') || '–');
 if (missing.length) {
   console.error(`missing in source: ${missing.join(', ')}`);
   process.exitCode = 1;

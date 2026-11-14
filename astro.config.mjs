@@ -11,8 +11,9 @@ export default defineConfig({
   trailingSlash: 'never',
   integrations: [
     sitemap({
-      // Pages under /fun/ are served on fun.jxsi.ch (see worker.js); www redirects there.
-      filter: (page) => !/\/fun(\/|$)/.test(new URL(page).pathname),
+      // Pages under /fun/ and /library/ are served on fun.jxsi.ch and library.jxsi.ch
+      // (see worker.js); www redirects there.
+      filter: (page) => !/\/(fun|library)(\/|$)/.test(new URL(page).pathname),
     }),
   ],
   build: {
