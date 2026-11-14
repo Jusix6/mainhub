@@ -484,7 +484,9 @@ nie `--text-lg`.
 - Touch-Ziele mindestens 44×44px. Schatten und Outlines auf Mobile nicht
   verkleinern, sie sind Teil des Looks.
 - Nav auf Mobile: unten fixiert oder als Vollbild-Overlay, kein winziges
-  Burger-Menü oben rechts.
+  Burger-Menü oben rechts. Die Hauptnavigation (7 Einträge inkl. Fun und
+  Library) bleibt bis 959px unten fixiert und wechselt erst ab `960px` in die
+  Kopfzeile (Nav.astro, Footer.astro und retro.css nutzen denselben Wert).
 - Ziel: Lighthouse Mobile ≥ 95 in allen vier Kategorien. Prüfen mit
   `npm run build && npm run preview` und dann
   `npx lighthouse@12 http://127.0.0.1:4321/ --form-factor=mobile --chrome-flags="--headless=new"`

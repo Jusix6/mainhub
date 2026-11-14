@@ -311,7 +311,7 @@ html[data-theme='xp'][data-theme] .nav a[aria-current='page'] {
   box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.55);
 }
 
-@media (min-width: 640px) {
+@media (min-width: 960px) {
   html[data-theme='xp'] .site-header {
     position: fixed;
     top: auto;

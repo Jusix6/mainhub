@@ -11,6 +11,7 @@ export const UI = {
     schedule: 'Schedule',
     links: 'Links',
     fun: 'Fun',
+    library: 'Library',
   },
   schedule: {
     intro: 'When the next stream, video, post or release is coming.',

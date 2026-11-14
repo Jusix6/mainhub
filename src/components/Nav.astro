@@ -15,8 +15,9 @@ const navItems = [
   { href: '/updates', label: UI.nav.updates, icon: 'sparkle' },
   { href: '/schedule', label: UI.nav.schedule, icon: 'calendar' },
   { href: '/links', label: UI.nav.links, icon: 'link' },
-  // Fun games live on their own subdomain (see worker.js)
+  // Fun games and the library live on their own subdomains (see worker.js)
   { href: SITE.fun.url, label: UI.nav.fun, icon: 'games' },
+  { href: SITE.library.url, label: UI.nav.library, icon: 'book' },
 ];
 
 const current = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
@@ -237,16 +238,19 @@ const isActive = (href: string) => current.startsWith(href);
     inset-inline: 0;
     bottom: 0;
     z-index: 50;
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    gap: var(--space-1);
+    display: flex;
+    gap: 2px;
     margin: 0;
-    padding: var(--space-2);
+    padding: var(--space-2) var(--space-1);
     padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
     list-style: none;
     background: var(--surface);
     border-top: var(--line) solid var(--ink);
+  }
+
+  /* Equal share of the bar, but never narrower than the label */
+  .nav li {
+    flex: 1 1 0;
   }
 
   .nav a {
@@ -257,7 +261,9 @@ const isActive = (href: string) => current.startsWith(href);
     gap: 2px;
     min-height: 48px;
     padding: var(--space-1) 2px;
-    font-size: 0.8rem;
+    /* Seven labels share one row on a phone: shrink a little on narrow screens */
+    font-size: clamp(0.6rem, 2.8vw, 0.8rem);
+    white-space: nowrap;
     font-weight: 700;
     text-decoration: none;
     border: var(--line) solid transparent;
@@ -279,14 +285,17 @@ const isActive = (href: string) => current.startsWith(href);
     box-shadow: var(--shadow-sm);
   }
 
-  @media (min-width: 640px) {
+  @media (min-width: 960px) {
     .nav ul {
       position: static;
-      display: flex;
       gap: var(--space-2);
       padding: 0;
       background: none;
       border: 0;
+    }
+
+    .nav li {
+      flex: none;
     }
 
     .nav a {
