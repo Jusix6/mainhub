@@ -106,7 +106,7 @@ const { title: _t, description: _d, tagline: _g, intro: _i, noJs: _n, ...strings
           <h2 class="side__title">{T.work}</h2>
           <div class="items" data-work></div>
         </section>
-        <section class="side__section side__section--grow" data-only="collect">
+        <section class="side__section" data-only="collect">
           <h2 class="side__title">{T.collection} <span data-found-count></span></h2>
           <input class="search" type="search" data-search placeholder={T.search} aria-label={T.search} />
           <div class="items items--found" data-found></div>
@@ -699,7 +699,7 @@ const { title: _t, description: _d, tagline: _g, intro: _i, noJs: _n, ...strings
     transform: translate(-50%, -50%);
   }
 
-  /* A column: on phones it scrolls as a whole, on desktop only "your colours" scrolls */
+  /* One column that scrolls as a whole, on phones and on desktop */
   .side {
     display: flex;
     flex-direction: column;
@@ -717,17 +717,6 @@ const { title: _t, description: _d, tagline: _g, intro: _i, noJs: _n, ...strings
     flex: none;
   }
 
-  @media (min-width: 860px) {
-    .side {
-      overflow: hidden;
-    }
-
-    .side > .side__section--grow {
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-  }
-
   .side__top {
     display: flex;
     flex-wrap: wrap;
@@ -739,10 +728,6 @@ const { title: _t, description: _d, tagline: _g, intro: _i, noJs: _n, ...strings
     display: grid;
     align-content: start;
     gap: 6px;
-  }
-
-  .side__section--grow {
-    grid-template-rows: auto auto minmax(0, 1fr);
   }
 
   .side__title {
@@ -776,17 +761,8 @@ const { title: _t, description: _d, tagline: _g, intro: _i, noJs: _n, ...strings
   }
 
   .items--found {
-    max-height: 320px;
-    overflow-y: auto;
     align-content: flex-start;
     padding: 2px;
-  }
-
-  @media (min-width: 860px) {
-    .items--found {
-      max-height: none;
-      min-height: 0;
-    }
   }
 
   /* Side list entries: a small drop and the name, draggable onto the board */
