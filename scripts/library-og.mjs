@@ -46,7 +46,7 @@ async function flagTile(code, w, h) {
       `<rect x="164" y="214" width="900" height="210" rx="24" fill="${INK}"/>` +
       `<rect x="150" y="200" width="900" height="210" rx="24" fill="#fff8e7" stroke="${INK}" stroke-width="8"/>` +
       label(190, 300, 'FLAGS OF THE WORLD', 62, '#4d8dff', -2) +
-      `<text x="196" y="372" font-family="${display}" font-size="34" fill="${INK}">254 flags · learn them, then prove it</text>` +
+      `<text x="196" y="372" font-family="${display}" font-size="34" fill="${INK}">203 flags · learn them, then prove it</text>` +
       `</svg>`,
   );
   await sharp({ create: { width: W, height: H, channels: 3, background: '#4d8dff' } })

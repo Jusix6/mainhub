@@ -10,7 +10,7 @@ export interface Book {
   /** Title on the spine (gold lettering). */
   spine: string;
   tagline: string;
-  /** Number on the spine label, e.g. "254". */
+  /** Number on the spine label, e.g. "203". */
   count: string;
   /** Leather colour of the binding. */
   leather: string;
@@ -28,9 +28,9 @@ export const BOOKS: Record<string, Book> = {
     title: UI.library.flags.title,
     spine: UI.library.flags.title,
     tagline: UI.library.flags.tagline,
-    count: '254',
+    count: '203',
     leather: '#1d3d6b',
-    callNumber: 'GEO 254',
+    callNumber: 'GEO 203',
     contents: Object.values(UI.library.flags.modes),
     stamps: ['ch', 'jp', 'br', 'ca', 'kr', 'za'],
   },

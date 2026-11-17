@@ -4,10 +4,13 @@
 //  - src/data/world-flags.json: the 197 countries (UN members plus Vatican City,
 //    Palestine, Taiwan and Kosovo) with name and true aspect ratio. Used by the
 //    Impossible level of Paint the Flag.
-//  - src/data/library/flags.json: all 254 flags (countries, dependent
-//    territories, Antarctica and the four parts of the UK) with capital,
-//    continent, kind, parent, other accepted names, main colours and which
-//    flags look identical. Used by the Flags book on library.jxsi.ch.
+//  - src/data/library/flags.json: 203 flags, the 197 countries plus a few
+//    well-known others (England, Scotland, Wales, Greenland, Hong Kong, Puerto
+//    Rico) with capital, continent, kind, parent, other accepted names, main
+//    colours and which flags look alike. Used by the Flags book on
+//    library.jxsi.ch. The other territories are left out on purpose: most fly
+//    a copy of their parent's flag or a near-identical ensign, and hardly
+//    anyone knows them.
 //
 // Sources: the public-domain flag set behind the npm package svg-country-flags
 // (Wikipedia renders, 256 flags; the EU and the dissolved Netherlands Antilles
@@ -43,33 +46,24 @@ uz vu ve vn ye zm zw va ps tw xk`
   .split(/\s+/)
   .filter(Boolean);
 
-/** In the source but not a flag of a place today. */
-const SKIP = ['eu', 'an'];
+/** Not countries, but well known enough for the library. */
+const KEEP = ['gb-eng', 'gb-sct', 'gb-wls', 'gl', 'hk', 'pr'];
 
 /** Who a territory belongs to (shown as "Territory of …"). Missing = none / disputed. */
 const PARENT = {
-  ai: 'gb', as: 'us', aw: 'nl', ax: 'fi', bl: 'fr', bm: 'gb', bq: 'nl', bv: 'no', cc: 'au', ck: 'nz', cw: 'nl',
-  cx: 'au', fk: 'gb', fo: 'dk', gf: 'fr', gg: 'gb', gi: 'gb', gl: 'dk', gp: 'fr', gs: 'gb', gu: 'us', hk: 'cn',
-  hm: 'au', im: 'gb', io: 'gb', je: 'gb', ky: 'gb', mf: 'fr', mo: 'cn', mp: 'us', mq: 'fr', ms: 'gb', nc: 'fr',
-  nf: 'au', nu: 'nz', pf: 'fr', pm: 'fr', pn: 'gb', pr: 'us', re: 'fr', sh: 'gb', sj: 'no', sx: 'nl', tc: 'gb',
-  tf: 'fr', tk: 'nz', um: 'us', vg: 'gb', vi: 'us', wf: 'fr', yt: 'fr',
-  'gb-eng': 'gb', 'gb-nir': 'gb', 'gb-sct': 'gb', 'gb-wls': 'gb',
+  gl: 'dk', hk: 'cn', pr: 'us', 'gb-eng': 'gb', 'gb-sct': 'gb', 'gb-wls': 'gb',
 };
 
-/** The four parts of the UK are not in countries-list. */
+/** The parts of the UK are not in countries-list. */
 const EXTRA = {
   'gb-eng': { name: 'England', capital: 'London', continent: 'EU' },
-  'gb-nir': { name: 'Northern Ireland', capital: 'Belfast', continent: 'EU' },
   'gb-sct': { name: 'Scotland', capital: 'Edinburgh', continent: 'EU' },
   'gb-wls': { name: 'Wales', capital: 'Cardiff', continent: 'EU' },
 };
 
 // Short, common English names where the CLDR name is long or political
 const NAMES = {
-  ax: 'Åland Islands',
-  bl: 'Saint Barthélemy',
   bo: 'Bolivia',
-  bq: 'Caribbean Netherlands',
   cd: 'DR Congo',
   cg: 'Republic of the Congo',
   ci: 'Ivory Coast',
@@ -84,18 +78,13 @@ const NAMES = {
   la: 'Laos',
   lc: 'Saint Lucia',
   md: 'Moldova',
-  mf: 'Saint Martin',
   mm: 'Myanmar',
-  mo: 'Macao',
-  pm: 'Saint Pierre & Miquelon',
   ps: 'Palestine',
   ru: 'Russia',
-  sh: 'Saint Helena',
   sy: 'Syria',
   tr: 'Turkey',
   tw: 'Taiwan',
   tz: 'Tanzania',
-  um: 'U.S. Outlying Islands',
   us: 'United States',
   va: 'Vatican City',
   vc: 'Saint Vincent & the Grenadines',
@@ -116,7 +105,6 @@ const ALIASES = {
   cz: ['Czech Republic'],
   do: ['Dominican Rep'],
   gb: ['UK', 'Great Britain', 'Britain'],
-  'gb-eng': [],
   gq: ['Eq Guinea'],
   kn: ['Saint Kitts and Nevis', 'St Kitts'],
   kp: ['DPRK'],
@@ -130,12 +118,10 @@ const ALIASES = {
   tr: ['Türkiye', 'Turkiye'],
   us: ['USA', 'US', 'America', 'United States of America'],
   va: ['Vatican', 'Holy See'],
-  vg: ['BVI'],
-  vi: ['USVI'],
 };
 
 /** Places without an official capital, or where the data has a technicality. */
-const CAPITALS = { aq: '', hk: '', mo: '', um: '', hm: '', bv: '', gs: 'King Edward Point', io: 'Diego Garcia', tf: 'Port-aux-Français' };
+const CAPITALS = { hk: '' };
 
 const CONTINENTS = { AF: 'Africa', AN: 'Antarctica', AS: 'Asia', EU: 'Europe', NA: 'North America', OC: 'Oceania', SA: 'South America' };
 
@@ -224,7 +210,7 @@ mkdirSync('src/data/library', { recursive: true });
 const codes = readdirSync(SRC)
   .filter((f) => f.endsWith('.svg'))
   .map((f) => f.slice(0, -4))
-  .filter((c) => !SKIP.includes(c));
+  .filter((c) => COUNTRIES.includes(c) || KEEP.includes(c));
 
 const missing = COUNTRIES.filter((c) => !codes.includes(c));
 const world = [];

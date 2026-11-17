@@ -96,7 +96,7 @@ F:\MAINHUB\
 ├─ scripts/cover-from-icon.mjs # 16:10-Cover aus einem quadratischen App-Icon
 ├─ scripts/fun-thumbs.mjs     # zeichnet die 16:9-Thumbnails der Spieleliste auf fun.jxsi.ch
 ├─ scripts/library-og.mjs     # Vorschaubilder der Bibliothek (Regal, Flaggen-Buch) in src/assets/library/
-├─ scripts/import-world-flags.mjs # alle 254 Flaggen nach src/assets/flags/ plus world-flags.json und library/flags.json
+├─ scripts/import-world-flags.mjs # 203 Flaggen nach src/assets/flags/ plus world-flags.json und library/flags.json
 ├─ src/
 │  ├─ content.config.ts       # Collections: projects, updates
 │  ├─ content/
@@ -242,19 +242,20 @@ blaue Ledereinband mit Goldschrift.
 | Route (library-Host) | Inhalt |
 |----------------------|--------|
 | `/`                  | Das Regal (`src/pages/library/index.astro`): Bücher aus `src/data/library.ts` (`BOOKS`, `SHELVES`; `null` = leerer "coming soon"-Platz), echtes Buch zieht sich beim Hover heraus, darunter eine Karte pro Buch. Vorschaubild `src/assets/library/library-og.png` |
-| `/flags`             | Flags of the World: alle 254 Flaggen (197 Länder + Gebiete, Antarktis, die vier UK-Landesteile). Vier Modi (`?mode=`): **Browse** (Raster, Suche nach Name/Hauptstadt, Detail-Dialog mit Hauptstadt, Kontinent, Status, gleichen und ähnlichen Flaggen), **Learn** (Lernkarten, Leitner-Boxen 0–6 mit 0/1/3/7/16/35/90 Tagen, beim ersten Mal gewusst = sofort "known", nicht gewusst kommt in der Runde nach 3 Karten wieder; Runde = fällige Karten + bis 10 neue, max. 20), **Quiz** (Multiple Choice, Flagge → Name oder Name → Flagge, 10/25/alle, falsche Optionen bevorzugt Look-alikes, gleicher Kontinent, ähnliche Farben), **Type it** (Name eintippen, Vorschläge ab 2 Zeichen, Tippfehler 1 Zeichen ab 5, 2 ab 10 Buchstaben, Alternativnamen gelten). Auswahl für alle Modi: alle, Länder, ein Kontinent, Gebiete. Tests fragen verpasste und fällige Flaggen zuerst, falsche Antworten setzen die Karte auf Box 0. Fortschritt in `localStorage` (`jxsi_lib_flags_v1`). Logik in `src/lib/library/` (`flags.ts` Daten/Abgleich/Optionen, `progress.ts` Boxen, `flags-page.ts` Browser). Vorschaubild `src/assets/library/flags-og.png` |
+| `/flags`             | Flags of the World: 203 Flaggen (die 197 Länder plus England, Schottland, Wales, Grönland, Hongkong, Puerto Rico; die übrigen Gebiete bewusst weggelassen, weil sie meist die Flagge des Mutterlandes oder fast identische Varianten tragen und kaum jemand sie kennt). Vier Modi (`?mode=`): **Browse** (Raster, Suche nach Name/Hauptstadt, Detail-Dialog mit Hauptstadt, Kontinent, Status, gleichen und ähnlichen Flaggen), **Learn** (Lernkarten, Leitner-Boxen 0–6 mit 0/1/3/7/16/35/90 Tagen, beim ersten Mal gewusst = sofort "known", nicht gewusst kommt in der Runde nach 3 Karten wieder; Runde = fällige Karten + bis 10 neue, max. 20), **Quiz** (Multiple Choice, Flagge → Name oder Name → Flagge, 10/25/alle, falsche Optionen bevorzugt Look-alikes, gleicher Kontinent, ähnliche Farben), **Type it** (Name eintippen, Vorschläge ab 2 Zeichen, Tippfehler 1 Zeichen ab 5, 2 ab 10 Buchstaben, Alternativnamen gelten). Auswahl für alle Modi: alle, Länder, ein Kontinent, andere Flaggen (die sechs Extras). Tests fragen verpasste und fällige Flaggen zuerst, falsche Antworten setzen die Karte auf Box 0. Fortschritt in `localStorage` (`jxsi_lib_flags_v1`). Logik in `src/lib/library/` (`flags.ts` Daten/Abgleich/Optionen, `progress.ts` Boxen, `flags-page.ts` Browser). Vorschaubild `src/assets/library/flags-og.png` |
 
 **Flaggen-Daten:** `scripts/import-world-flags.mjs` (Quellen: npm
 `svg-country-flags`, gemeinfrei; npm `countries-list`, MIT; beide nur zum
 Import mit `--no-save`) schreibt die bereinigten SVGs nach `src/assets/flags/`
 (alle mit Eigenhöhe 600 px), `src/data/world-flags.json` (die 197 Länder für
-Paint the Flag) und `src/data/library/flags.json` (alle 254 mit Name,
+Paint the Flag) und `src/data/library/flags.json` (die 203 mit Name,
 Alternativnamen, Hauptstadt, Kontinent, Typ, Zugehörigkeit, Hauptfarben). Aus
-einem 30×20-Render: `same` = identische Flagge (Frankreich/Réunion,
-Norwegen/Svalbard; beide Antworten gelten, nie gegeneinander), `like` = praktisch
+einem 30×20-Render: `same` = identische Flagge (seit dem Ausmisten keine mehr;
+beide Antworten würden gelten, nie gegeneinander), `like` = praktisch
 gleich (Indonesien/Monaco; nie gegeneinander), `near` = ähnlich
 (Rumänien/Tschad; bevorzugte falsche Option). Namen und Ausnahmen (`NAMES`,
-`ALIASES`, `PARENT`, `CAPITALS`) stehen im Skript.
+`ALIASES`, `PARENT`, `CAPITALS`) und welche Nicht-Länder ins Buch kommen
+(`KEEP`) stehen im Skript.
 
 Neues Buch: Seite unter `src/pages/library/<slug>.astro`, Eintrag in `BOOKS`
 und auf einem Platz in `SHELVES` (`src/data/library.ts`), Strings in
