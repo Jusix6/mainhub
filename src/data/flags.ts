@@ -6,9 +6,11 @@
  * painting reaches 100 %. Shapes use the flag's own unit grid (`w` × `h`, e.g.
  * 3 × 2), drawFlag() scales them to the canvas. Adding a flag = one entry.
  *
- *  - Easy: two colours, simple layout (Poland, Japan, Switzerland, Denmark …)
- *  - Medium: three or more stripes, simple emblems (France, Chile, Kuwait …)
- *  - Hard: many parts, stars, diagonals (UK, USA, Seychelles, Guyana …)
+ * Levels go by how well known a flag is first, how hard it is to paint second:
+ *  - Easy: flags everyone knows, stripes and crosses (Japan, Switzerland, France …)
+ *  - Medium: well known but more to paint, or a bit less famous (Norway, Greece, Chile …)
+ *  - Hard: complex flags (UK, USA, China …) and flags you really have to know
+ *    (Mali, Gabon, Qatar, Seychelles …)
  *
  * Level 4 (Impossible) is every country of the world, drawn from the public
  * domain SVGs in src/assets/flags (see scripts/import-world-flags.mjs). Coats
@@ -169,18 +171,8 @@ function hexagram(cx: number, cy: number, r: number): number[][] {
 }
 
 export const FLAGS: readonly Flag[] = [
-  /* ---- Easy: two colours, simple layout -------------------------------- */
-  f('pl', 'Poland', 1, bands('h', ['white', 'red'], 8, 5)),
-  f('id', 'Indonesia', 1, bands('h', ['red', 'white'], 3, 2)),
-  f('mc', 'Monaco', 1, bands('h', ['red', 'white'], 5, 4)),
-  f('ua', 'Ukraine', 1, bands('h', ['blue', 'yellow'], 3, 2)),
-  f('at', 'Austria', 1, bands('h', ['red', 'white', 'red'], 3, 2)),
-  f('lv', 'Latvia', 1, bands('h', ['maroon', 'white', 'maroon'], 2, 1, [2, 1, 2])),
-  f('pe', 'Peru', 1, bands('v', ['red', 'white', 'red'], 3, 2)),
-  f('ng', 'Nigeria', 1, bands('v', ['green', 'white', 'green'], 2, 1)),
+  /* ---- Easy: flags everyone knows, easy to paint -------------------------- */
   f('jp', 'Japan', 1, { w: 300, h: 200, bg: 'white', shapes: [{ t: 'circle', x: 150, y: 100, r: 60, c: 'red' }] }),
-  f('bd', 'Bangladesh', 1, { w: 10, h: 6, bg: 'green', shapes: [{ t: 'circle', x: 4.5, y: 3, r: 2, c: 'red' }] }),
-  f('pw', 'Palau', 1, { w: 8, h: 5, bg: 'sky', shapes: [{ t: 'circle', x: 3.5, y: 2.5, r: 1.5, c: 'yellow' }] }),
   f('ch', 'Switzerland', 1, {
     w: 32,
     h: 32,
@@ -190,54 +182,43 @@ export const FLAGS: readonly Flag[] = [
       { t: 'rect', x: 6, y: 13, w: 20, h: 6, c: 'white' },
     ],
   }),
+  f('fr', 'France', 1, bands('v', ['blue', 'white', 'red'], 3, 2)),
+  f('it', 'Italy', 1, bands('v', ['green', 'white', 'red'], 3, 2)),
+  f('de', 'Germany', 1, bands('h', ['black', 'red', 'yellow'], 5, 3)),
+  f('pl', 'Poland', 1, bands('h', ['white', 'red'], 8, 5)),
+  f('ua', 'Ukraine', 1, bands('h', ['blue', 'yellow'], 3, 2)),
+  f('at', 'Austria', 1, bands('h', ['red', 'white', 'red'], 3, 2)),
   f('dk', 'Denmark', 1, { w: 37, h: 28, bg: 'red', shapes: cross(37, 28, 12, 12, 4, 'white') }),
   f('se', 'Sweden', 1, { w: 16, h: 10, bg: 'blue', shapes: cross(16, 10, 5, 4, 2, 'yellow') }),
   f('fi', 'Finland', 1, { w: 18, h: 11, bg: 'white', shapes: cross(18, 11, 5, 4, 3, 'blue') }),
+  f('ie', 'Ireland', 1, bands('v', ['green', 'white', 'orange'], 2, 1)),
+  f('be', 'Belgium', 1, bands('v', ['black', 'yellow', 'red'], 15, 13)),
+  f('nl', 'Netherlands', 1, bands('h', ['red', 'white', 'blue'], 3, 2)),
+  f('ru', 'Russia', 1, bands('h', ['white', 'blue', 'red'], 3, 2)),
 
-  /* ---- Medium: three or more colours, simple emblems -------------------- */
-  f('fr', 'France', 2, bands('v', ['blue', 'white', 'red'], 3, 2)),
-  f('it', 'Italy', 2, bands('v', ['green', 'white', 'red'], 3, 2)),
-  f('ie', 'Ireland', 2, bands('v', ['green', 'white', 'orange'], 2, 1)),
-  f('be', 'Belgium', 2, bands('v', ['black', 'yellow', 'red'], 15, 13)),
-  f('ro', 'Romania', 2, bands('v', ['navy', 'yellow', 'red'], 3, 2)),
-  f('ml', 'Mali', 2, bands('v', ['green', 'yellow', 'red'], 3, 2)),
-  f('gn', 'Guinea', 2, bands('v', ['red', 'yellow', 'green'], 3, 2)),
-  f('ci', 'Ivory Coast', 2, bands('v', ['orange', 'white', 'green'], 3, 2)),
-  f('de', 'Germany', 2, bands('h', ['black', 'red', 'yellow'], 5, 3)),
-  f('nl', 'Netherlands', 2, bands('h', ['red', 'white', 'blue'], 3, 2)),
-  f('ru', 'Russia', 2, bands('h', ['white', 'blue', 'red'], 3, 2)),
+  /* ---- Medium: well known, or a bit more to paint ------------------------- */
+  f('no', 'Norway', 2, { w: 22, h: 16, bg: 'red', shapes: [...cross(22, 16, 6, 6, 4, 'white'), ...cross(22, 16, 7, 7, 2, 'navy')] }),
+  f('is', 'Iceland', 2, { w: 25, h: 18, bg: 'blue', shapes: [...cross(25, 18, 7, 7, 4, 'white'), ...cross(25, 18, 8, 8, 2, 'red')] }),
+  f('gr', 'Greece', 2, greece()),
   f('hu', 'Hungary', 2, bands('h', ['red', 'white', 'green'], 2, 1)),
+  f('cz', 'Czechia', 2, plus(bands('h', ['white', 'red'], 3, 2), { t: 'poly', p: [0, 0, 1.5, 1, 0, 2], c: 'blue' })),
+  f('cl', 'Chile', 2, plus(bands('h', ['white', 'red'], 3, 2), { t: 'rect', x: 0, y: 0, w: 1, h: 1, c: 'blue' }, { t: 'star', x: 0.5, y: 0.5, r: 0.25, c: 'white' })),
+  f('vn', 'Vietnam', 2, { w: 3, h: 2, bg: 'red', shapes: [{ t: 'star', x: 1.5, y: 1, r: 0.6, c: 'yellow' }] }),
+  f('ro', 'Romania', 2, bands('v', ['navy', 'yellow', 'red'], 3, 2)),
   f('bg', 'Bulgaria', 2, bands('h', ['white', 'green', 'red'], 5, 3)),
   f('ee', 'Estonia', 2, bands('h', ['blue', 'black', 'white'], 11, 7)),
   f('lt', 'Lithuania', 2, bands('h', ['yellow', 'green', 'red'], 5, 3)),
+  f('lv', 'Latvia', 2, bands('h', ['maroon', 'white', 'maroon'], 2, 1, [2, 1, 2])),
   f('lu', 'Luxembourg', 2, bands('h', ['red', 'white', 'sky'], 5, 3)),
-  f('ga', 'Gabon', 2, bands('h', ['green', 'yellow', 'blue'], 4, 3)),
-  f('ye', 'Yemen', 2, bands('h', ['red', 'white', 'black'], 3, 2)),
-  f('sl', 'Sierra Leone', 2, bands('h', ['green', 'white', 'blue'], 3, 2)),
-  f('mu', 'Mauritius', 2, bands('h', ['red', 'blue', 'yellow', 'green'], 3, 2)),
   f('co', 'Colombia', 2, bands('h', ['yellow', 'blue', 'red'], 3, 2, [2, 1, 1])),
-  f('bw', 'Botswana', 2, bands('h', ['sky', 'white', 'black', 'white', 'sky'], 3, 2, [9, 1, 4, 1, 9])),
-  f('gm', 'Gambia', 2, bands('h', ['red', 'white', 'blue', 'white', 'green'], 3, 2, [6, 1, 4, 1, 6])),
   f('th', 'Thailand', 2, bands('h', ['red', 'white', 'navy', 'white', 'red'], 3, 2, [1, 1, 2, 1, 1])),
-  f('no', 'Norway', 2, { w: 22, h: 16, bg: 'red', shapes: [...cross(22, 16, 6, 6, 4, 'white'), ...cross(22, 16, 7, 7, 2, 'navy')] }),
-  f('is', 'Iceland', 2, { w: 25, h: 18, bg: 'blue', shapes: [...cross(25, 18, 7, 7, 4, 'white'), ...cross(25, 18, 8, 8, 2, 'red')] }),
-  f('la', 'Laos', 2, plus(bands('h', ['red', 'navy', 'red'], 3, 2, [1, 2, 1]), { t: 'circle', x: 1.5, y: 1, r: 0.4, c: 'white' })),
-  f('cz', 'Czechia', 2, plus(bands('h', ['white', 'red'], 3, 2), { t: 'poly', p: [0, 0, 1.5, 1, 0, 2], c: 'blue' })),
-  f('kw', 'Kuwait', 2, plus(bands('h', ['green', 'white', 'red'], 4, 2), { t: 'poly', p: [0, 0, 1, 2 / 3, 1, 4 / 3, 0, 2], c: 'black' })),
-  f('sd', 'Sudan', 2, plus(bands('h', ['red', 'white', 'black'], 6, 3), { t: 'poly', p: [0, 0, 2, 1.5, 0, 3], c: 'green' })),
-  f('bs', 'Bahamas', 2, plus(bands('h', ['sky', 'yellow', 'sky'], 6, 3), { t: 'poly', p: [0, 0, 2.598, 1.5, 0, 3], c: 'black' })),
-  f('bj', 'Benin', 2, plus(bands('h', ['yellow', 'red'], 3, 2), { t: 'rect', x: 0, y: 0, w: 1.2, h: 2, c: 'green' })),
-  f('mg', 'Madagascar', 2, plus(bands('h', ['red', 'green'], 3, 2), { t: 'rect', x: 0, y: 0, w: 1, h: 2, c: 'white' })),
-  f('cl', 'Chile', 2, plus(bands('h', ['white', 'red'], 3, 2), { t: 'rect', x: 0, y: 0, w: 1, h: 1, c: 'blue' }, { t: 'star', x: 0.5, y: 0.5, r: 0.25, c: 'white' })),
-  f('bf', 'Burkina Faso', 2, plus(bands('h', ['red', 'green'], 3, 2), { t: 'star', x: 1.5, y: 1, r: 0.33, c: 'yellow' })),
-  f('vn', 'Vietnam', 2, { w: 3, h: 2, bg: 'red', shapes: [{ t: 'star', x: 1.5, y: 1, r: 0.6, c: 'yellow' }] }),
-  f('so', 'Somalia', 2, { w: 3, h: 2, bg: 'sky', shapes: [{ t: 'star', x: 1.5, y: 1, r: 0.6, c: 'white' }] }),
-  f('mm', 'Myanmar', 2, plus(bands('h', ['yellow', 'green', 'red'], 3, 2), { t: 'star', x: 1.5, y: 1.04, r: 0.83, c: 'white' })),
-  f('bh', 'Bahrain', 2, serrated(5, 3, 1.2, 1.9, 5, 'red')),
-  f('qa', 'Qatar', 2, serrated(28, 11, 7, 10, 9, 'maroon')),
+  f('pe', 'Peru', 2, bands('v', ['red', 'white', 'red'], 3, 2)),
+  f('ng', 'Nigeria', 2, bands('v', ['green', 'white', 'green'], 2, 1)),
+  f('bd', 'Bangladesh', 2, { w: 10, h: 6, bg: 'green', shapes: [{ t: 'circle', x: 4.5, y: 3, r: 2, c: 'red' }] }),
+  f('id', 'Indonesia', 2, bands('h', ['red', 'white'], 3, 2)),
+  f('mc', 'Monaco', 2, bands('h', ['red', 'white'], 5, 4)),
 
-  /* ---- Hard: many parts, stars, diagonals -------------------------------- */
-  f('gr', 'Greece', 3, greece()),
+  /* ---- Hard: tricky to paint, or you really have to know them ------------- */
   f('gb', 'United Kingdom', 3, {
     w: 60,
     h: 30,
@@ -252,7 +233,6 @@ export const FLAGS: readonly Flag[] = [
     ],
   }),
   f('us', 'United States', 3, usa()),
-  f('lr', 'Liberia', 3, liberia()),
   f('cn', 'China', 3, china()),
   f('tr', 'Turkey', 3, {
     w: 1200,
@@ -295,16 +275,6 @@ export const FLAGS: readonly Flag[] = [
       { t: 'star', x: 2.25, y: 1.5, r: 0.3, c: 'red' },
     ],
   }),
-  f(
-    'tg',
-    'Togo',
-    3,
-    plus(
-      bands('h', ['green', 'yellow', 'green', 'yellow', 'green'], 809, 500),
-      { t: 'rect', x: 0, y: 0, w: 300, h: 300, c: 'red' },
-      { t: 'star', x: 150, y: 150, r: 95, c: 'white' },
-    ),
-  ),
   f('jm', 'Jamaica', 3, {
     w: 24,
     h: 12,
@@ -318,6 +288,38 @@ export const FLAGS: readonly Flag[] = [
       { t: 'line', x1: -2, y1: 13, x2: 26, y2: -1, w: 2, c: 'yellow' },
     ],
   }),
+  f('ml', 'Mali', 3, bands('v', ['green', 'yellow', 'red'], 3, 2)),
+  f('gn', 'Guinea', 3, bands('v', ['red', 'yellow', 'green'], 3, 2)),
+  f('ci', 'Ivory Coast', 3, bands('v', ['orange', 'white', 'green'], 3, 2)),
+  f('ga', 'Gabon', 3, bands('h', ['green', 'yellow', 'blue'], 4, 3)),
+  f('ye', 'Yemen', 3, bands('h', ['red', 'white', 'black'], 3, 2)),
+  f('sl', 'Sierra Leone', 3, bands('h', ['green', 'white', 'blue'], 3, 2)),
+  f('mu', 'Mauritius', 3, bands('h', ['red', 'blue', 'yellow', 'green'], 3, 2)),
+  f('bw', 'Botswana', 3, bands('h', ['sky', 'white', 'black', 'white', 'sky'], 3, 2, [9, 1, 4, 1, 9])),
+  f('gm', 'Gambia', 3, bands('h', ['red', 'white', 'blue', 'white', 'green'], 3, 2, [6, 1, 4, 1, 6])),
+  f('la', 'Laos', 3, plus(bands('h', ['red', 'navy', 'red'], 3, 2, [1, 2, 1]), { t: 'circle', x: 1.5, y: 1, r: 0.4, c: 'white' })),
+  f('kw', 'Kuwait', 3, plus(bands('h', ['green', 'white', 'red'], 4, 2), { t: 'poly', p: [0, 0, 1, 2 / 3, 1, 4 / 3, 0, 2], c: 'black' })),
+  f('sd', 'Sudan', 3, plus(bands('h', ['red', 'white', 'black'], 6, 3), { t: 'poly', p: [0, 0, 2, 1.5, 0, 3], c: 'green' })),
+  f('bs', 'Bahamas', 3, plus(bands('h', ['sky', 'yellow', 'sky'], 6, 3), { t: 'poly', p: [0, 0, 2.598, 1.5, 0, 3], c: 'black' })),
+  f('bj', 'Benin', 3, plus(bands('h', ['yellow', 'red'], 3, 2), { t: 'rect', x: 0, y: 0, w: 1.2, h: 2, c: 'green' })),
+  f('mg', 'Madagascar', 3, plus(bands('h', ['red', 'green'], 3, 2), { t: 'rect', x: 0, y: 0, w: 1, h: 2, c: 'white' })),
+  f('bf', 'Burkina Faso', 3, plus(bands('h', ['red', 'green'], 3, 2), { t: 'star', x: 1.5, y: 1, r: 0.33, c: 'yellow' })),
+  f('so', 'Somalia', 3, { w: 3, h: 2, bg: 'sky', shapes: [{ t: 'star', x: 1.5, y: 1, r: 0.6, c: 'white' }] }),
+  f('mm', 'Myanmar', 3, plus(bands('h', ['yellow', 'green', 'red'], 3, 2), { t: 'star', x: 1.5, y: 1.04, r: 0.83, c: 'white' })),
+  f('bh', 'Bahrain', 3, serrated(5, 3, 1.2, 1.9, 5, 'red')),
+  f('qa', 'Qatar', 3, serrated(28, 11, 7, 10, 9, 'maroon')),
+  f('pw', 'Palau', 3, { w: 8, h: 5, bg: 'sky', shapes: [{ t: 'circle', x: 3.5, y: 2.5, r: 1.5, c: 'yellow' }] }),
+  f('lr', 'Liberia', 3, liberia()),
+  f(
+    'tg',
+    'Togo',
+    3,
+    plus(
+      bands('h', ['green', 'yellow', 'green', 'yellow', 'green'], 809, 500),
+      { t: 'rect', x: 0, y: 0, w: 300, h: 300, c: 'red' },
+      { t: 'star', x: 150, y: 150, r: 95, c: 'white' },
+    ),
+  ),
   f('tz', 'Tanzania', 3, {
     w: 3,
     h: 2,
