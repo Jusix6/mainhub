@@ -125,6 +125,10 @@ export class Renderer {
   ruinsLabel = 'ruins';
   /** Generals of the armies on the move (they carry a banner), refreshed every frame. */
   private generals = new Set<number>();
+  /** The place whose profile is open: its sign is golden. */
+  selectedVillage: number | null = null;
+  /** Where the signs were drawn last frame (CSS px), for clicks. */
+  private signs: { id: number; x: number; y: number; w: number; h: number }[] = [];
   /** Ruling kings and queens (a big crown), refreshed every frame. */
   private kings = new Set<number>();
   /** Names of the tiers for the signs ("town", "city"). */
@@ -380,11 +384,11 @@ export class Renderer {
 
   /** Village names over the squares, in screen pixels so they stay readable. */
   private drawLabels(cam: Camera, sim: Sim, ruinsLabel: string) {
+    this.signs = [];
     if (cam.zoom < 0.5) return;
     const ctx = this.ctx;
     const dpr = this.dpr;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.font = `700 ${Math.round(11 * dpr)}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const v of sim.villages) {
@@ -395,22 +399,41 @@ export class Renderer {
       // Capitals get a crown sign in front of the name
       const name = !v.ruin && [...sim.kingdoms.values()].some((k) => k.capital === v.id) ? `♛ ${v.name}` : v.name;
       const text = v.ruin ? `${v.name} · ${ruinsLabel}` : tier === 'village' ? name : `${name} · ${this.tierLabels[tier] ?? tier}`;
-      ctx.font = `700 ${Math.round((tier === 'city' ? 13 : tier === 'town' ? 12 : 11) * dpr)}px system-ui, sans-serif`;
-      const w = ctx.measureText(text).width + 12 * dpr;
-      const h = 17 * dpr;
-      ctx.globalAlpha = v.ruin ? 0.6 : 0.95;
-      ctx.fillStyle = '#111111';
-      ctx.beginPath();
-      ctx.roundRect(sx - w / 2 + 1.5 * dpr, sy - h / 2 + 1.5 * dpr, w, h, 8 * dpr);
-      ctx.fill();
+      // A little wooden sign with a parchment plate and a dot in the colour of the people
+      ctx.font = `600 ${Math.round((tier === 'city' ? 14 : tier === 'town' ? 13 : 12) * dpr)}px "Pixelify Sans Variable", system-ui, sans-serif`;
+      const dot = 9 * dpr;
+      const w = ctx.measureText(text).width + 14 * dpr + dot;
+      const h = 19 * dpr;
+      const x0 = sx - w / 2;
+      const y0 = sy - h / 2;
+      const selected = v.id === this.selectedVillage;
+      ctx.globalAlpha = v.ruin ? 0.65 : 1;
+      ctx.fillStyle = 'rgba(40, 22, 8, 0.45)';
+      ctx.fillRect(x0 + 2 * dpr, y0 + 2 * dpr, w, h);
+      ctx.fillStyle = '#4e2d14';
+      ctx.fillRect(x0, y0, w, h);
+      ctx.fillStyle = selected ? '#f2cf6b' : v.ruin ? '#d8cfbb' : '#f3e6c4';
+      ctx.fillRect(x0 + 2 * dpr, y0 + 2 * dpr, w - 4 * dpr, h - 4 * dpr);
+      ctx.fillStyle = 'rgba(122, 74, 36, 0.25)';
+      ctx.fillRect(x0 + 2 * dpr, y0 + h - 4 * dpr, w - 4 * dpr, 2 * dpr);
+      ctx.fillStyle = '#4e2d14';
+      ctx.fillRect(x0 + 6 * dpr - dpr, sy - dot / 2 + 1.5 * dpr - dpr, dot - 3 * dpr + 2 * dpr, dot - 3 * dpr + 2 * dpr);
       ctx.fillStyle = v.ruin ? '#8b8f99' : PEOPLE_COLORS[v.people].cloth;
-      ctx.beginPath();
-      ctx.roundRect(sx - w / 2, sy - h / 2, w, h, 8 * dpr);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(text, sx, sy + dpr);
+      ctx.fillRect(x0 + 6 * dpr, sy - dot / 2 + 1.5 * dpr, dot - 3 * dpr, dot - 3 * dpr);
+      ctx.fillStyle = '#3b2a1a';
+      ctx.fillText(text, sx + dot / 2 + 1 * dpr, sy + dpr);
+      this.signs.push({ id: v.id, x: x0 / dpr, y: y0 / dpr, w: w / dpr, h: h / dpr });
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** The place whose sign is under (x, y) in CSS px, or null. */
+  villageAt(x: number, y: number): number | null {
+    for (let i = this.signs.length - 1; i >= 0; i--) {
+      const s = this.signs[i];
+      if (x >= s.x - 4 && x <= s.x + s.w + 4 && y >= s.y - 4 && y <= s.y + s.h + 4) return s.id;
+    }
+    return null;
   }
 
   /* ---- people and animals ------------------------------------------------------ */

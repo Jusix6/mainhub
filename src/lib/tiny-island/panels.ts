@@ -12,7 +12,9 @@ import { FRIEND, RIVAL } from './social';
 import { villageOf } from './villages';
 import { allied, moodOf, pairKey, warBetween } from './war';
 import { crown, depose, kingOf, loyaltyOf, realmOf } from './kingdoms';
-import { blessedPlace, culturedPeoples, giftBuilding, giftFestival, type Work } from './culture';
+import { blessedPlace, celebrate, culturedPeoples, giftBuilding, giftBuildingAt, giftFestival, type Work } from './culture';
+import { villageHtml, type VillageStrings } from './village-panel';
+import type { Village } from './villages';
 import { chartSvg, indexAt, tipText, CHART_W } from './stats';
 import { COSTS, gift, INVENTIONS, nextInvention, researchRate, techOf } from './inventions';
 import { PEOPLES } from './agents';
@@ -110,6 +112,8 @@ export interface PanelStrings {
   inventions: Record<string, { name: string; icon: string; does: string }>;
   weapons: Record<string, string>;
   armor: string;
+  tiers: Record<string, string>;
+  village: VillageStrings;
   culture: {
     none: string;
     works: string;
@@ -150,6 +154,8 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 export class Panels {
   selected: number | null = null;
   following = false;
+  /** The place whose profile is open (instead of a person), if any. */
+  selectedVillage: number | null = null;
   private readonly profile: HTMLElement;
   private readonly list: HTMLElement;
   private readonly ac = new AbortController();
@@ -212,7 +218,23 @@ export class Panels {
         const t = e.target as Element;
         const person = t.closest<HTMLElement>('[data-person]');
         const entry = t.closest<HTMLElement>('[data-entry]');
-        if (person) {
+        const place = t.closest<HTMLElement>('[data-village]');
+        const vAction = t.closest<HTMLElement>('[data-v-show], [data-v-festival], [data-v-donate]');
+        if (place) {
+          // A place name anywhere: open its profile and look at it
+          const id = Number(place.dataset.village);
+          this.selectVillage(id);
+          this.showVillage(id);
+        } else if (vAction) {
+          const id = Number(vAction.dataset.vShow ?? vAction.dataset.vFestival ?? vAction.dataset.vDonate);
+          const v = this.sim.villages.find((x) => x.id === id);
+          if (v && vAction.dataset.vShow) this.showVillage(id);
+          // God gifts for this very place
+          else if (v && vAction.dataset.vFestival) celebrate(this.sim, v, 'gods');
+          else if (v && vAction.dataset.vDonate) giftBuildingAt(this.sim, v);
+          this.profileAt = 0;
+          this.rulesAt = 0;
+        } else if (person) {
           const id = Number(person.dataset.person);
           this.select(id);
           this.centerOn(id);
@@ -278,12 +300,79 @@ export class Panels {
   select(id: number | null) {
     if (id !== this.selected) this.following = false;
     this.selected = id;
+    this.selectedVillage = null;
     this.profileAt = 0;
     this.profile.hidden = id === null;
     if (id !== null && this.narrow()) {
       this.root.querySelector<HTMLElement>('[data-chron]')!.hidden = true;
       this.syncToggle();
     }
+  }
+
+  /** Opens the profile of a place. */
+  selectVillage(id: number) {
+    this.select(null);
+    this.selectedVillage = id;
+    this.profile.hidden = false;
+    if (this.narrow()) {
+      this.root.querySelector<HTMLElement>('[data-chron]')!.hidden = true;
+      this.syncToggle();
+    }
+  }
+
+  /** Moves the camera to a place. */
+  private showVillage(id: number) {
+    const v = this.sim.villages.find((x) => x.id === id);
+    if (!v) return;
+    this.cam.x = (v.x + 0.5) * TILE;
+    this.cam.y = (v.y + 0.5) * TILE;
+    this.cam.zoom = Math.max(this.cam.zoom, 3);
+    this.cam.clamp();
+  }
+
+  /** A place name that opens its profile (a button; inside chronicle buttons a span). */
+  private villageLink(v: Village, inline = false): string {
+    return inline
+      ? `<b class="ti-vlink" data-village="${v.id}">${esc(v.name)}</b>`
+      : `<button type="button" class="ti-link" data-village="${v.id}">${esc(v.name)}</button>`;
+  }
+
+  /** One line of the chronicle (also used in the village profile). */
+  private entryHtml(e: ChronicleEntry): string {
+    const star = [e.a, e.b, e.c].some((r) => r && this.sim.favorites.has(r.id));
+    return `<li><button type="button" class="ti-c__entry${star ? ' is-fav' : ''} ti-c--${e.kind}" data-entry="${e.id}"><span class="ti-c__yr">${esc(this.S.chronicle.year.replace('{n}', String(e.year)))}</span> ${this.text(e)}</button></li>`;
+  }
+
+  private renderVillage() {
+    const v = this.sim.villages.find((x) => x.id === this.selectedVillage);
+    if (!v) {
+      this.select(null);
+      return;
+    }
+    this.setProfile(
+      villageHtml(
+        {
+          sim: this.sim,
+          S: this.S.village,
+          esc,
+          peoples: this.S.peoples,
+          tiers: this.S.tiers,
+          jobs: this.S.jobs,
+          buildings: this.S.buildings,
+          inventions: this.S.inventions,
+          royal: this.S.kingdoms.royal,
+          year: this.S.year,
+          person: (id) => this.person(id),
+          village: (x) => this.villageLink(x),
+          workTitle: (w) => this.workTitle(w),
+          entry: (id) => {
+            const e = this.sim.chronicle.entries.find((x) => x.id === id);
+            return e ? this.entryHtml(e) : '';
+          },
+        },
+        v,
+      ),
+    );
   }
 
   stopFollow() {
@@ -326,6 +415,10 @@ export class Panels {
         this.profileAt = now;
         this.renderProfile();
       }
+    }
+    if (this.selectedVillage !== null && now - this.profileAt > 250) {
+      this.profileAt = now;
+      this.renderVillage();
     }
     if (now - this.rulesAt > 500) {
       this.rulesAt = now;
@@ -411,7 +504,7 @@ export class Panels {
       <p class="ti-p__meta"><span class="ti-p__dot ti-dot--${h.people}"></span>${esc(this.S.peoples[h.people])} · ${esc(sex)} · ${esc(this.S.age.replace('{n}', String(age)))}</p>
       ${realm ? `<p class="ti-p__royal">👑 ${esc(K.kingOf.replace('{r}', h.female ? K.queen : K.king).replace('{p}', this.S.peoples[realm.people]))} · ${esc(K.house.replace('{d}', realm.dynasty))}</p>` : ''}
       <p class="ti-p__traits">${h.traits.map((t) => `<span>${esc(this.S.traits[t])}</span>`).join('')}</p>
-      <p class="ti-p__village">🏠 ${village ? `<b>${esc(village.name)}</b>${village.leader === h.id ? ` · 👑 ${esc(P.leader)}` : ''}` : esc(P.noVillage)}${h.job ? ` · 🛠️ ${esc(this.S.jobs[h.job])}` : ''}${h.weapon ? ` · ⚔️ ${esc(this.S.weapons[h.weapon])}` : ''}${h.armor ? ` · 🛡️ ${esc(this.S.armor)}` : ''}</p>
+      <p class="ti-p__village">🏠 ${village ? `${this.villageLink(village)}${village.leader === h.id ? ` · 👑 ${esc(P.leader)}` : ''}` : esc(P.noVillage)}${h.job ? ` · 🛠️ ${esc(this.S.jobs[h.job])}` : ''}${h.weapon ? ` · ⚔️ ${esc(this.S.weapons[h.weapon])}` : ''}${h.armor ? ` · 🛡️ ${esc(this.S.armor)}` : ''}</p>
       ${bar(P.needs.hunger, h.hunger)}${bar(P.needs.energy, h.energy)}${bar(P.needs.social, h.social)}
       <dl class="ti-p__fam">
         <dt>${esc(P.partner)}</dt><dd>${h.partner !== undefined ? this.person(h.partner) : P.none}</dd>
@@ -587,7 +680,7 @@ export class Panels {
       rows.push(
         `<li class="ti-k"><span class="ti-r__pair"><span class="ti-p__dot ti-dot--${k.people}"></span>${esc(this.S.peoples[k.people])}</span>` +
           `<span>${ruler} · ${esc(K.house.replace('{d}', k.dynasty))}</span>` +
-          `<span class="ti-k__realm">${esc(K.capital.replace('{v}', capital?.name ?? '–'))} · ${esc(K.vassals.replace('{n}', String(vassals.length)))}` +
+          `<span class="ti-k__realm">${esc(K.capital).replace('{v}', capital ? this.villageLink(capital) : '–')} · ${esc(K.vassals.replace('{n}', String(vassals.length)))}` +
           `${loyalty !== null ? ` · ${esc(K.loyalty.replace('{n}', String(loyalty)))}` : ''}${rebels ? ` · ⚔️ ${esc(K.rebels.replace('{n}', String(rebels)))}` : ''}</span></li>`,
       );
     }
@@ -687,8 +780,8 @@ export class Panels {
       .replace('{b}', this.ref(e.b))
       .replace('{c}', this.ref(e.c))
       .replace('{n}', String(e.n ?? ''))
-      .replace('{v}', `<b>${esc(e.v ?? '')}</b>`)
-      .replace('{w}', `<b>${esc(e.w ?? '')}</b>`)
+      .replace('{v}', this.placeName(e.v))
+      .replace('{w}', this.placeName(e.w))
       .replace('{p}', e.p ? `<b>${esc(this.S.peoples[e.p])}</b>` : '')
       .replace('{r}', esc(this.sim.registry.get(e.a.id)?.female ? this.S.kingdoms.royal.queen : this.S.kingdoms.royal.king))
       .replace('{q}', e.q ? `<b>${esc(this.S.peoples[e.q])}</b>` : '');
@@ -706,18 +799,18 @@ export class Panels {
     return C.peaceTribute.replace('{l}', this.S.peoples[e.loser as People] ?? '');
   }
 
+  /** A name in a chronicle line: clickable when it is a living place. */
+  private placeName(name: string | undefined): string {
+    const v = name ? this.sim.villages.find((x) => x.name === name && !x.ruin) : undefined;
+    return v ? this.villageLink(v, true) : `<b>${esc(name ?? '')}</b>`;
+  }
+
   private renderChronicle() {
     const entries = this.sim.chronicle.entries;
     if (!entries.length) {
       this.list.innerHTML = `<li class="ti-c__empty">${esc(this.S.chronicle.empty)}</li>`;
       return;
     }
-    const fav = this.sim.favorites;
-    this.list.innerHTML = entries
-      .map((e) => {
-        const star = [e.a, e.b, e.c].some((r) => r && fav.has(r.id));
-        return `<li><button type="button" class="ti-c__entry${star ? ' is-fav' : ''} ti-c--${e.kind}" data-entry="${e.id}"><span class="ti-c__yr">${esc(this.S.chronicle.year.replace('{n}', String(e.year)))}</span> ${this.text(e)}</button></li>`;
-      })
-      .join('');
+    this.list.innerHTML = entries.map((e) => this.entryHtml(e)).join('');
   }
 }

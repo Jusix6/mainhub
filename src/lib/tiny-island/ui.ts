@@ -48,6 +48,8 @@ export interface UiHooks {
   onTap: (x: number, y: number) => void;
   /** The player started moving the map by hand. */
   onPan: () => void;
+  /** Is there something to click at (x, y) (a village sign)? */
+  pointable: (x: number, y: number) => boolean;
 }
 
 export class Controls {
@@ -317,6 +319,7 @@ export class Controls {
       if (e.pointerType === 'mouse') {
         this.hover = this.tileAt(p.x, p.y);
         this.mouse = p;
+        this.root.classList.toggle('is-pointing', this.tool === 'move' && this.hooks.pointable(p.x, p.y));
       }
       const prev = this.pointers.get(e.pointerId);
       if (!prev) return;

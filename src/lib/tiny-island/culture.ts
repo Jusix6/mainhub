@@ -246,7 +246,13 @@ export function giftFestival(sim: Sim, p: People) {
  */
 export function giftBuilding(sim: Sim, p: People) {
   const v = blessedPlace(sim, p);
-  if (!v) return;
+  if (v) giftBuildingAt(sim, v);
+}
+
+/** The same for one particular place (village profile). */
+export function giftBuildingAt(sim: Sim, v: Village) {
+  const p = v.people;
+  if (v.ruin) return;
   let kind: BuildingKind | 'statue' | null = v.site?.kind ?? nextBuilding(v) ?? BUILDINGS.find((b) => !v.buildings.some((x) => x.kind === b)) ?? null;
   let spot: { x: number; y: number } | null = null;
   if (kind === 'wall') spot = { x: v.x, y: v.y };

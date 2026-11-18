@@ -20,9 +20,11 @@
  * Phase 10: weapons and armour, armies and sieges, feuds, alliances, treaties (war.ts).
  * Phase 11: kingdoms with kings, houses, capitals, vassals, revolts, god gifts (kingdoms.ts).
  * Phase 12: art, legends, festivals, god gifts festival and building (culture.ts).
+ * Since then: its own look (wood and parchment, Pixelify Sans) and a profile
+ * for every place (village-panel.ts), opened by clicking its sign.
  */
 import Fun from '@/layouts/Fun.astro';
-import Sticker from '@/components/Sticker.astro';
+import '@fontsource-variable/pixelify-sans';
 import { UI } from '@/data/ui';
 import { PEOPLE_COLORS, PEOPLES } from '@/lib/tiny-island/agents';
 import { COLORS } from '@/lib/tiny-island/render';
@@ -57,6 +59,7 @@ const strings = {
   armor: T.armor,
   kingdoms: T.kingdoms,
   culture: T.culture,
+  village: T.village,
 };
 const rules = [
   { key: 'aggression', name: T.rules.aggression, low: T.rules.calm, high: T.rules.fierce, min: 0, max: 2 },
@@ -90,7 +93,7 @@ const speeds = [
     <canvas class="ti__map" data-canvas role="img" aria-label={T.canvasLabel}></canvas>
 
     <header class="ti__top">
-      <a class="ti__fun" href="./" aria-label={UI.fun.indexTitle}><Sticker color="--c-pink" rotate={-4}>{UI.fun.title}</Sticker></a>
+      <a class="ti__fun" href="./" aria-label={UI.fun.indexTitle}>◂ {UI.fun.title}</a>
       <h1 class="ti__title">{T.title}</h1>
       <p class="ti__seed" title={T.world}><span class="ti__seed-label">{T.world}</span> <span data-seed></span></p>
       <button type="button" class="ti__btn ti__share" data-share>🔗 {T.start.share}</button>
@@ -242,7 +245,7 @@ const speeds = [
     <p class="ti__hint">{T.hint}</p>
     <div class="ti__start" data-start>
       <div class="ti__start-card">
-        <p class="ti__start-kicker"><Sticker color="--c-pink" rotate={-4}>{UI.fun.title}</Sticker></p>
+        <p class="ti__start-kicker" aria-hidden="true">🏝️</p>
         <h2 class="ti__start-title">{T.title}</h2>
         <p class="ti__start-tag">{T.tagline}</p>
         <div class="ti__start-btns">
@@ -265,11 +268,59 @@ const speeds = [
 
 <style>
   .ti {
+    /*
+     * Tiny Island has its own look, not the site's: wood and parchment like an
+     * old storybook, Pixelify Sans for titles, buttons and numbers, a book face
+     * for longer text. The site tokens are mapped onto it here, so every rule
+     * below that uses --ink, --surface … gets the island colours.
+     */
+    --ti-parch: #f3e6c4;
+    --ti-parch-light: #fbf3dc;
+    --ti-parch-dark: #e6d3a3;
+    --ti-wood: #8a5a2e;
+    --ti-wood-light: #b07a45;
+    --ti-wood-dark: #4e2d14;
+    --ti-ink: #3b2a1a;
+    --ti-muted: #7a6249;
+    --ti-gold: #d9a531;
+    --ti-gold-light: #f2cf6b;
+    --ti-red: #a8322a;
+    --ti-green: #6f9a3e;
+    --ti-pixel: 'Pixelify Sans Variable', system-ui, sans-serif;
+    --ti-book: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --ink: var(--ti-ink);
+    --muted: var(--ti-muted);
+    --bg: var(--ti-parch-light);
+    --surface: var(--ti-parch);
+    --c-yellow: var(--ti-gold-light);
+    --c-green: #a9cf74;
+    --font-display: var(--ti-pixel);
+    --font-mono: var(--ti-pixel);
+    --font-body: var(--ti-book);
+    --line: 4px;
+    --radius: 4px;
+    --radius-lg: 6px;
+    --shadow-sm: 0 2px 0 var(--ti-wood-dark);
+    --shadow: 0 0 0 2px var(--ti-wood-dark), 0 6px 14px rgb(30 15 5 / 0.35);
+    --shadow-lg: 0 0 0 2px var(--ti-wood-dark), 0 12px 30px rgb(30 15 5 / 0.45);
+
     position: fixed;
     inset: 0;
     overflow: hidden;
     background: #2c5fbf;
+    color: var(--ti-ink);
+    font-family: var(--ti-book);
     user-select: none;
+  }
+
+  .ti.is-pointing .ti__map {
+    cursor: pointer;
+  }
+
+  /* The site keeps paragraphs and list items to a reading measure; the game panels are not prose */
+  .ti :global(p),
+  .ti :global(li) {
+    max-width: none;
   }
 
   .ti__map {
@@ -308,7 +359,17 @@ const speeds = [
   }
 
   .ti__fun {
+    padding: 3px 8px;
+    color: #fbefd2;
+    background: linear-gradient(180deg, var(--ti-wood-light), var(--ti-wood));
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 3px;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 2px 0 var(--ti-wood-dark);
+    font-family: var(--ti-pixel);
+    font-size: 13px;
+    font-weight: 600;
     text-decoration: none;
+    text-shadow: 0 1px 0 rgb(40 20 5 / 0.5);
   }
 
   .ti__title {
@@ -491,7 +552,7 @@ const speeds = [
     width: 20px;
     height: 20px;
     fill: none;
-    stroke: var(--ink);
+    stroke: currentColor;
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -1005,7 +1066,7 @@ const speeds = [
 
   .ti__rule input {
     flex: 1 1 160px;
-    accent-color: #d9443a;
+    accent-color: var(--ti-wood);
   }
 
   .ti__rule-name {
@@ -1271,6 +1332,307 @@ const speeds = [
     display: none;
   }
 
+  /* ---- look: wood and parchment ---- */
+
+  /* Every panel is a sheet of parchment in a wooden frame */
+  .ti__top,
+  .ti__dock,
+  .ti__profile,
+  .ti__chron,
+  .ti__start-card {
+    background:
+      radial-gradient(120% 80% at 8% 0%, rgb(255 255 255 / 0.4), transparent 60%),
+      radial-gradient(90% 70% at 100% 100%, rgb(150 100 40 / 0.2), transparent 60%),
+      var(--ti-parch);
+    border: 4px solid var(--ti-wood);
+    border-radius: 6px;
+    box-shadow:
+      0 0 0 2px var(--ti-wood-dark),
+      inset 0 0 0 1px rgb(255 240 200 / 0.6),
+      inset 0 0 22px rgb(150 100 40 / 0.25),
+      0 6px 14px rgb(30 15 5 / 0.35);
+  }
+
+  .ti__profile,
+  .ti__chron {
+    scrollbar-color: var(--ti-wood) var(--ti-parch-dark);
+    scrollbar-width: thin;
+  }
+
+  .ti__title {
+    font-family: var(--ti-pixel);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--ti-wood-dark);
+    text-shadow: 0 2px 0 var(--ti-gold-light);
+  }
+
+  /* Wooden buttons; the active one is golden */
+  .ti__btn,
+  .ti__tool,
+  .ti__people,
+  .ti__random,
+  .ti__start-btn,
+  .ti__profile :global(.ti-p__btn),
+  .ti__profile :global(.ti-p__close),
+  .ti__tech-list :global(.ti-t__gift) {
+    color: #fbefd2;
+    background: linear-gradient(180deg, var(--ti-wood-light), var(--ti-wood));
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 4px;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      0 2px 0 var(--ti-wood-dark);
+    font-family: var(--ti-pixel);
+    font-weight: 600;
+    text-shadow: 0 1px 0 rgb(40 20 5 / 0.5);
+  }
+
+  .ti__btn:hover,
+  .ti__tool:hover,
+  .ti__people:hover,
+  .ti__random:hover,
+  .ti__start-btn:hover,
+  .ti__profile :global(.ti-p__btn:hover),
+  .ti__profile :global(.ti-p__close:hover),
+  .ti__tech-list :global(.ti-t__gift:hover) {
+    background: linear-gradient(180deg, #c48c55, #9a6534);
+  }
+
+  .ti__btn[aria-pressed='true'],
+  .ti__tool[aria-pressed='true'],
+  .ti__people[aria-pressed='true'],
+  .ti__random,
+  .ti__start-btn--main,
+  .ti__profile :global(.ti-p__btn[aria-pressed='true']) {
+    color: var(--ti-ink);
+    background: linear-gradient(180deg, var(--ti-gold-light), var(--ti-gold));
+    border-color: var(--ti-wood-dark);
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.4);
+  }
+
+  .ti__random:hover,
+  .ti__start-btn--main:hover {
+    background: linear-gradient(180deg, #f7da85, #e2b03d);
+  }
+
+  .ti__start-btn small {
+    color: rgb(251 239 210 / 0.85);
+    text-shadow: none;
+  }
+
+  .ti__start-btn--main small {
+    color: var(--ti-ink);
+  }
+
+  .ti__swatch {
+    border-color: var(--ti-wood-dark);
+  }
+
+  /* Tabs like bookmarks */
+  .ti__tab {
+    color: var(--ti-ink);
+    background: var(--ti-parch-dark);
+    border: 2px solid var(--ti-wood);
+    border-radius: 4px 4px 0 0;
+    font-family: var(--ti-pixel);
+    font-weight: 600;
+  }
+
+  .ti__tab[aria-selected='true'] {
+    color: #fbefd2;
+    background: var(--ti-wood);
+    border-color: var(--ti-wood-dark);
+    text-shadow: 0 1px 0 rgb(40 20 5 / 0.5);
+  }
+
+  .ti__rule-name,
+  .ti__chron-title,
+  .ti__profile :global(.ti-p__h),
+  .ti__profile :global(.ti-p__name) {
+    font-family: var(--ti-pixel);
+    font-weight: 700;
+    color: var(--ti-wood-dark);
+  }
+
+  .ti__profile :global(.ti-p__h) {
+    padding-bottom: 2px;
+    border-bottom: 2px dotted rgb(122 74 36 / 0.45);
+  }
+
+  .ti__profile :global(.ti-p__traits span),
+  .ti__profile :global(.ti-v__chips span) {
+    background: var(--ti-parch-dark);
+    border: 2px solid var(--ti-wood);
+    border-radius: 3px;
+  }
+
+  .ti__profile :global(.ti-p__bar),
+  .ti__rel-list :global(.ti-r__bar) {
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 2px;
+  }
+
+  .ti__profile :global(.ti-p__bar) {
+    background: var(--ti-parch-dark);
+  }
+
+  .ti__profile :global(.ti-p__bar span) {
+    background: var(--ti-green);
+  }
+
+  .ti__profile :global(.ti-link),
+  .ti__king-list :global(.ti-link) {
+    color: var(--ti-wood-dark);
+    text-decoration-color: var(--ti-wood-light);
+  }
+
+  .ti__chron-list :global(.ti-c__entry:hover) {
+    background: var(--ti-parch-dark);
+  }
+
+  .ti__chron-list :global(.ti-c__entry.is-fav),
+  .ti__profile :global(.ti-c__entry.is-fav) {
+    background: rgb(242 207 107 / 0.45);
+  }
+
+  .ti__chron-list :global(.ti-c--died) {
+    color: var(--ti-muted);
+  }
+
+  /* Place names in chronicle lines open the place */
+  .ti__chron-list :global(.ti-vlink),
+  .ti__profile :global(.ti-vlink) {
+    text-decoration: underline dotted var(--ti-wood-light);
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .ti__tip {
+    color: var(--ti-ink);
+    background: var(--ti-parch);
+    border: 2px solid var(--ti-wood);
+    border-radius: 3px;
+    box-shadow:
+      0 0 0 1px var(--ti-wood-dark),
+      0 3px 6px rgb(30 15 5 / 0.3);
+  }
+
+  .ti__start {
+    background: rgb(40 25 10 / 0.5);
+  }
+
+  .ti__start-kicker {
+    font-size: 40px;
+    line-height: 1;
+  }
+
+  .ti__start-title {
+    font-family: var(--ti-pixel);
+    font-size: 46px;
+    font-weight: 700;
+    color: var(--ti-gold-light);
+    text-shadow:
+      0 3px 0 var(--ti-wood-dark),
+      2px 0 0 var(--ti-wood-dark),
+      -2px 0 0 var(--ti-wood-dark),
+      0 -2px 0 var(--ti-wood-dark);
+  }
+
+  .ti__start-tag {
+    font-style: italic;
+  }
+
+  /* ---- village profile ---- */
+  .ti__profile :global(.ti-v__line) {
+    margin: 2px 0;
+    font-size: 12px;
+  }
+
+  .ti__profile :global(.ti-v__line.is-bad) {
+    color: var(--ti-red);
+    font-weight: 700;
+  }
+
+  .ti__profile :global(.ti-v__line.is-good) {
+    color: var(--ti-green);
+    font-weight: 700;
+  }
+
+  .ti__profile :global(.ti-v__big) {
+    margin: 2px 0;
+    font-family: var(--ti-pixel);
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .ti__profile :global(.ti-v__note) {
+    color: var(--ti-muted);
+    font-style: italic;
+  }
+
+  .ti__profile :global(.ti-v__chips) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 2px 0;
+  }
+
+  .ti__profile :global(.ti-v__chips span) {
+    padding: 1px 6px;
+    font-size: 11px;
+  }
+
+  .ti__profile :global(.ti-v__meter) {
+    grid-template-columns: 62px 1fr auto;
+  }
+
+  .ti__profile :global(.ti-v__meter b) {
+    font-family: var(--ti-pixel);
+    font-size: 11px;
+  }
+
+  .ti__profile :global(.ti-v__bar--mid span) {
+    background: var(--ti-gold);
+  }
+
+  .ti__profile :global(.ti-v__bar--bad span) {
+    background: var(--ti-red);
+  }
+
+  .ti__profile :global(.ti-v__work) {
+    font-style: italic;
+  }
+
+  .ti__profile :global(.ti-v__events .ti-c__entry) {
+    display: block;
+    width: 100%;
+    padding: 3px 4px;
+    background: none;
+    border: 0;
+    border-radius: 3px;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ti__profile :global(.ti-v__events .ti-c__entry:hover) {
+    background: var(--ti-parch-dark);
+  }
+
+  .ti__profile :global(.ti-v__events .ti-c__yr) {
+    display: block;
+    font-family: var(--ti-pixel);
+    font-size: 10px;
+    color: var(--ti-muted);
+  }
+
+  .ti__profile :global(.ti-p__actions) {
+    margin-top: 8px;
+  }
+
   .ti__nojs {
     position: absolute;
     top: 50%;
@@ -1296,9 +1658,9 @@ const speeds = [
       display: block;
       margin: 0;
       padding: 2px 10px;
-      background: rgb(17 17 17 / 0.55);
-      border-radius: 999px;
-      color: #fff;
+      background: rgb(78 45 20 / 0.8);
+      border-radius: 3px;
+      color: #fbefd2;
       font-family: var(--font-mono);
       font-size: 11px;
       white-space: nowrap;

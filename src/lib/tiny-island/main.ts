@@ -74,10 +74,18 @@ export function start(root: HTMLElement): () => void {
   const controls = new Controls(root, canvas, S, world, sim, cam, {
     onRandom: () => fresh(newSeed()),
     onTap: (x, y) => {
+      // A village sign opens the profile of the place
+      const sign = renderer.villageAt(x, y);
+      if (sign !== null) return panels.selectVillage(sign);
       const p = cam.toWorld(x, y);
       const who = sim.nearest(p.x / TILE, p.y / TILE + 0.3, 0.9, (a) => a.kind === 'human');
-      panels.select(who ? who.id : null);
+      if (who) return panels.select(who.id);
+      // So does its square
+      const square = sim.villages.find((v) => Math.hypot(v.x + 0.5 - p.x / TILE, v.y + 0.5 - p.y / TILE) < 1.4);
+      if (square) return panels.selectVillage(square.id);
+      panels.select(null);
     },
+    pointable: (x, y) => renderer.villageAt(x, y) !== null,
     onPan: () => panels.stopFollow(),
   });
 
@@ -201,6 +209,7 @@ export function start(root: HTMLElement): () => void {
     sim.advance(dt);
     panels.update(now);
     renderer.flush();
+    renderer.selectedVillage = panels.selectedVillage;
     renderer.draw(cam, sim, controls.brush(), panels.selected);
     controls.renderClock();
     controls.renderPopulation();
