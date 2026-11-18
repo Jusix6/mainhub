@@ -22,11 +22,20 @@
  * Phase 12: art, legends, festivals, god gifts festival and building (culture.ts).
  * Since then: its own look (wood and parchment, Pixelify Sans) and a profile
  * for every place (village-panel.ts), opened by clicking its sign.
+ * Update 2, phase A: trees live and die, hunger fixes (hunger.ts), a
+ * storyteller (storyteller.ts), causes of death; balance numbers in balance.ts.
+ * Phase B: abilities and new traits for everyone, the character editor
+ * (editor.ts, characters.ts) with powers and My Characters, Smite.
+ * Phase C: family names, memories, revenge and blood feuds, jealousy,
+ * separation, mentors, forbidden love, royal weddings and claims (drama.ts).
+ * Phase D: leagues and fusion (leagues.ts), plots (plots.ts), god gifts Peace and Ally.
+ * Phase E: six ages, nine new inventions, endless progress (inventions.ts).
  */
 import Fun from '@/layouts/Fun.astro';
 import '@fontsource-variable/pixelify-sans';
 import { UI } from '@/data/ui';
-import { PEOPLE_COLORS, PEOPLES } from '@/lib/tiny-island/agents';
+import { GREY_HAIR, HAIR_STYLES, HAIRS, HATS, PEOPLE_COLORS, PEOPLES, PLAYABLE, POWERS, SKINS, STATS, TRAITS } from '@/lib/tiny-island/agents';
+import { JOBS } from '@/lib/tiny-island/jobs';
 import { COLORS } from '@/lib/tiny-island/render';
 import { TERRAIN_KEYS } from '@/lib/tiny-island/world';
 import { SITE } from '@/data/site';
@@ -60,7 +69,17 @@ const strings = {
   kingdoms: T.kingdoms,
   culture: T.culture,
   village: T.village,
+  leagues: T.leagues,
+  ages: T.ages,
+  armies: T.armies,
+  deaths: T.deaths,
+  stats: T.stats,
+  powers: T.powers,
+  editor: T.editor,
 };
+const E = T.editor;
+const hairColors = [...HAIRS, GREY_HAIR, '#f4f1e8', '#e86fa3'];
+const clothColors = ['', '#e8344a', '#ff8a1e', '#ffd23f', '#3ddc84', '#3b7ddd', '#7a4fd1', '#ff5da2', '#f4f1e8', '#3a3a3a'];
 const rules = [
   { key: 'aggression', name: T.rules.aggression, low: T.rules.calm, high: T.rules.fierce, min: 0, max: 2 },
   { key: 'birth', name: T.rules.birth, low: T.rules.birthLow, high: T.rules.birthHigh, min: 0.3, max: 2 },
@@ -71,6 +90,7 @@ const lifeTools = [
   { key: 'sheep', icon: '🐑' },
   { key: 'chicken', icon: '🐔' },
   { key: 'wolf', icon: '🐺' },
+  { key: 'horse', icon: '🐎' },
 ] as const;
 const swatch: Record<(typeof TERRAIN_KEYS)[number], string> = {
   deep: COLORS.deep,
@@ -112,6 +132,7 @@ const speeds = [
         <span title={T.life.sheep}>🐑 <b data-pop="sheep">0</b></span>
         <span title={T.life.chicken}>🐔 <b data-pop="chicken">0</b></span>
         <span title={T.life.wolf}>🐺 <b data-pop="wolf">0</b></span>
+        <span title={T.life.horse}>🐎 <b data-pop="horse">0</b></span>
         <span title={T.villages}>🏘️ <b data-pop="villages">0</b></span>
       </p>
       <button type="button" class="ti__btn ti__chron-btn" data-chron-toggle aria-expanded="false" aria-controls="ti-chronicle" title={T.chronicle.toggle}>
@@ -181,7 +202,7 @@ const speeds = [
         </div>
         <div class="ti__peoples" role="group" aria-label={T.peopleLabel}>
           {
-            PEOPLES.map((k) => (
+            PLAYABLE.map((k) => (
               <button type="button" class="ti__people" data-people={k} aria-pressed={k === 'coast' ? 'true' : 'false'} title={T.peoples[k]}>
                 <span class="ti__swatch" style={`--sw: ${PEOPLE_COLORS[k].cloth}`} aria-hidden="true" />
                 <span>{T.peoples[k]}</span>
@@ -190,6 +211,12 @@ const speeds = [
           }
         </div>
         <p class="ti__note">{T.lifeHint}</p>
+        <div class="ti__mine">
+          <button type="button" class="ti__create" data-editor-open>{E.create}</button>
+          <span class="ti__rule-name">{E.mine}</span>
+          <div class="ti__mine-list" data-mine-list></div>
+        </div>
+        <p class="ti__place-hint" data-place-hint hidden></p>
       </div>
       <div class="ti__panel ti__panel--rules" data-panel="rules" role="tabpanel" hidden>
         {
@@ -212,6 +239,10 @@ const speeds = [
           <ul class="ti__rel-list ti__king-list" data-kingdoms></ul>
         </div>
         <div class="ti__relations">
+          <p class="ti__rule-name">{T.leagues.title}</p>
+          <ul class="ti__rel-list ti__league-list" data-leagues></ul>
+        </div>
+        <div class="ti__relations">
           <p class="ti__rule-name">{T.culture.title}</p>
           <ul class="ti__rel-list ti__tech-list ti__culture-list" data-culture></ul>
         </div>
@@ -230,7 +261,7 @@ const speeds = [
           PEOPLES.map((k) => (
             <span data-legend={k}>
               <svg width="18" height="6" viewBox="0 0 18 6">
-                <line x1="1" y1="3" x2="17" y2="3" stroke={PEOPLE_COLORS[k].cloth} stroke-width="2" stroke-dasharray={k === 'forest' ? '6 3' : k === 'mountain' ? '2 3' : k === 'steppe' ? '9 3 2 3' : undefined} />
+                <line x1="1" y1="3" x2="17" y2="3" stroke={PEOPLE_COLORS[k].cloth} stroke-width="2" stroke-dasharray={k === 'forest' ? '6 3' : k === 'mountain' ? '2 3' : k === 'steppe' ? '9 3 2 3' : k === 'islanders' ? '1 2' : undefined} />
               </svg>
               {T.peoples[k]}
             </span>
@@ -239,6 +270,8 @@ const speeds = [
       </p>
       <div class="ti__stats" data-stats></div>
       <p class="ti__stats-tip" data-stats-tip hidden></p>
+      <h2 class="ti__chron-title">🪦 {T.deaths.title}</h2>
+      <ul class="ti__deaths" data-deaths></ul>
       <h2 class="ti__chron-title">📜 {T.chronicle.title}</h2>
       <ol class="ti__chron-list" data-chron-list></ol>
     </aside>
@@ -259,6 +292,136 @@ const speeds = [
           <button type="button" class="ti__start-btn" data-start-empty>🏝️ {T.start.empty}<small>{T.start.emptyInfo}</small></button>
         </div>
         <p class="ti__start-note">{T.start.saveNote}</p>
+      </div>
+    </div>
+    <div class="ti__editor" data-editor hidden role="dialog" aria-modal="true" aria-labelledby="ti-editor-title">
+      <div class="ti__editor-card">
+        <header class="ti__editor-head">
+          <h2 id="ti-editor-title">✦ {E.title}</h2>
+          <button type="button" class="ti__editor-close" data-e="close" aria-label={E.close}>×</button>
+        </header>
+        <div class="ti__editor-body">
+          <div class="ti__editor-preview">
+            <canvas width="108" height="132" data-editor-preview role="img" aria-label={E.preview}></canvas>
+            <button type="button" class="ti-e__btn" data-e="random">{E.random}</button>
+          </div>
+          <div class="ti__editor-form">
+            <label class="ti-e__row">
+              <span class="ti-e__label">{E.name}</span>
+              <input type="text" maxlength="20" class="ti-e__text" data-e-name placeholder={E.namePlaceholder} />
+            </label>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.sex}</span>
+              <div class="ti-e__opts">
+                <button type="button" class="ti-e__opt" data-e="female:1">{E.female}</button>
+                <button type="button" class="ti-e__opt" data-e="female:0">{E.male}</button>
+              </div>
+            </div>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.age}</span>
+              <div class="ti-e__opts">
+                {(['child', 'adult', 'old'] as const).map((k) => <button type="button" class="ti-e__opt" data-e={`age:${k}`}>{E.ageButtons[k]}</button>)}
+                <input type="range" min="0" max="90" class="ti-e__range" data-e-age aria-label={E.age} />
+                <output class="ti-e__out" data-e-age-text></output>
+              </div>
+            </div>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.people}</span>
+              <div class="ti-e__opts">
+                {
+                  PLAYABLE.map((k) => (
+                    <button type="button" class="ti-e__opt" data-e={`people:${k}`}>
+                      <span class="ti__swatch" style={`--sw: ${PEOPLE_COLORS[k].cloth}`} aria-hidden="true" />
+                      {T.peoples[k]}
+                    </button>
+                  ))
+                }
+              </div>
+            </div>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.likes}</span>
+              <div class="ti-e__opts">
+                {(['women', 'men', 'both'] as const).map((k) => <button type="button" class="ti-e__opt" data-e={`likes:${k}`}>{E.likesKinds[k]}</button>)}
+              </div>
+            </div>
+            <h3 class="ti-e__h">{E.looks}</h3>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.skin}</span>
+              <div class="ti-e__opts">
+                {SKINS.map((c) => <button type="button" class="ti-e__swatch" data-e={`skin:${c}`} style={`--sw: ${c}`} aria-label={`${E.skin} ${c}`} />)}
+              </div>
+            </div>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.hair}</span>
+              <div class="ti-e__opts">
+                {hairColors.map((c) => <button type="button" class="ti-e__swatch" data-e={`hair:${c}`} style={`--sw: ${c}`} aria-label={`${E.hair} ${c}`} />)}
+              </div>
+            </div>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.style}</span>
+              <div class="ti-e__opts">
+                {HAIR_STYLES.map((k) => <button type="button" class="ti-e__opt" data-e={`style:${k}`}>{E.styles[k]}</button>)}
+                <label class="ti-e__check"><input type="checkbox" data-e-beard /> {E.beard}</label>
+              </div>
+            </div>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.hat}</span>
+              <div class="ti-e__opts">
+                {HATS.map((k) => <button type="button" class="ti-e__opt" data-e={`hat:${k}`}>{E.hats[k]}</button>)}
+              </div>
+            </div>
+            <div class="ti-e__row">
+              <span class="ti-e__label">{E.cloth}</span>
+              <div class="ti-e__opts">
+                {
+                  clothColors.map((c) =>
+                    c ? (
+                      <button type="button" class="ti-e__swatch" data-e={`cloth:${c}`} style={`--sw: ${c}`} aria-label={`${E.cloth} ${c}`} />
+                    ) : (
+                      <button type="button" class="ti-e__opt" data-e="cloth:">{E.clothPeople}</button>
+                    ),
+                  )
+                }
+              </div>
+            </div>
+            <h3 class="ti-e__h">{E.abilities}</h3>
+            {
+              STATS.map((s) => (
+                <label class="ti-e__row ti-e__stat">
+                  <span class="ti-e__label">{T.stats[s]}</span>
+                  <input type="range" min="1" max="10" class="ti-e__range" data-e-stat={s} />
+                  <output class="ti-e__out" data-e-stat-out={s}></output>
+                </label>
+              ))
+            }
+            <h3 class="ti-e__h">{E.traits}</h3>
+            <p class="ti-e__hint">{E.traitsHint}</p>
+            <div class="ti-e__chips">
+              {TRAITS.map((k) => <button type="button" class="ti-e__chip" data-e={`trait:${k}`}>{T.traits[k]}</button>)}
+            </div>
+            <label class="ti-e__row">
+              <span class="ti-e__label">{E.job}</span>
+              <select class="ti-e__select" data-e-job>
+                <option value="auto">{E.jobAuto}</option>
+                {JOBS.map((j) => <option value={j}>{T.jobs[j]}</option>)}
+              </select>
+            </label>
+            <h3 class="ti-e__h">{E.powers}</h3>
+            <div class="ti-e__chips">
+              {
+                POWERS.map((k) => (
+                  <button type="button" class="ti-e__chip ti-e__power" data-e={`power:${k}`} title={T.powers[k].does}>
+                    {T.powers[k].name}
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+        <footer class="ti__editor-foot">
+          <button type="button" class="ti-e__btn" data-e="close">{E.cancel}</button>
+          <button type="button" class="ti-e__btn ti-e__btn--main" data-e="place">{E.place}</button>
+        </footer>
       </div>
     </div>
     <p class="ti__tip" data-tip hidden></p>
@@ -752,6 +915,10 @@ const speeds = [
     background: #d9443a;
   }
 
+  .ti__profile :global(.ti-dot--islanders) {
+    background: #f08c2e;
+  }
+
   .ti__profile :global(.ti-p__traits) {
     display: flex;
     flex-wrap: wrap;
@@ -1042,6 +1209,45 @@ const speeds = [
     display: none;
   }
 
+  /* Causes of death: one bar per cause, a single colour */
+  .ti__deaths {
+    display: grid;
+    gap: 3px;
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+  }
+
+  .ti__deaths :global(.ti-d) {
+    display: grid;
+    grid-template-columns: 84px 1fr 34px;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ti__deaths :global(.ti-d__bar) {
+    height: 10px;
+    background: var(--ti-parch-dark);
+    border-radius: 2px;
+  }
+
+  .ti__deaths :global(.ti-d__bar span) {
+    display: block;
+    height: 100%;
+    background: var(--ti-wood);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .ti__deaths :global(.ti-d b) {
+    font-family: var(--ti-pixel);
+    text-align: right;
+  }
+
+  .ti__deaths :global(.ti-d__none) {
+    color: var(--ti-muted);
+  }
+
   .ti__chron .ti__chron-title + .ti__chron-list {
     margin-top: 2px;
   }
@@ -1092,7 +1298,7 @@ const speeds = [
 
   .ti__rel-list :global(.ti-r) {
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) minmax(80px, 2fr) auto;
+    grid-template-columns: minmax(150px, 1fr) minmax(80px, 2fr) auto auto;
     align-items: center;
     gap: 8px;
   }
@@ -1125,6 +1331,99 @@ const speeds = [
   .ti__rel-list :global(.ti-r.is-war .ti-r__word) {
     color: #c62828;
     font-weight: 700;
+  }
+
+  /* Armies (phase F): a morale bar that empties */
+  .ti__rel-list :global(.ti-r__morale) {
+    height: 8px;
+    overflow: hidden;
+    background: var(--ti-parch-dark, #e2ddd0);
+    border: 2px solid var(--ti-wood-dark, var(--ink));
+    border-radius: 2px;
+  }
+
+  .ti__rel-list :global(.ti-r__morale span) {
+    display: block;
+    height: 100%;
+    background: #e0a43a;
+  }
+
+  .ti__profile :global(.ti-p__soldier) {
+    margin: 2px 0;
+    font-size: 12px;
+  }
+
+  .ti__league-list :global(.ti-lg) {
+    display: grid;
+    grid-template-columns: auto minmax(140px, auto) 1fr auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__league-list :global(.ti-lg__flag) {
+    width: 14px;
+    height: 10px;
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 2px;
+  }
+
+  .ti__league-list :global(.ti-lg__meta) {
+    color: var(--ti-muted);
+  }
+
+  .ti__league-list :global(.ti-lg__h) {
+    margin-top: 4px;
+    font-weight: 700;
+  }
+
+  .ti__league-list :global(.ti-link) {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ti-wood-dark);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .ti__league-list :global(.ti-c__entry) {
+    display: block;
+    width: 100%;
+    padding: 2px 4px;
+    background: none;
+    border: 0;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ti__league-list :global(.ti-c__yr) {
+    margin-right: 4px;
+    font-family: var(--ti-pixel);
+    font-size: 10px;
+    color: var(--ti-muted);
+  }
+
+  @media (max-width: 700px) {
+    .ti__league-list :global(.ti-lg) {
+      grid-template-columns: auto 1fr;
+    }
+  }
+
+  .ti__rel-list :global(.ti-t__gift) {
+    padding: 2px 8px;
+    color: #fbefd2;
+    background: linear-gradient(180deg, var(--ti-wood-light), var(--ti-wood));
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 4px;
+    box-shadow: 0 2px 0 var(--ti-wood-dark);
+    font-family: var(--ti-pixel);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
   }
 
   .ti__king-list :global(.ti-k) {
@@ -1201,8 +1500,16 @@ const speeds = [
 
   .ti__tech-list :global(.ti-t__icons) {
     display: inline-flex;
+    flex-wrap: wrap;
     gap: 1px;
-    font-size: 14px;
+    max-width: 260px;
+    font-size: 13px;
+  }
+
+  .ti__tech-list :global(.ti-t__age) {
+    margin-left: 4px;
+    font-weight: 400;
+    color: var(--ti-muted);
   }
 
   .ti__tech-list :global(.ti-t__icon) {
@@ -1285,6 +1592,10 @@ const speeds = [
 
   .ti__rel-list :global(.ti-dot--steppe) {
     background: #d9443a;
+  }
+
+  .ti__rel-list :global(.ti-dot--islanders) {
+    background: #f08c2e;
   }
 
   .ti__tip {
@@ -1541,6 +1852,396 @@ const speeds = [
 
   .ti__start-tag {
     font-style: italic;
+  }
+
+  /* ---- own characters: Life tab and editor ---- */
+  .ti__mine {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    width: 100%;
+  }
+
+  .ti__create {
+    min-height: 34px;
+    padding: 3px 12px;
+    color: var(--ti-ink);
+    background: linear-gradient(180deg, #bfe6ff, #7fc4ee);
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 4px;
+    box-shadow: 0 2px 0 var(--ti-wood-dark);
+    font-family: var(--ti-pixel);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ti__mine-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 12px;
+  }
+
+  .ti__mine-list :global(.ti-mine) {
+    display: inline-flex;
+    border: 2px solid var(--ti-wood);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .ti__mine-list :global(.ti-mine button) {
+    padding: 2px 6px;
+    background: var(--ti-parch-light);
+    border: 0;
+    font: inherit;
+    font-family: var(--ti-pixel);
+    cursor: pointer;
+  }
+
+  .ti__mine-list :global(.ti-mine button:hover) {
+    background: var(--ti-gold-light);
+  }
+
+  .ti__mine-list :global(.ti-mine__x) {
+    border-left: 1px solid var(--ti-wood) !important;
+  }
+
+  .ti__mine-list :global(.ti-mine__empty) {
+    color: var(--ti-muted);
+  }
+
+  .ti__place-hint {
+    width: 100%;
+    margin: 0;
+    padding: 4px 8px;
+    color: var(--ti-ink);
+    background: #d6efff;
+    border: 2px dashed var(--ti-wood);
+    border-radius: 4px;
+    font-family: var(--ti-pixel);
+  }
+
+  .ti__place-hint[hidden] {
+    display: none;
+  }
+
+  .ti__editor {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    background: rgb(40 25 10 / 0.5);
+  }
+
+  .ti__editor[hidden] {
+    display: none;
+  }
+
+  .ti__editor-card {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    width: min(760px, 100%);
+    max-height: calc(100% - 8px);
+    background:
+      radial-gradient(120% 80% at 8% 0%, rgb(255 255 255 / 0.4), transparent 60%),
+      var(--ti-parch);
+    border: 4px solid var(--ti-wood);
+    border-radius: 6px;
+    box-shadow:
+      0 0 0 2px var(--ti-wood-dark),
+      0 12px 30px rgb(30 15 5 / 0.45);
+  }
+
+  .ti__editor-head,
+  .ti__editor-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .ti__editor-head {
+    border-bottom: 2px dotted rgb(122 74 36 / 0.45);
+  }
+
+  .ti__editor-head h2 {
+    margin: 0;
+    font-family: var(--ti-pixel);
+    font-size: 20px;
+    color: var(--ti-wood-dark);
+  }
+
+  .ti__editor-foot {
+    justify-content: flex-end;
+    border-top: 2px dotted rgb(122 74 36 / 0.45);
+  }
+
+  .ti__editor-close {
+    width: 30px;
+    height: 30px;
+    color: #fbefd2;
+    background: var(--ti-wood);
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .ti__editor-body {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 14px;
+    padding: 10px 12px;
+    overflow-y: auto;
+    scrollbar-color: var(--ti-wood) var(--ti-parch-dark);
+  }
+
+  .ti__editor-preview {
+    position: sticky;
+    top: 0;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    justify-items: center;
+  }
+
+  .ti__editor-preview canvas {
+    width: 108px;
+    height: 132px;
+    background:
+      linear-gradient(transparent 78%, #7fb069 78%),
+      #cfe8f7;
+    border: 3px solid var(--ti-wood);
+    border-radius: 4px;
+    image-rendering: pixelated;
+  }
+
+  .ti__editor-form {
+    display: grid;
+    gap: 7px;
+    font-size: 13px;
+  }
+
+  .ti-e__row {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti-e__stat {
+    grid-template-columns: 96px 1fr 28px;
+  }
+
+  .ti-e__label {
+    font-family: var(--ti-pixel);
+    font-weight: 600;
+    color: var(--ti-wood-dark);
+  }
+
+  .ti-e__h {
+    margin: 6px 0 0;
+    padding-bottom: 2px;
+    font-family: var(--ti-pixel);
+    font-size: 15px;
+    color: var(--ti-wood-dark);
+    border-bottom: 2px dotted rgb(122 74 36 / 0.45);
+  }
+
+  .ti-e__hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ti-muted);
+  }
+
+  .ti-e__opts,
+  .ti-e__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .ti-e__text,
+  .ti-e__select {
+    min-height: 32px;
+    padding: 3px 8px;
+    color: var(--ti-ink);
+    background: var(--ti-parch-light);
+    border: 2px solid var(--ti-wood);
+    border-radius: 4px;
+    font: inherit;
+  }
+
+  .ti-e__opt,
+  .ti-e__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 30px;
+    padding: 2px 8px;
+    color: var(--ti-ink);
+    background: var(--ti-parch-light);
+    border: 2px solid var(--ti-wood);
+    border-radius: 4px;
+    font-family: var(--ti-pixel);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .ti-e__opt[aria-pressed='true'],
+  .ti-e__chip[aria-pressed='true'] {
+    background: linear-gradient(180deg, var(--ti-gold-light), var(--ti-gold));
+    border-color: var(--ti-wood-dark);
+  }
+
+  .ti-e__power[aria-pressed='true'] {
+    background: linear-gradient(180deg, #bfe6ff, #7fc4ee);
+  }
+
+  .ti-e__swatch {
+    width: 26px;
+    height: 26px;
+    background: var(--sw);
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .ti-e__swatch[aria-pressed='true'] {
+    outline: 3px solid var(--ti-gold);
+    outline-offset: 1px;
+  }
+
+  .ti-e__range {
+    flex: 1 1 120px;
+    accent-color: var(--ti-wood);
+  }
+
+  .ti-e__out {
+    font-family: var(--ti-pixel);
+    font-weight: 600;
+  }
+
+  .ti-e__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 6px;
+    font-family: var(--ti-pixel);
+    font-size: 12px;
+  }
+
+  .ti-e__btn {
+    min-height: 36px;
+    padding: 4px 14px;
+    color: #fbefd2;
+    background: linear-gradient(180deg, var(--ti-wood-light), var(--ti-wood));
+    border: 2px solid var(--ti-wood-dark);
+    border-radius: 4px;
+    box-shadow: 0 2px 0 var(--ti-wood-dark);
+    font-family: var(--ti-pixel);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ti-e__btn--main {
+    color: var(--ti-ink);
+    background: linear-gradient(180deg, var(--ti-gold-light), var(--ti-gold));
+  }
+
+  @media (max-width: 640px) {
+    .ti__editor-body {
+      grid-template-columns: 1fr;
+    }
+
+    .ti__editor-preview {
+      position: static;
+      grid-template-columns: auto auto;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ti-e__row {
+      grid-template-columns: 1fr;
+      gap: 3px;
+    }
+
+    .ti-e__stat {
+      grid-template-columns: 1fr 28px;
+    }
+
+    .ti-e__stat .ti-e__label {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* Profile: family name and memories (phase C) */
+  .ti__profile :global(.ti-p__surname) {
+    color: var(--ti-muted);
+    font-weight: 400;
+  }
+
+  .ti__profile :global(.ti-p__mems) {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+  }
+
+  .ti__profile :global(.ti-p__mems .is-grudge) {
+    color: var(--ti-red);
+  }
+
+  .ti__profile :global(.ti-p__mems .is-thanks) {
+    color: #3f6b22;
+  }
+
+  .ti__profile :global(.ti-p__mem-none) {
+    margin: 0;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--ti-muted);
+  }
+
+  /* Profile: own characters, powers, abilities */
+  .ti__profile :global(.ti-p__own) {
+    margin: 0 0 4px;
+    color: #1f6f9f;
+    font-family: var(--ti-pixel);
+    font-weight: 700;
+  }
+
+  .ti__profile :global(.ti-p__powers span) {
+    background: #d6efff;
+  }
+
+  .ti__profile :global(.ti-p__stats) {
+    margin: 6px 0 2px;
+  }
+
+  .ti__profile :global(.ti-p__stat) {
+    grid-template-columns: 70px 1fr 18px;
+  }
+
+  .ti__profile :global(.ti-p__stat b) {
+    font-family: var(--ti-pixel);
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .ti__profile :global(.ti-p__stat .ti-p__bar span) {
+    background: var(--ti-wood-light);
+  }
+
+  .ti__chron-list :global(.ti-c__entry.is-own) {
+    background: rgb(127 214 255 / 0.25);
   }
 
   /* ---- village profile ---- */

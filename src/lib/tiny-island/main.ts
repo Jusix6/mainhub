@@ -7,6 +7,7 @@
  * "Play shared world" when the link carries ?world=<seed>. The island is
  * saved to localStorage every 60 seconds and when the page is left.
  */
+import { Editor, type EditorStrings } from './editor';
 import { Camera } from './camera';
 import { Panels, type PanelStrings } from './panels';
 import { Renderer } from './render';
@@ -14,11 +15,12 @@ import { newSeed } from './rng';
 import { load, save, savedSummary } from './save';
 import { Sim } from './sim';
 import { Controls, type Strings } from './ui';
-import { H, TILE, W, World } from './world';
+import { TILE, World } from './world';
 
 const AUTOSAVE_MS = 60_000;
 
 interface MainStrings {
+  editor: EditorStrings;
   ruins: string;
   tiers: Record<string, string>;
   start: { continueInfo: string; saved: string; shared: string; copied: string; share: string };
@@ -44,7 +46,7 @@ export function start(root: HTMLElement): () => void {
 
   const world = new World();
   const sim = new Sim(world);
-  const cam = new Camera(W * TILE, H * TILE);
+  const cam = new Camera(world.w * TILE, world.h * TILE);
   const renderer = new Renderer(canvas, world);
   renderer.ruinsLabel = S.ruins ?? 'ruins';
   renderer.tierLabels = S.tiers ?? renderer.tierLabels;
@@ -60,6 +62,13 @@ export function start(root: HTMLElement): () => void {
     });
   };
 
+  /** The camera on the island: on a big world the main island, else all of it. */
+  const frameIsland = () => {
+    cam.setWorld(world.w * TILE, world.h * TILE);
+    const main = world.islands.find((is) => is.main);
+    cam.frame(main ? { x: main.x * TILE, y: main.y * TILE, w: main.rx * 2.3 * TILE, h: main.ry * 2.4 * TILE } : undefined);
+  };
+
   /** A fresh island: from a seed (two peoples), or the empty beach. */
   const fresh = (seed: string) => {
     if (seed === 'empty') world.generateEmpty();
@@ -68,7 +77,7 @@ export function start(root: HTMLElement): () => void {
     if (seed !== 'empty') sim.populate();
     panels.select(null);
     showSeed();
-    cam.frame();
+    frameIsland();
   };
 
   const controls = new Controls(root, canvas, S, world, sim, cam, {
@@ -87,6 +96,18 @@ export function start(root: HTMLElement): () => void {
     },
     pointable: (x, y) => renderer.villageAt(x, y) !== null,
     onPan: () => panels.stopFollow(),
+    // An own character came to life: show its profile, keep it in My Characters
+    onPlaced: (id) => {
+      panels.select(id);
+      editor.renderMine();
+    },
+  });
+
+  // The character editor (Update 2): "Place on the map" waits for the next click on land
+  const editor = new Editor(root, S.editor, (t) => {
+    const hint = root.querySelector<HTMLElement>('[data-place-hint]');
+    if (hint) hint.textContent = S.editor.placeHint.replace('{n}', t.name.trim() || S.editor.unnamed);
+    controls.startPlacing(t);
   });
 
   /* ---- start screen ------------------------------------------------------------ */
@@ -131,7 +152,7 @@ export function start(root: HTMLElement): () => void {
           if (!load(sim, world)) fresh(newSeed());
           syncRules();
           showSeed();
-          cam.frame();
+          frameIsland();
           play();
         } else if (t.closest('[data-start-shared]')) {
           fresh(shared);
@@ -199,7 +220,7 @@ export function start(root: HTMLElement): () => void {
   if (top) ro.observe(top);
   if (dock) ro.observe(dock);
   fit();
-  cam.frame();
+  frameIsland();
 
   let raf = 0;
   let last = performance.now();
@@ -229,5 +250,6 @@ export function start(root: HTMLElement): () => void {
     ro.disconnect();
     controls.destroy();
     panels.destroy();
+    editor.destroy();
   };
 }

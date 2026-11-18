@@ -20,7 +20,7 @@ export function record(history: Snapshot[], snap: Snapshot) {
   }
 }
 
-const DASH: Record<People, string> = { coast: '', forest: '6 3', mountain: '2 3', steppe: '9 3 2 3' };
+const DASH: Record<People, string> = { coast: '', forest: '6 3', mountain: '2 3', steppe: '9 3 2 3', islanders: '1 2' };
 const W = 270;
 const H = 120;
 const PAD = { l: 26, r: 64, t: 8, b: 18 };

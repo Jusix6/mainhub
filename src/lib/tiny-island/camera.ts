@@ -14,11 +14,18 @@ export class Camera {
   vh = 1;
 
   constructor(
-    readonly worldW: number,
-    readonly worldH: number,
+    public worldW: number,
+    public worldH: number,
   ) {
     this.x = worldW / 2;
     this.y = worldH / 2;
+  }
+
+  /** Another world size (phase G: big worlds; old islands keep theirs). */
+  setWorld(worldW: number, worldH: number) {
+    this.worldW = worldW;
+    this.worldH = worldH;
+    if (this.vw > 1) this.resize(this.vw, this.vh);
   }
 
   resize(vw: number, vh: number) {
@@ -34,11 +41,15 @@ export class Camera {
     return Math.min(this.vw / this.worldW, this.vh / this.worldH);
   }
 
-  /** Centre the island and zoom so it fills the view nicely. */
-  frame() {
-    this.x = this.worldW / 2;
-    this.y = this.worldH / 2;
-    this.zoom = Math.min(this.max, Math.max(this.min, this.fitZoom() * 1.3));
+  /**
+   * Centre the island and zoom so it fills the view nicely. On a big world
+   * the main island in the middle (`focus`, world px) fills it, not the sea.
+   */
+  frame(focus?: { x: number; y: number; w: number; h: number }) {
+    const f = focus ?? { x: this.worldW / 2, y: this.worldH / 2, w: this.worldW, h: this.worldH };
+    this.x = f.x;
+    this.y = f.y;
+    this.zoom = Math.min(this.max, Math.max(this.min, Math.min(this.vw / f.w, this.vh / f.h) * (focus ? 1 : 1.3)));
     this.clamp();
   }
 

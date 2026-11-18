@@ -12,14 +12,16 @@
  *    young people move on
  *  - wall (city): it takes four attackers to take the city, defenders inside
  *    hit harder
+ *  - harbor (phase G, coastal places that know boats): ships (ships.ts)
  */
+import { ageIndex, knows, type Invention } from './inventions';
 import type { Human } from './agents';
 import type { Sim } from './sim';
 import { refOf } from './social';
 import { isEnemy, shiftMood, shiftVillageMood } from './war';
 import type { Village } from './villages';
 
-export const BUILDINGS = ['granary', 'smithy', 'market', 'temple', 'townhall', 'wall'] as const;
+export const BUILDINGS = ['granary', 'smithy', 'market', 'temple', 'townhall', 'wall', 'windmill', 'library', 'factory', 'barracks', 'harbor'] as const;
 export type BuildingKind = (typeof BUILDINGS)[number];
 
 export interface Building {
@@ -38,13 +40,21 @@ export const BUILDING_COST: Record<BuildingKind, { wood: number; stone: number; 
   temple: { wood: 2, stone: 8, work: 14 },
   townhall: { wood: 6, stone: 10, work: 18 },
   wall: { wood: 0, stone: 16, work: 24 },
+  windmill: { wood: 8, stone: 2, work: 12 },
+  library: { wood: 4, stone: 8, work: 16 },
+  factory: { wood: 6, stone: 12, work: 24 },
+  barracks: { wood: 8, stone: 6, work: 14 },
+  harbor: { wood: 10, stone: 4, work: 14 },
 };
+
+/** Buildings of later ages need their invention (phase E). */
+const NEEDS: Partial<Record<BuildingKind, Invention>> = { windmill: 'windmill', library: 'printing', factory: 'steam', barracks: 'bronze', harbor: 'boats' };
 
 /** Which special buildings a place of each tier wants, in building order. */
 const WANTED: Record<Tier, BuildingKind[]> = {
-  village: ['granary'],
-  town: ['granary', 'market', 'smithy', 'temple', 'townhall'],
-  city: ['granary', 'market', 'smithy', 'temple', 'townhall', 'wall'],
+  village: ['granary', 'harbor'],
+  town: ['granary', 'market', 'harbor', 'smithy', 'temple', 'townhall', 'barracks', 'windmill', 'library'],
+  city: ['granary', 'market', 'harbor', 'smithy', 'temple', 'townhall', 'barracks', 'wall', 'windmill', 'library', 'factory'],
 };
 
 export const hasBuilding = (v: Village | undefined, kind: BuildingKind) => !!v && v.buildings.some((b) => b.kind === kind);
@@ -52,13 +62,22 @@ export const hasBuilding = (v: Village | undefined, kind: BuildingKind) => !!v &
 export const tierOf = (v: Village): Tier => v.tier ?? 'village';
 
 /** The next special building this place should put up, if any. */
-export function nextBuilding(v: Village): BuildingKind | null {
+export function nextBuilding(v: Village, sim?: Sim): BuildingKind | null {
   if (tierOf(v) === 'village' && v.members < 6) return null;
-  return WANTED[tierOf(v)].find((k) => !hasBuilding(v, k) && v.site?.kind !== k) ?? null;
+  return (
+    WANTED[tierOf(v)].find((k) => !hasBuilding(v, k) && v.site?.kind !== k && (k !== 'harbor' || v.coast !== false) && (!NEEDS[k] || !sim || knows(sim, v.people, NEEDS[k]!))) ??
+    null
+  );
 }
 
 /** Above this many people, young grown-ups move away and found a new place. */
-export function crowdedAt(v: Village) {
+export function crowdedAt(v: Village, sim?: Sim) {
+  // Every age lets places grow 15 % bigger (phase E)
+  const age = sim ? 1 + 0.15 * ageIndex(sim, v.people) : 1;
+  return Math.round(crowdedBase(v) * age);
+}
+
+function crowdedBase(v: Village) {
   const tier = tierOf(v);
   if (tier === 'city') return 70;
   if (tier === 'town') return hasBuilding(v, 'townhall') ? 40 : 30;
@@ -78,6 +97,8 @@ export function promote(v: Village, sim: Sim, members: Human[]) {
   sim.puff(v.x + 0.5, v.y, 14, ['#ffe066', '#ffffff', '#ff5da2', '#4d8dff']);
 }
 
+const sameLeague = (sim: Sim, a: Village, b: Village) => sim.leagues.some((l) => l.members.includes(a.id) && l.members.includes(b.id));
+
 /** Without a granary, big food stocks slowly go bad (about a sixth a year). */
 export function spoil(v: Village) {
   if (!hasBuilding(v, 'granary') && v.food > 10) v.food *= 1 - 0.006;
@@ -89,12 +110,16 @@ export function spoil(v: Village) {
  */
 export function trade(v: Village, sim: Sim) {
   if (!hasBuilding(v, 'market') || (v.tradeAt ?? 0) > sim.time) return;
-  v.tradeAt = sim.time + 30;
+  // Railways: trade twice a year
+  v.tradeAt = sim.time + (knows(sim, v.people, 'railway') ? 15 : 30);
   let partner: Village | null = null;
   let best = Infinity;
   for (const o of sim.villages) {
     if (o === v || o.ruin || !hasBuilding(o, 'market') || isEnemy(sim, { people: v.people, village: v.id }, { people: o.people, village: o.id })) continue;
-    const d = Math.hypot(o.x - v.x, o.y - v.y);
+    // Over land only; across the sea trade ships do it (phase G)
+    if (!sim.world.sameLand(v.x, v.y, o.x, o.y)) continue;
+    // League partners come first (phase D)
+    const d = Math.hypot(o.x - v.x, o.y - v.y) * (sameLeague(sim, v, o) ? 0.4 : 1);
     if (d < best) {
       best = d;
       partner = o;
@@ -105,7 +130,8 @@ export function trade(v: Village, sim: Sim) {
   for (const res of ['food', 'wood', 'stone', 'ore'] as const) {
     const diff = v[res] - partner[res];
     if (Math.abs(diff) < 6) continue;
-    const amount = Math.floor(Math.abs(diff) / 4);
+    // Leagues and banks trade on better terms
+    const amount = Math.floor(Math.abs(diff) / ((sameLeague(sim, v, partner) ? 3 : 4) - (knows(sim, v.people, 'banking') ? 1 : 0)));
     if (diff > 0) {
       v[res] -= amount;
       partner[res] += amount;

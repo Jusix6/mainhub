@@ -6,7 +6,10 @@
  * couple; a man and a woman have children when food allows, other couples
  * adopt orphans.
  */
-import { ageOf, dist, has, pickTraits, stage, tileOf, type Human, type StoryEntry, type Thought, type Trait } from './agents';
+import { familyName } from './names';
+import { forbiddenLove } from './drama';
+import { famished } from './hunger';
+import { stat, hasPower, ageOf, dist, has, pickTraits, stage, tileOf, type Human, type StoryEntry, type Thought, type Trait } from './agents';
 import type { Ref } from './chronicle';
 import type { Sim } from './sim';
 import { shiftMood, shiftVillageMood } from './war';
@@ -26,6 +29,21 @@ export const TRAIT_MODS: Record<Trait, Partial<Record<Choice, number>>> = {
   greedy: { gather: 8 },
   wise: { chat: 5 },
   warlike: { raid: 15 },
+  smart: { work: 3 },
+  dumb: { wander: 4 },
+  charismatic: { chat: 8 },
+  shy: { chat: -12, wander: 6 },
+  ambitious: { work: 6, build: 6 },
+  loyal: { patrol: 10 },
+  scheming: { chat: -4 },
+  jealous: { court: 8 },
+  vengeful: { raid: 12 },
+  kind: { chat: 10 },
+  cruel: { raid: 10, chat: -6 },
+  curious: { wander: 14 },
+  pious: { festival: 15 },
+  artistic: { art: 20 },
+  lucky: {},
 };
 
 export const traitBonus = (h: Human, c: Choice) => h.traits.reduce((n, t) => n + (TRAIT_MODS[t][c] ?? 0), 0);
@@ -98,11 +116,17 @@ export function chatOutcome(h: Human, p: Human, sim: Sim) {
   }
   let gain = 8 + sim.rand() * 8;
   if (has(h, 'friendly') || has(p, 'friendly')) gain += 4;
+  if (has(h, 'kind') || has(p, 'kind')) gain += 3;
+  // Charisma makes friends faster (5 = as before)
+  gain *= 0.7 + ((stat(h, 'charisma') + stat(p, 'charisma')) / 2) * 0.06;
   // Two single grown-ups: it may become more than friendship
   const romance = single(h, sim) && single(p, sim) && match(h, p);
   if (romance) gain += 3;
   if (romance && (has(h, 'romantic') || has(p, 'romantic'))) gain += 5;
   changeRel(h, p, gain, sim);
+  // Magnetic people: everyone likes them at once
+  if (hasPower(p, 'magnetic')) shift(h, p, 15, sim);
+  if (hasPower(h, 'magnetic')) shift(p, h, 15, sim);
   if (romance && relOf(h, p) >= LOVE - 15) {
     think(h, 'heart', 2, sim);
     think(p, 'heart', 2, sim);
@@ -161,6 +185,17 @@ export function makeCouple(a: Human, b: Human, sim: Sim) {
   // Wedding confetti
   sim.puff(a.x, a.y - 0.5, 16, ['#ff5da2', '#ffe066', '#4d8dff', '#3ddc84', '#ffffff', '#ff8a1e']);
   sim.chronicle.add({ year: sim.year, kind: 'couple', a: refOf(a), b: refOf(b), x: a.x, y: a.y });
+  // Phase C: a couple from a big family often starts a branch with a new name
+  const man = !a.female ? a : !b.female ? b : a;
+  if (man.surname && sim.humans.filter((h) => h.surname === man.surname).length >= 10 && sim.rand() < 0.4) {
+    const fresh = familyName(sim.rand, man.people);
+    man.surname = fresh;
+    (man === a ? b : a).surname = fresh;
+  }
+  // Phase C: love between peoples at war
+  forbiddenLove(sim, a, b);
+  // Phase D: a couple from two places of one people brings the places closer
+  if (a.people === b.people && va && vb && va !== vb) shiftVillageMood(sim, va.id, vb.id, 5);
 }
 
 /** Courting: when `h` reaches the loved one, they become a couple if it is mutual. */
@@ -178,16 +213,28 @@ export function tryBirth(h: Human, sim: Sim) {
   if (age < 18 || age > 45 || stage(p, sim.time) === 'child') return;
   if (sim.time - h.lastBirth < 1.2 * YEAR) return;
   if (h.hunger < 40 || p.hunger < 40 || h.grief > sim.time) return;
+  // A real shortage (less than a year in store and many hungry): no children for now (Update 2)
+  const home = h.village !== undefined ? sim.villages.find((v) => v.id === h.village) : undefined;
+  if (home && famished(home, sim)) return;
   const living = h.children.filter((id) => sim.byId(id)).length;
-  if (living >= 5) return;
-  // Fewer births as the island fills up
-  const room = Math.max(0, 1 - sim.humans.length / 350);
+  const fertile = hasPower(h, 'fertile') || hasPower(p, 'fertile');
+  if (living >= (fertile ? 10 : 5)) return;
+  // Fewer births as the island fills up; on a big world (phase G) each island by its own size
+  let room = Math.max(0, 1 - sim.humans.length / 350);
+  const w = sim.world;
+  if (w.big) {
+    const land = w.landAt(Math.floor(h.x), Math.floor(h.y));
+    room = Math.max(0, 1 - (sim.landPop.get(land) ?? 0) / Math.max(8, w.landSize(land) * 0.06));
+  }
   // About two children every three years while the conditions hold
-  if (sim.rand() > 0.012 * room * sim.rules.birth) return;
+  if (sim.rand() > 0.012 * room * sim.rules.birth * (fertile ? 4 : 1)) return;
 
   h.lastBirth = sim.time;
   const t = tileOf(h);
-  const inherited = [h, p].flatMap((parent) => (sim.rand() < 0.5 ? [parent.traits[Math.floor(sim.rand() * 2)]] : []));
+  // Children of the fertile nearly always take after that parent
+  const inherited = [h, p].flatMap((parent) =>
+    sim.rand() < (hasPower(parent, 'fertile') ? 0.95 : 0.5) && parent.traits.length ? [parent.traits[Math.floor(sim.rand() * parent.traits.length)]] : [],
+  );
   const people = sim.rand() < 0.5 ? h.people : p.people;
   const baby = sim.addHuman(t.x, t.y, people, sim.rand() < 0.5, 0, { parents: [h, p], traits: pickTraits(sim.rand, inherited) });
   baby.hunger = 100;
@@ -229,6 +276,8 @@ export function wantsBrawl(h: Human, sim: Sim): Human | null {
   if (has(h, 'warlike')) chance *= 2;
   if (has(h, 'cowardly')) chance *= 0.2;
   if (has(h, 'friendly')) chance *= 0.5;
+  if (has(h, 'kind')) chance *= 0.3;
+  if (has(h, 'cruel')) chance *= 2;
   // A temple keeps the peace
   if (sim.villages.some((v) => v.id === h.village && v.buildings?.some((b) => b.kind === 'temple'))) chance *= 0.5;
   if (sim.rand() > chance) return null;

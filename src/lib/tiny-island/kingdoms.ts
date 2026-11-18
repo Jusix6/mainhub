@@ -19,6 +19,7 @@
  *
  * God gifts (profile): crown anyone grown-up, or take the crown from a king.
  */
+import { claimThrone } from './drama';
 import { ageOf, has, PEOPLES, stage, type Human, type People } from './agents';
 import type { Ref } from './chronicle';
 import type { Sim } from './sim';
@@ -44,6 +45,9 @@ export interface Kingdom {
   shame: number;
   /** Next yearly tribute. */
   tributeAt: number;
+  /** Phase C: ruled by the king of another people (personal union), and the next royal wedding. */
+  union?: People;
+  weddingAt?: number;
 }
 
 const YEAR = 30;
@@ -111,7 +115,13 @@ export function kingdomTick(sim: Sim) {
     // The throne: someone must sit on it, living in a place of the realm
     const king = kingOf(sim, k);
     const home = king && villageById(sim, king.village);
-    if (!king || king.people !== p || !home || home.ruin || home.people !== p || home.free) succeed(sim, k, false);
+    // Royal blood: whoever wears the crown can pass on a claim to it
+    if (king && !king.royal?.includes(p)) king.royal = [...(king.royal ?? []), p];
+    // A personal union: the king lives with the other people, the capital stays
+    const union = !!king && !!k.union && king.people === k.union;
+    if (union) {
+      /* nothing to move */
+    } else if (!king || king.people !== p || !home || home.ruin || home.people !== p || home.free) succeed(sim, k, false);
     else if (home.id !== k.capital) moveCapital(sim, k, home);
     if (!realm(sim, k).some((v) => v.id === k.capital)) {
       const biggest = realm(sim, k).sort((a, b) => b.members - a.members)[0];
@@ -171,6 +181,7 @@ function found(sim: Sim, p: People, ruler: Human, capital: Village, kind: 'kingd
 }
 
 function crownFx(sim: Sim, h: Human, v: Village) {
+  if (!h.royal?.includes(v.people)) h.royal = [...(h.royal ?? []), v.people];
   story(h, sim, 'crowned', v.name);
   sim.puff(h.x, h.y - 0.8, 14, ['#ffc83d', '#ffffff', '#ff5da2', '#4d8dff']);
   celebrate(sim, v, 'coronation');
@@ -191,6 +202,7 @@ function moveCapital(sim: Sim, k: Kingdom, v: Village) {
 function succeed(sim: Sim, k: Kingdom, houseFalls: boolean) {
   const prev = k.king !== undefined ? sim.registry.get(k.king) : undefined;
   const prevId = k.king;
+  k.union = undefined;
   if (prev) k.last = { id: prev.id, name: prev.name, people: prev.people };
   const inRealm = new Set(realm(sim, k).map((v) => v.id));
   const heir = houseFalls
@@ -198,6 +210,17 @@ function succeed(sim: Sim, k: Kingdom, houseFalls: boolean) {
     : sim.humans
         .filter((h) => prevId !== undefined && h.parents.includes(prevId) && h.people === k.people && h.village !== undefined && inRealm.has(h.village) && ageOf(h, sim.time) >= 10)
         .sort((a, b) => a.born - b.born)[0];
+  // No heir of the house: a ruler elsewhere with royal blood may claim the throne (drama.ts)
+  if (!heir && !houseFalls) {
+    const claimant = claimThrone(sim, k.people, k.last);
+    if (claimant) {
+      k.king = claimant.id;
+      k.union = claimant.people;
+      k.reignStart = sim.time;
+      k.dynasty = sim.kingdoms.get(claimant.people)?.dynasty ?? claimant.name;
+      return;
+    }
+  }
   let seat = villageById(sim, k.capital);
   if (!seat || !inRealm.has(seat.id)) seat = realm(sim, k).sort((a, b) => b.members - a.members)[0];
   const ruler = heir ?? (seat ? pickRuler(sim, seat, (h) => h.id === prevId || (houseFalls && prevId !== undefined && h.parents.includes(prevId))) : undefined);
@@ -297,6 +320,24 @@ export function depose(sim: Sim, k: Kingdom) {
   story(old, sim, 'deposed');
   sim.chronicle.add({ year: sim.year, kind: 'godDeposed', a: refOf(old), p: k.people, x: old.x, y: old.y });
   succeed(sim, k, true);
+}
+
+/** A coup (plots.ts): the plotter takes the throne and founds a new house. */
+export function usurp(sim: Sim, k: Kingdom, h: Human) {
+  const old = kingOf(sim, k);
+  if (old) {
+    story(old, sim, 'deposed');
+    k.last = refOf(old);
+  }
+  k.king = h.id;
+  k.dynasty = h.name;
+  k.reignStart = sim.time;
+  k.union = undefined;
+  const home = villageById(sim, h.village);
+  if (home) {
+    moveCapital(sim, k, home);
+    crownFx(sim, h, home);
+  }
 }
 
 /** A lost war costs the crown loyalty. */

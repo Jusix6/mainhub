@@ -4,13 +4,17 @@
  * (x = 10.5 is the middle of tile 10). Movement follows a path of tile
  * indexes from path.ts; speed depends on the terrain underfoot.
  */
+import type { Unit } from './armies';
 import { findPath, type Mover } from './path';
 import type { Job } from './jobs';
+import type { Memory } from './drama';
 import type { Rand } from './rng';
-import { W, type World } from './world';
+import type { World } from './world';
 
-export const PEOPLES = ['coast', 'forest', 'mountain', 'steppe'] as const;
+export const PEOPLES = ['coast', 'forest', 'mountain', 'steppe', 'islanders'] as const;
 export type People = (typeof PEOPLES)[number];
+/** The peoples the player can place and pick in the editor; the islanders (phase G) only live on far islands. */
+export const PLAYABLE = ['coast', 'forest', 'mountain', 'steppe'] as const satisfies readonly People[];
 
 /** Clothing colours per people (roofs and flags later use them too). */
 export const PEOPLE_COLORS: Record<People, { cloth: string; dark: string }> = {
@@ -18,25 +22,121 @@ export const PEOPLE_COLORS: Record<People, { cloth: string; dark: string }> = {
   forest: { cloth: '#3aa64b', dark: '#25733a' },
   mountain: { cloth: '#9097a6', dark: '#5f6573' },
   steppe: { cloth: '#d9443a', dark: '#9c2a23' },
+  islanders: { cloth: '#f08c2e', dark: '#a85a17' },
 };
 
 export const SKINS = ['#f3d2b3', '#e2b48c', '#c68b5e', '#8d5a3b', '#5e3b26'];
 export const HAIRS = ['#2b1d14', '#5a3b22', '#a8662c', '#e3c06b', '#1a1a1a', '#7a2e1b'];
 export const GREY_HAIR = '#d9d9d9';
 
-export type AnimalKind = 'sheep' | 'chicken' | 'wolf';
+export type AnimalKind = 'sheep' | 'chicken' | 'wolf' | 'horse';
 
-/** Character traits, two per person. Each one shifts the points of some actions (social.ts). */
-export const TRAITS = ['brave', 'cowardly', 'hardworking', 'lazy', 'friendly', 'quarrelsome', 'romantic', 'greedy', 'wise', 'warlike'] as const;
+/**
+ * Character traits, two per person born on the island (own characters may
+ * have any number). Each one shifts the points of some actions (social.ts);
+ * the second line came with Update 2.
+ */
+export const TRAITS = [
+  'brave',
+  'cowardly',
+  'hardworking',
+  'lazy',
+  'friendly',
+  'quarrelsome',
+  'romantic',
+  'greedy',
+  'wise',
+  'warlike',
+  'smart',
+  'dumb',
+  'charismatic',
+  'shy',
+  'ambitious',
+  'loyal',
+  'scheming',
+  'jealous',
+  'vengeful',
+  'kind',
+  'cruel',
+  'curious',
+  'pious',
+  'artistic',
+  'lucky',
+] as const;
 export type Trait = (typeof TRAITS)[number];
-const OPPOSITE: Partial<Record<Trait, Trait>> = {
+export const OPPOSITE: Partial<Record<Trait, Trait>> = {
   brave: 'cowardly',
   cowardly: 'brave',
   hardworking: 'lazy',
   lazy: 'hardworking',
   friendly: 'quarrelsome',
   quarrelsome: 'friendly',
+  smart: 'dumb',
+  dumb: 'smart',
+  charismatic: 'shy',
+  shy: 'charismatic',
+  kind: 'cruel',
+  cruel: 'kind',
+  loyal: 'scheming',
+  scheming: 'loyal',
 };
+
+/**
+ * Five abilities from 1 to 10 for everyone (Update 2): strength (fighting,
+ * wood and stone), intelligence (research, smiths, builders), charisma
+ * (friends, love, leadership), courage (fight or flee, soldiers, generals),
+ * health (hit points, a longer life).
+ */
+export const STATS = ['strength', 'intelligence', 'charisma', 'courage', 'health'] as const;
+export type Stat = (typeof STATS)[number];
+export type Stats = Record<Stat, number>;
+
+/** Special powers, only for own characters (characters.ts). */
+export const POWERS = ['immortal', 'invincible', 'eternalYouth', 'giantStrength', 'genius', 'magnetic', 'fertile', 'wolfWhisperer', 'lucky'] as const;
+export type Power = (typeof POWERS)[number];
+
+/** Looks of own characters, drawn over the normal sprite. */
+export const HAIR_STYLES = ['short', 'long', 'bald', 'bun', 'spiky'] as const;
+export const HATS = ['none', 'hat', 'crown', 'hood', 'flower'] as const;
+export interface Look {
+  hairStyle: (typeof HAIR_STYLES)[number];
+  beard: boolean;
+  hat: (typeof HATS)[number];
+  /** Favourite clothing colour (else the colour of the people). */
+  cloth?: string;
+}
+
+/** An ability, 5 when unknown. */
+export const stat = (h: { stats?: Stats }, s: Stat) => h.stats?.[s] ?? 5;
+export const hasPower = (h: { powers?: Power[] }, p: Power) => !!h.powers?.includes(p);
+
+/** Traits push some abilities. */
+const PUSH: Partial<Record<Trait, [Stat, number]>> = {
+  smart: ['intelligence', 3],
+  dumb: ['intelligence', -3],
+  wise: ['intelligence', 2],
+  charismatic: ['charisma', 3],
+  shy: ['charisma', -2],
+  brave: ['courage', 3],
+  cowardly: ['courage', -3],
+  warlike: ['courage', 1],
+  hardworking: ['strength', 1],
+};
+
+/** Abilities for someone new: half the time near the parents' average, else a bell curve around 5. */
+export function rollStats(rand: Rand, traits: Trait[], parents: { stats?: Stats }[] = []): Stats {
+  const out = {} as Stats;
+  for (const s of STATS) {
+    const v = parents.length && rand() < 0.5 ? parents.reduce((n, p) => n + stat(p, s), 0) / parents.length + (rand() - 0.5) * 3 : 1 + rand() * 4.5 + rand() * 4.5;
+    out[s] = v;
+  }
+  for (const t of traits) {
+    const p = PUSH[t];
+    if (p) out[p[0]] += p[1];
+  }
+  for (const s of STATS) out[s] = Math.max(1, Math.min(10, Math.round(out[s])));
+  return out;
+}
 
 /** Two traits that do not contradict each other; `inherited` ones go first. */
 export function pickTraits(rand: Rand, inherited: Trait[] = []): Trait[] {
@@ -56,7 +156,7 @@ export type Thought = 'heart' | 'sword' | 'tear' | 'food' | 'note';
 /** One line in a person's life story; `other` is a name, kept as text. */
 export interface StoryEntry {
   year: number;
-  kind: 'arrive' | 'born' | 'couple' | 'child' | 'adopt' | 'adopted' | 'widowed' | 'friend' | 'rival' | 'brawl' | 'founded' | 'leader' | 'moved' | 'joined' | 'conquered' | 'invented' | 'crowned' | 'deposed' | 'artwork';
+  kind: 'arrive' | 'born' | 'couple' | 'child' | 'adopt' | 'adopted' | 'widowed' | 'friend' | 'rival' | 'brawl' | 'founded' | 'leader' | 'moved' | 'joined' | 'conquered' | 'invented' | 'crowned' | 'deposed' | 'artwork' | 'separated' | 'eloped' | 'avenged' | 'mentor' | 'student' | 'royalWedding' | 'banished' | 'battle' | 'discovered' | 'colony' | 'joinedPeople';
   other?: string;
 }
 
@@ -107,7 +207,7 @@ export interface Task {
   /** A fight in a war: nobody holds back. */
   lethal?: boolean;
   /** Craft task: what the smith makes (default: a tool). */
-  make?: 'tool' | 'club' | 'bronze' | 'iron' | 'armor';
+  make?: 'tool' | 'club' | 'bronze' | 'iron' | 'musket' | 'armor';
   /** Walks a bit slower (an army's general, so the others keep up). */
   slow?: boolean;
 }
@@ -177,9 +277,31 @@ export interface Human extends Base {
   inspiration?: number;
   kills?: number;
   wolves?: number;
+  /** Abilities 1–10 (Update 2); own characters also have powers, looks, a fixed job and a ✦. */
+  stats: Stats;
+  custom?: boolean;
+  powers?: Power[];
+  look?: Look;
+  fixedJob?: Job;
+  /** Health has already been added to the lifespan. */
+  healthDone?: boolean;
+  /** Phase C: family name, memories, teacher and student, royal blood (peoples whose throne they may claim). */
+  surname?: string;
+  memories?: Memory[];
+  mentor?: number;
+  student?: number;
+  royal?: People[];
   /** Weapon and armour from the smith (Phase 10). */
-  weapon?: 'club' | 'bronze' | 'iron';
+  weapon?: 'club' | 'bronze' | 'iron' | 'musket';
   armor?: boolean;
+  /** Phase F: unit and place in the formation while in an army, veteran of a battle, badly scarred, running home after a rout. */
+  unit?: Unit;
+  slot?: { f: number; r: number; army: number };
+  veteran?: string;
+  scarred?: boolean;
+  fleeHome?: number;
+  /** Phase G: on board this ship (off the map). */
+  aboard?: number;
   /** Who they fall for: most people the other sex, some their own, some both. */
   likesWomen: boolean;
   likesMen: boolean;
@@ -196,6 +318,16 @@ export interface Grave {
   x: number;
   y: number;
   until: number;
+}
+
+/** A shot in a war (phase F): an arrow, a bolt, a stone or a ball flying from (x0, y0) to (x1, y1). */
+export interface Shot {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  born: number;
+  kind: 'arrow' | 'bolt' | 'stone' | 'ball' | 'bullet';
 }
 
 /** A sword swing in a war fight: a short white stroke. */
@@ -219,7 +351,7 @@ export interface Puff {
 
 export const FOOD_VALUE = 34;
 
-export const SPEED: Record<Agent['kind'], number> = { human: 1.5, sheep: 1, chicken: 1.2, wolf: 2.1 };
+export const SPEED: Record<Agent['kind'], number> = { human: 1.5, sheep: 1, chicken: 1.2, wolf: 2.1, horse: 1.9 };
 
 /** What each people is good at (Phase 4). */
 export const PERKS: Record<People, { fish: number; wood: number; stone: number; speed: number; fight: number; hp: number }> = {
@@ -227,10 +359,11 @@ export const PERKS: Record<People, { fish: number; wood: number; stone: number; 
   forest: { fish: 1, wood: 2, stone: 1, speed: 1, fight: 1, hp: 100 },
   mountain: { fish: 1, wood: 1, stone: 1.5, speed: 1, fight: 1, hp: 130 },
   steppe: { fish: 1, wood: 1, stone: 1, speed: 1.2, fight: 1.4, hp: 100 },
+  islanders: { fish: 2, wood: 1.2, stone: 1, speed: 1.1, fight: 1, hp: 95 },
 };
-export const MAX_HP: Record<Agent['kind'], number> = { human: 100, sheep: 22, chicken: 9, wolf: 40 };
+export const MAX_HP: Record<Agent['kind'], number> = { human: 100, sheep: 22, chicken: 9, wolf: 40, horse: 50 };
 /** Typical life in years, a little randomness on top. */
-const LIFE: Record<Agent['kind'], [number, number]> = { human: [70, 22], sheep: [12, 4], chicken: [8, 3], wolf: [14, 4] };
+const LIFE: Record<Agent['kind'], [number, number]> = { human: [70, 22], sheep: [12, 4], chicken: [8, 3], wolf: [14, 4], horse: [20, 5] };
 
 export const YEAR = 30;
 
@@ -300,6 +433,7 @@ export function makeHuman(
     chatUntil: 0,
     doing: '',
     traits,
+    stats: rollStats(rand, traits),
     rel: new Map(),
     parents: [],
     children: [],
@@ -353,8 +487,8 @@ export function walk(a: Agent, world: World, dt: number, speedFactor = 1): boole
   let step = (SPEED[a.kind] * speedFactor * dt) / (Number.isFinite(cost) ? cost : 1);
   while (step > 0 && a.path.length) {
     const next = a.path[0];
-    const nx = (next % W) + 0.5;
-    const ny = Math.floor(next / W) + 0.5;
+    const nx = (next % world.w) + 0.5;
+    const ny = Math.floor(next / world.w) + 0.5;
     const dx = nx - a.x;
     const dy = ny - a.y;
     const d = Math.hypot(dx, dy);

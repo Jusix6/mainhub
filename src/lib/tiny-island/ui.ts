@@ -8,6 +8,7 @@ import { ageOf, type AnimalKind, type Human, type People } from './agents';
 import type { Camera } from './camera';
 import { SPEEDS, type Sim, type Speed } from './sim';
 import { loyaltyOf } from './kingdoms';
+import { placeCharacter, saveTemplate, type Template } from './characters';
 import { festiveAt, worksIn } from './culture';
 import type { Village } from './villages';
 import { TERRAIN_BY_KEY, TILE, type TerrainKey, type World } from './world';
@@ -30,13 +31,13 @@ export interface Strings {
 type LifeTool = 'human' | AnimalKind;
 
 /** Weapons and armour in store, for the village tip (empty when there are none). */
-function armsText(arms: { club: number; bronze: number; iron: number; armor: number } | undefined): string {
+function armsText(arms: { club: number; bronze: number; iron: number; musket?: number; armor: number } | undefined): string {
   if (!arms) return '';
-  const weapons = arms.club + arms.bronze + arms.iron;
+  const weapons = arms.club + arms.bronze + arms.iron + (arms.musket ?? 0);
   return `${weapons ? ` · ⚔️ ${weapons}` : ''}${arms.armor ? ` · 🛡️ ${arms.armor}` : ''}`;
 }
-type Tool = 'move' | TerrainKey | LifeTool;
-const LIFE_TOOLS: readonly string[] = ['human', 'sheep', 'chicken', 'wolf'];
+type Tool = 'move' | TerrainKey | LifeTool | 'character';
+const LIFE_TOOLS: readonly string[] = ['human', 'sheep', 'chicken', 'wolf', 'horse'];
 const isLife = (t: Tool): t is LifeTool => LIFE_TOOLS.includes(t);
 const SIZES = { s: 0, m: 2, l: 4 } as const;
 type Size = keyof typeof SIZES;
@@ -50,6 +51,8 @@ export interface UiHooks {
   onPan: () => void;
   /** Is there something to click at (x, y) (a village sign)? */
   pointable: (x: number, y: number) => boolean;
+  /** An own character was placed (its id). */
+  onPlaced: (id: number) => void;
 }
 
 export class Controls {
@@ -72,6 +75,8 @@ export class Controls {
   /** Space was used to move the map, so letting go must not pause. */
   private spacePanned = false;
   private clockText = '';
+  /** The own character the next click places (characters.ts). */
+  private placing: Template | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -152,6 +157,8 @@ export class Controls {
   }
 
   private renderTool() {
+    const hint = this.root.querySelector<HTMLElement>('[data-place-hint]');
+    if (hint) hint.hidden = this.tool !== 'character';
     this.root.querySelectorAll<HTMLElement>('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === this.tool)));
     this.root.querySelectorAll<HTMLElement>('[data-size]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.size === this.size)));
     this.root.querySelectorAll<HTMLElement>('[data-people]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.people === this.people)));
@@ -181,9 +188,28 @@ export class Controls {
   }
 
   /** Brush outline for the renderer, while a terrain brush or a creature is picked. */
+  /** Own character: the next click on land places it. */
+  startPlacing(t: Template) {
+    this.placing = t;
+    this.tool = 'character';
+    this.renderTool();
+  }
+
+  private placeCharacter(sx: number, sy: number) {
+    if (!this.placing) return;
+    const t = this.tileAt(sx, sy);
+    const h = placeCharacter(this.sim, this.placing, t.x, t.y);
+    if (!h) return;
+    saveTemplate(this.placing);
+    this.placing = null;
+    this.tool = 'move';
+    this.renderTool();
+    this.hooks.onPlaced(h.id);
+  }
+
   brush() {
     if (this.tool === 'move' || !this.hover || this.mode === 'pan' || this.mode === 'pinch') return null;
-    return { ...this.hover, r: isLife(this.tool) ? 0 : SIZES[this.size] };
+    return { ...this.hover, r: isLife(this.tool) || this.tool === 'character' ? 0 : SIZES[this.size] };
   }
 
   /** Population counters, only touched when a number changes. */
@@ -193,6 +219,7 @@ export class Controls {
       sheep: this.sim.count('sheep'),
       chicken: this.sim.count('chicken'),
       wolf: this.sim.count('wolf'),
+      horse: this.sim.count('horse'),
       villages: this.sim.villages.filter((v) => !v.ruin).length,
     };
     for (const [k, v] of Object.entries(counts)) {
@@ -264,7 +291,7 @@ export class Controls {
 
   /** Paints every tile on the line from the last tile, so fast strokes have no gaps. */
   private paintTo(tile: { x: number; y: number }) {
-    if (this.tool === 'move' || isLife(this.tool)) return;
+    if (this.tool === 'move' || this.tool === 'character' || isLife(this.tool)) return;
     const t = TERRAIN_BY_KEY[this.tool];
     const r = SIZES[this.size];
     const from = this.lastTile ?? tile;
@@ -304,7 +331,10 @@ export class Controls {
       this.press = e.button === 0 ? { x: p.x, y: p.y, moved: false } : null;
       this.mode = pan ? 'pan' : 'paint';
       this.root.classList.toggle('is-panning', pan);
-      if (!pan && isLife(this.tool)) {
+      if (!pan && this.tool === 'character') {
+        this.placeCharacter(p.x, p.y);
+        this.mode = 'none';
+      } else if (!pan && isLife(this.tool)) {
         const t = this.tileAt(p.x, p.y);
         this.sim.place(this.tool, t.x, t.y, this.people);
         this.mode = 'none';

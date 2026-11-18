@@ -27,13 +27,19 @@ const out = join(dir, 'art.mjs');
 await build({
   stdin: {
     contents: `
-      import { World, W, H } from './src/lib/tiny-island/world';
+      import { World, TILE } from './src/lib/tiny-island/world';
       import { paintTile } from './src/lib/tiny-island/tiles';
+      // The whole world, then the 1280 x 800 around the main island
       export function paint(seed) {
         const w = new World();
         w.generate(seed);
+        const full = new Uint32Array(w.w * TILE * w.h * TILE);
+        for (let y = 0; y < w.h; y++) for (let x = 0; x < w.w; x++) paintTile(w, full, x, y);
+        const main = w.islands.find((is) => is.main);
+        const ox = Math.max(0, Math.min(w.w * TILE - ${MAP_W}, Math.round(main.x * TILE - ${MAP_W / 2})));
+        const oy = Math.max(0, Math.min(w.h * TILE - ${MAP_H}, Math.round(main.y * TILE - ${MAP_H / 2})));
         const buf = new Uint32Array(${MAP_W * MAP_H});
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) paintTile(w, buf, x, y);
+        for (let y = 0; y < ${MAP_H}; y++) buf.set(full.subarray((oy + y) * w.w * TILE + ox, (oy + y) * w.w * TILE + ox + ${MAP_W}), y * ${MAP_W});
         return new Uint8Array(buf.buffer);
       }`,
     resolveDir: resolve('.'),

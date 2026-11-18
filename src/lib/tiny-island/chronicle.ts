@@ -54,7 +54,63 @@ export interface ChronicleEntry {
     | 'artwork'
     | 'legend'
     | 'festival'
-    | 'gift';
+    | 'gift'
+    | 'aid'
+    | 'exodus'
+    | 'omen'
+    | 'created'
+    | 'revenge'
+    | 'bloodFeud'
+    | 'bloodFeudEnd'
+    | 'forgiven'
+    | 'jealousy'
+    | 'separated'
+    | 'mentor'
+    | 'forbiddenLove'
+    | 'eloped'
+    | 'loveEndsWar'
+    | 'royalWedding'
+    | 'weddingPeace'
+    | 'royalFlight'
+    | 'union'
+    | 'successionWar'
+    | 'leagueFounded'
+    | 'leagueJoin'
+    | 'leagueExit'
+    | 'leagueEnd'
+    | 'leagueVote'
+    | 'leagueVeto'
+    | 'fusion'
+    | 'plotSpy'
+    | 'plotSpyCaught'
+    | 'plotSabotage'
+    | 'plotSabotageCaught'
+    | 'coup'
+    | 'coupCaught'
+    | 'betrayal'
+    | 'betrayalCaught'
+    | 'bribe'
+    | 'bribeCaught'
+    | 'godPeace'
+    | 'godAlly'
+    | 'newAge'
+    | 'progress'
+    | 'battle'
+    | 'battleWon'
+    | 'rout'
+    | 'discovered'
+    | 'setSail'
+    | 'settlersSail'
+    | 'colony'
+    | 'shipSunk'
+    | 'fleet'
+    | 'armySails'
+    | 'goldFound'
+    | 'spiceFound'
+    | 'independence'
+    | 'colonyBack'
+    | 'independent'
+    | 'islandersJoin';
   a: Ref;
   b?: Ref;
   c?: Ref;
@@ -69,6 +125,8 @@ export interface ChronicleEntry {
   q?: People;
   /** A work of art (a copy, so the line keeps its title when old songs are forgotten). */
   work?: Work;
+  /** A league ("people:coast", "city:Ashfell") or a new place name (fusion), phase D. */
+  u?: string;
   /** Peace: the side that pays tribute (a people, or a village id in a feud). */
   loser?: string;
   /** Where it happened, for jumping there (tiles). */

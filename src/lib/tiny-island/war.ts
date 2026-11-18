@@ -28,7 +28,12 @@
  * of its warriors or when one side is gone. Then a peace treaty holds for 15
  * years (the mood cannot sink below -40); a beaten side pays tribute.
  */
-import { has, PEOPLES, PERKS, stage, type Human, type People } from './agents';
+import { knows } from './inventions';
+import { armyTag, assignUnits, endBattles, findBattles, muster, releaseUnits, UNIT } from './armies';
+import { canShip, ferryHome, shipArmy } from './ships';
+import { independenceOver } from './colonies';
+import { councilVote, defenders, leagueTag, sharedLeague } from './leagues';
+import { has, PEOPLES, stage, stat, type Human, type People } from './agents';
 import type { Sim } from './sim';
 import type { ChronicleEntry } from './chronicle';
 import { lostWar, onSubdued } from './kingdoms';
@@ -46,6 +51,10 @@ export interface War {
   /** Warriors each side had when it started, and how many died since (by side key). */
   warriors: Record<string, number>;
   lost: Record<string, number>;
+  /** What the side that declared it wants (phase F): a place, tribute or revenge. Feuds have none. */
+  goal?: { kind: 'conquest' | 'tribute' | 'revenge'; village?: number };
+  /** Battles won by each side. */
+  wins?: { a: number; b: number };
 }
 
 export interface Army {
@@ -58,9 +67,19 @@ export interface Army {
   target: number;
   general: number;
   members: number[];
-  state: 'gather' | 'march' | 'siege';
+  /** `sail`: on warships over the sea (phase G). */
+  state: 'gather' | 'march' | 'siege' | 'sail';
   /** Gathering ends at this game time. */
   until: number;
+  /** Phase F: its name, morale 0 … 100, how many set out, the way it faces and the battle it is in. */
+  name?: { age: number; noun: number; general: string };
+  morale?: number;
+  size0?: number;
+  dir?: { x: number; y: number };
+  battle?: { enemy: number; place: string; since: number; ids: number[]; foe: string; foeIds: number[] };
+  /** Phase G: its target lies overseas, and it has gone ashore there. */
+  sea?: boolean;
+  landed?: boolean;
 }
 
 /** Someone or some place that can be on a side of a war. */
@@ -159,8 +178,11 @@ export function isEnemy(sim: Sim, x: Party, y: Party) {
 
 /** A warrior: grown-up, brave or warlike (or a soldier or leader), and in a war. */
 export function isWarrior(h: Human, sim: Sim) {
-  if (stage(h, sim.time) !== 'adult' || has(h, 'cowardly') || !atWar(sim, h)) return false;
-  return has(h, 'brave') || has(h, 'warlike') || h.job === 'soldier' || sim.villages.some((v) => v.leader === h.id);
+  if (stage(h, sim.time) !== 'adult' || !atWar(sim, h) || (h.fleeHome ?? 0) > sim.time) return false;
+  // The levy (phase F): called up into an army
+  if (h.unit) return true;
+  if (has(h, 'cowardly')) return false;
+  return has(h, 'brave') || has(h, 'warlike') || h.job === 'soldier' || stat(h, 'courage') >= 8 || sim.villages.some((v) => v.leader === h.id);
 }
 
 /** The army someone marches with, if any. */
@@ -188,6 +210,9 @@ function villagesBy(sim: Sim) {
 
 const hasWall = (v: Village) => v.buildings.some((b) => b.kind === 'wall');
 export const wallIntact = (v: Village) => hasWall(v) && (v.wallHp ?? WALL_HP) > 0;
+
+/** A wall's full strength: castles (phase E) build it twice as strong. */
+export const wallMax = (sim: Sim, v: Village) => (knows(sim, v.people, 'castle') ? WALL_HP * 2 : WALL_HP);
 const villageById = (sim: Sim, id: number) => sim.villages.find((v) => v.id === id);
 
 /** Once a second: moods drift, alliances and wars start, armies move, places fall, wars end. */
@@ -201,6 +226,8 @@ export function warTick(sim: Sim) {
       const a = present[i];
       const b = present[j];
       if (warBetween(sim, a, b)) continue;
+      // Peoples that never met (phase G: islands far apart) leave each other alone
+      if (!contact(sim, by.get(a)!, by.get(b)!)) continue;
       // Two peoples on one small island always compete a little; close borders make it worse
       let border = 0;
       for (const va of by.get(a)!) for (const vb of by.get(b)!) border += Math.max(0, 1 - Math.hypot(va.x - vb.x, va.y - vb.y) / 60) * 0.2;
@@ -248,6 +275,9 @@ export function warTick(sim: Sim) {
       if (war.va !== undefined) {
         // The subdued place already paid half of its stores
         subdue(sim, v, attackers[0] as Human);
+        // A colony that rose up and lost goes back to its mother (phase G)
+        const winner = villageById(sim, side === 'a' ? war.vb! : war.va!);
+        independenceOver(sim, v, winner, winner);
         endWar(sim, k, war, null);
         break;
       }
@@ -266,8 +296,45 @@ export function warTick(sim: Sim) {
       const vb = villageById(sim, war.vb!);
       gone = !va || !vb || va.ruin || vb.ruin || va.people !== vb.people;
     } else gone = !by.has(war.a) || !by.has(war.b);
-    if (tired || beaten || gone) endWar(sim, k, war, beaten ?? null, gone);
+    if (tired || beaten || gone) {
+      endWar(sim, k, war, beaten ?? null, gone);
+      continue;
+    }
+    // A war goal reached, or the attackers see it is hopeless
+    const goal = goalReached(sim, war);
+    if (goal) endWar(sim, k, war, goal);
   }
+}
+
+/** The side that has to give in: the defenders once the goal is reached, the attackers after three lost battles. */
+function goalReached(sim: Sim, war: War): Side | null {
+  if (!war.goal) return null;
+  const wins = war.wins ?? { a: 0, b: 0 };
+  if (wins.b >= 3 && wins.b > wins.a) return 'a';
+  const lostB = war.warriors[war.b] > 0 ? (war.lost[war.b] ?? 0) / war.warriors[war.b] : 0;
+  switch (war.goal.kind) {
+    case 'conquest': {
+      const v = war.goal.village !== undefined ? villageById(sim, war.goal.village) : undefined;
+      return v && !v.ruin && v.people === war.a ? 'b' : null;
+    }
+    case 'tribute':
+      return wins.a >= 2 || lostB > 0.3 ? 'b' : null;
+    case 'revenge':
+      return wins.a >= 1 || lostB > 0.25 ? 'b' : null;
+  }
+}
+
+/**
+ * Do two peoples know each other? They share an island, or one of them has a
+ * harbor and the other one's places are out of the fog (phase G). On an old
+ * island everyone shares the one island.
+ */
+function contact(sim: Sim, as: Village[], bs: Village[]) {
+  const w = sim.world;
+  if (as.some((x) => bs.some((y) => w.sameLand(x.x, x.y, y.x, y.y)))) return true;
+  const sails = (list: Village[]) => list.some((v) => v.buildings.some((b) => b.kind === 'harbor'));
+  const known = (list: Village[]) => list.some((v) => w.seen(v.x, v.y));
+  return (sails(as) && known(bs)) || (sails(bs) && known(as));
 }
 
 /** Mood between two villages of one people; a feud when it gets too low. */
@@ -276,6 +343,8 @@ function feudMood(sim: Sim, a: Village, b: Village) {
   if (d > FEUD_RANGE) return;
   const k = feudKey(a.id, b.id);
   if (sim.wars.has(k)) return;
+  // Members of one league do not feud
+  if (sim.leagues.some((l) => l.members.includes(a.id) && l.members.includes(b.id))) return;
   // Only big places get in each other's way
   if (a.members >= 8 && b.members >= 8) shiftVillageMood(sim, a.id, b.id, -(0.05 + (1 - d / FEUD_RANGE) * 0.1));
   shiftVillageMood(sim, a.id, b.id, 0.02);
@@ -303,6 +372,11 @@ function warriorLike(h: Human, sim: Sim) {
 
 function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, ally = false) {
   if (warBetween(sim, a, b)) return;
+  // Peoples sitting together in a league never go to war with each other
+  if (sharedLeague(sim, a, b)) {
+    sim.mood.set(pairKey(a, b), Math.max(moodOf(sim, a, b), -40));
+    return;
+  }
   // The leader of the village of `a` closest to `b` declares it
   let best: { v: Village; d: number } | null = null;
   for (const va of by.get(a) ?? []) for (const vb of by.get(b) ?? []) {
@@ -316,7 +390,28 @@ function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, all
   const v = capital ?? best?.v;
   const leader = king ?? (v?.leader !== undefined ? (sim.byId(v.leader) as Human | undefined) : undefined);
   const count = (p: People) => sim.humans.filter((h) => h.people === p && warriorLike(h, sim)).length;
-  const war: War = { a, b, started: sim.time, warriors: { [a]: count(a), [b]: count(b) }, lost: { [a]: 0, [b]: 0 } };
+  // A league member asks its council first (leagues.ts)
+  let joiners: People[] = [];
+  if (!ally && v) {
+    const vote = councilVote(sim, v, b);
+    if (vote.league) {
+      sim.chronicle.add({ year: sim.year, kind: vote.ok ? 'leagueVote' : 'leagueVeto', a: { id: 0, name: v.name, people: a }, v: v.name, p: b, u: leagueTag(vote.league), x: v.x, y: v.y });
+      if (!vote.ok) {
+        sim.mood.set(pairKey(a, b), -40);
+        return;
+      }
+      joiners = vote.join;
+    }
+  }
+  const war: War = { a, b, started: sim.time, warriors: { [a]: count(a), [b]: count(b) }, lost: { [a]: 0, [b]: 0 }, wins: { a: 0, b: 0 } };
+  // The war goal: revenge after an old war, a place when much stronger, else tribute
+  const size = (p: People) => (by.get(p) ?? []).reduce((n, x) => n + x.members, 0);
+  const prize = v ? [...(by.get(b) ?? [])].sort((x, y) => Math.hypot(x.x - v.x, x.y - v.y) - Math.hypot(y.x - v.x, y.y - v.y))[0] : undefined;
+  if (!ally) {
+    if (sim.grudges.get(pairKey(a, b)) === a) war.goal = { kind: 'revenge' };
+    else if (prize && size(a) > size(b) * 1.2) war.goal = { kind: 'conquest', village: prize.id };
+    else war.goal = { kind: 'tribute' };
+  }
   sim.wars.set(pairKey(a, b), war);
   sim.alliances.delete(pairKey(a, b));
   if (ally) {
@@ -329,6 +424,8 @@ function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, all
     a: leader ? refOf(leader) : { id: 0, name: v?.name ?? '', people: a },
     v: v?.name,
     p: b,
+    cause: war.goal?.kind,
+    w: war.goal?.kind === 'conquest' ? prize?.name : undefined,
     x: v ? v.x : 0,
     y: v ? v.y : 0,
   });
@@ -342,11 +439,38 @@ function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, all
       declare(sim, c, foe, by, true);
     }
   }
+  // The league goes with the vote, and leagues defend their members
+  for (const c of joiners) declare(sim, c, b, by, true);
+  for (const c of defenders(sim, b, a)) declare(sim, c, a, by, true);
+}
+
+/** Ends a war between two peoples with a treaty (a wedding, a love, later a god gift). */
+export function makePeace(sim: Sim, a: People, b: People) {
+  const k = pairKey(a, b);
+  const w = sim.wars.get(k);
+  if (w) endWar(sim, k, w, null);
+}
+
+/** A war declared for a reason of its own (a war of succession). */
+export function declareWar(sim: Sim, a: People, b: People) {
+  declare(sim, a, b, villagesBy(sim));
 }
 
 /** Peace: a treaty for 15 years; a beaten side pays a fifth of its stores to the winners. */
 function endWar(sim: Sim, k: string, war: War, loser: Side | null, gone = false) {
   sim.wars.delete(k);
+  for (const a of sim.armies) {
+    if (a.war !== k) continue;
+    if (a.landed) ferryHome(sim, a);
+    releaseUnits(sim, a);
+  }
+  // A war of independence (phase G): the colony is free unless its mother won
+  if (war.va !== undefined) {
+    const va = villageById(sim, war.va);
+    const vb = villageById(sim, war.vb!);
+    const winner = loser === 'a' ? vb : loser === 'b' ? va : undefined;
+    independenceOver(sim, va, vb, winner);
+  }
   sim.armies = sim.armies.filter((a) => a.war !== k);
   if (gone) return;
   const feud = war.va !== undefined;
@@ -354,6 +478,10 @@ function endWar(sim: Sim, k: string, war: War, loser: Side | null, gone = false)
   if (feud) sim.vmood.set(k, -10);
   else sim.mood.set(k, -10);
   if (loser && !feud) lostWar(sim, loser === 'a' ? war.a : war.b);
+  if (!feud) {
+    if (loser) sim.grudges.set(k, loser === 'a' ? war.a : war.b);
+    else sim.grudges.delete(k);
+  }
   if (loser) {
     const winners = sim.villages.filter((v) => !v.ruin && sideOf(war, partyOf(v)) === other(loser)).sort((x, y) => y.members - x.members);
     const capital = winners[0];
@@ -391,39 +519,72 @@ function endWar(sim: Sim, k: string, war: War, loser: Side | null, gone = false)
 function armyTick(sim: Sim) {
   // New armies: a place in a war with at least three warriors ready and no army out
   for (const [key, war] of sim.wars) {
-    for (const v of sim.villages) {
+    for (const v of [...sim.villages].sort((x, y) => y.members - x.members)) {
       if (v.ruin || (v.armyAt ?? 0) > sim.time) continue;
       const side = sideOf(war, partyOf(v));
       if (!side || sim.armies.some((a) => a.from === v.id)) continue;
-      const target = nearestTarget(sim, war, other(side), v);
+      // Over land if possible; overseas only with warships (phase G)
+      let target = nearestTarget(sim, war, other(side), v, false);
+      const sea = !target && canShip(sim, v);
+      if (sea) target = nearestTarget(sim, war, other(side), v, true);
       if (!target) continue;
       const ready = sim.humans.filter(
         (h) => h.village === v.id && isWarrior(h, sim) && h.hp > h.maxHp * 0.6 && !armyOf(sim, h) && Math.hypot(h.x - v.x, h.y - v.y) < 25,
       );
       if (ready.length < 3) continue;
-      const general = ready.find((h) => h.id === v.leader) ?? [...ready].sort((x, y) => Number(has(y, 'brave')) - Number(has(x, 'brave')) || x.born - y.born)[0];
-      sim.armies.push({ id: sim.nextArmyId++, war: key, people: v.people, from: v.id, target: target.id, general: general.id, members: ready.map((h) => h.id), state: 'gather', until: sim.time + 12 });
-      for (const h of ready) equip(h, v);
-      sim.chronicle.add({ year: sim.year, kind: 'army', a: refOf(general), v: v.name, w: target.name, n: ready.length, x: v.x, y: v.y });
+      // The leader, else the one with the most courage and wits
+      const general = ready.find((h) => h.id === v.leader) ?? [...ready].sort((x, y) => stat(y, 'courage') + stat(y, 'intelligence') - stat(x, 'courage') - stat(x, 'intelligence'))[0];
+      // Phase F: the levy joins the warriors (up to 30 % of the grown-ups, at most 150)
+      const neighbours =
+        war.va === undefined
+          ? sim.villages.filter((o) => !o.ruin && o !== v && o.people === v.people && Math.hypot(o.x - v.x, o.y - v.y) < 35 && !sim.armies.some((a) => a.from === o.id))
+          : [];
+      const members = muster(sim, v, ready, neighbours);
+      const levy = members.length - ready.length;
+      if (levy > 0) war.warriors[sideKey(war, side)] = (war.warriors[sideKey(war, side)] ?? 0) + levy;
+      // The levy of the neighbours needs a little longer to come; those places raise no army of their own for now
+      const far = members.some((h) => h.village !== v.id);
+      for (const o of neighbours) if (members.some((h) => h.village === o.id)) o.armyAt = sim.time + 40;
+      const army: Army = { id: sim.nextArmyId++, war: key, people: v.people, from: v.id, target: target.id, general: general.id, members: members.map((h) => h.id), state: 'gather', until: sim.time + (far ? 25 : 12), sea };
+      sim.armies.push(army);
+      for (const h of members) equip(h, v);
+      assignUnits(sim, army, members, v);
+      sim.chronicle.add({ year: sim.year, kind: 'army', a: refOf(general), v: v.name, w: target.name, n: members.length, u: armyTag(army), x: v.x, y: v.y });
     }
   }
 
   for (const army of [...sim.armies]) {
     const war = sim.wars.get(army.war);
     const from = villageById(sim, army.from);
+    const before = army.members;
+    const generalDied = !sim.byId(army.general);
     army.members = army.members.filter((id) => {
       const h = sim.byId(id) as Human | undefined;
       return !!h && isWarrior(h, sim) && h.hp > h.maxHp * 0.35;
     });
+    // Losses cost morale, the general's death much more
+    morale(army, before.length, generalDied);
+    for (const id of before) {
+      if (army.members.includes(id)) continue;
+      const h = sim.byId(id) as Human | undefined;
+      if (h) {
+        h.slot = undefined;
+        if (from && h.unit && UNIT[h.unit].mounted) from.horses = (from.horses ?? 0) + 1;
+        h.unit = undefined;
+      }
+    }
     const side = war && from ? sideOf(war, partyOf(from)) : null;
     if (!war || !from || from.ruin || from.people !== army.people || !side || army.members.length < 2) {
       disband(sim, army);
       continue;
     }
-    // The target fell or changed sides: on to the next one, or home
+    // At sea: the ships carry it (ships.ts)
+    if (army.state === 'sail') continue;
+    // The target fell or changed sides: on to the next one on this island, or home
     let target = villageById(sim, army.target);
     if (!target || target.ruin || sideOf(war, partyOf(target)) !== other(side)) {
-      target = nearestTarget(sim, war, other(side), from) ?? undefined;
+      const here = (sim.byId(army.general) as Human | undefined) ?? from;
+      target = nearestTarget(sim, war, other(side), here, false) ?? undefined;
       if (!target) {
         disband(sim, army);
         continue;
@@ -431,9 +592,29 @@ function armyTick(sim: Sim) {
       army.target = target.id;
       army.state = 'march';
     }
-    if (!army.members.includes(army.general)) army.general = army.members[0];
+    if (!army.members.includes(army.general)) {
+      // The bravest and wisest one left takes over in the middle
+      const next = army.members.map((id) => sim.byId(id) as Human).sort((x, y) => stat(y, 'courage') + stat(y, 'intelligence') - stat(x, 'courage') - stat(x, 'intelligence'))[0];
+      army.general = next.id;
+      next.slot = { f: 0, r: 0, army: army.id };
+    }
     const general = sim.byId(army.general) as Human;
-    if (army.state === 'gather' && sim.time >= army.until) army.state = 'march';
+    // The way the army faces: at the enemy army in a battle, else at its target
+    const foeArmy = army.battle ? sim.armies.find((x) => x.id === army.battle!.enemy) : undefined;
+    const foe = foeArmy ? (sim.byId(foeArmy.general) as Human | undefined) : undefined;
+    const fx = (foe ? foe.x : target.x + 0.5) - general.x;
+    const fy = (foe ? foe.y : target.y + 0.5) - general.y;
+    const fd = Math.hypot(fx, fy);
+    if (fd > 1) army.dir = { x: fx / fd, y: fy / fd };
+    if (army.state === 'gather' && sim.time >= army.until) {
+      // Overseas: aboard the warships
+      if (army.sea && !army.landed) {
+        if (shipArmy(sim, army, from, target)) army.state = 'sail';
+        else disband(sim, army);
+        continue;
+      }
+      army.state = 'march';
+    }
     const near = Math.hypot(general.x - target.x, general.y - target.y) < 14;
     if (army.state === 'march' && near && wallIntact(target)) army.state = 'siege';
     if (army.state === 'siege') {
@@ -441,14 +622,14 @@ function armyTick(sim: Sim) {
         army.state = 'march';
         continue;
       }
-      // Everyone close to the wall chips away at it
+      // Everyone close to the wall chips away at it; catapults and cannons much more
       let at = 0;
       for (const id of army.members) {
         const h = sim.byId(id) as Human;
         const d = Math.hypot(h.x - target.x, h.y - target.y);
-        if (d > 7 && d < 14) at++;
+        if (d > 7 && d < 14) at += h.unit ? UNIT[h.unit].siege : 1;
       }
-      target.wallHp = (target.wallHp ?? WALL_HP) - at * 0.4;
+      target.wallHp = (target.wallHp ?? wallMax(sim, target)) - at * 0.4;
       if (at) {
         const ang = sim.rand() * Math.PI * 2;
         sim.puff(target.x + 0.5 + Math.cos(ang) * 11, target.y + 0.5 + Math.sin(ang) * 8.8, 4, ['#b4b9c2', '#8d929c', '#ffffff']);
@@ -462,21 +643,61 @@ function armyTick(sim: Sim) {
       }
     }
   }
+
+  // Battles (armies.ts): armies of both sides meet; whoever runs goes home
+  const sideOfArmy = (a: Army) => {
+    const w = sim.wars.get(a.war);
+    const from = villageById(sim, a.from);
+    return w && from ? sideOf(w, partyOf(from)) : null;
+  };
+  findBattles(sim, sideOfArmy);
+  const { ran, won } = endBattles(sim);
+  for (const a of won) {
+    const w = sim.wars.get(a.war);
+    const s = sideOfArmy(a);
+    if (w && s) {
+      w.wins = w.wins ?? { a: 0, b: 0 };
+      w.wins[s]++;
+    }
+  }
+  for (const a of ran) {
+    const g = (sim.byId(a.general) as Human | undefined) ?? (a.members.length ? (sim.byId(a.members[0]) as Human) : undefined);
+    if (g) sim.chronicle.add({ year: sim.year, kind: 'rout', a: refOf(g), u: armyTag(a), x: g.x, y: g.y });
+    for (const id of a.members) {
+      const h = sim.byId(id) as Human | undefined;
+      if (h) h.fleeHome = sim.time + 20;
+    }
+    disband(sim, a);
+  }
+}
+
+/** Morale: a loss costs in proportion to the army's size, the general's death 30 points; it comes back slowly. */
+function morale(army: Army, before: number, generalDied: boolean) {
+  const lost = before - army.members.length;
+  let m = army.morale ?? 100;
+  if (lost > 0) m -= (lost / Math.max(4, army.size0 ?? before)) * 150;
+  if (generalDied) m -= 30;
+  if (!army.battle) m += 0.5;
+  army.morale = Math.max(0, Math.min(100, m));
 }
 
 function disband(sim: Sim, army: Army) {
   sim.armies = sim.armies.filter((a) => a !== army);
+  // Overseas: whoever cannot walk home gets a ship (phase G)
+  if (army.landed) ferryHome(sim, army);
+  releaseUnits(sim, army);
   const from = villageById(sim, army.from);
   // A while before the next army sets out from there
   if (from) from.armyAt = sim.time + 20;
 }
 
-/** The closest place on the other side of this war. */
-function nearestTarget(sim: Sim, war: War, side: Side, from: Village): Village | null {
+/** The closest place on the other side of this war: on the same island, or (`overseas`) anywhere. */
+function nearestTarget(sim: Sim, war: War, side: Side, from: { x: number; y: number }, overseas: boolean): Village | null {
   let best: Village | null = null;
   let bestD = Infinity;
   for (const v of sim.villages) {
     if (v.ruin || sideOf(war, partyOf(v)) !== side) continue;
+    if (!overseas && !sim.world.sameLand(from.x, from.y, v.x, v.y)) continue;
     const d = Math.hypot(v.x - from.x, v.y - from.y);
     if (d < bestD) {
       bestD = d;
@@ -488,11 +709,11 @@ function nearestTarget(sim: Sim, war: War, side: Side, from: Village): Village |
 
 /* ---- weapons and armour --------------------------------------------------------- */
 
-export const WEAPONS = ['club', 'bronze', 'iron'] as const;
+export const WEAPONS = ['club', 'bronze', 'iron', 'musket'] as const;
 export type Weapon = (typeof WEAPONS)[number];
 
 /** How hard a weapon hits in war (no weapon: fists and sticks). */
-export const WEAPON_POWER: Record<Weapon | 'none', number> = { none: 1, club: 1.15, bronze: 1.35, iron: 1.6 };
+export const WEAPON_POWER: Record<Weapon | 'none', number> = { none: 1, club: 1.15, bronze: 1.35, iron: 1.6, musket: 1.9 };
 
 /** Armour takes this much off every blow in war. */
 export const ARMOR = 0.7;
@@ -526,9 +747,8 @@ function conquer(sim: Sim, v: Village, winner: People, by: Human) {
   for (const h of sim.humans) {
     if (h.village !== v.id) continue;
     h.people = winner;
-    const hpShare = h.hp / h.maxHp;
-    h.maxHp = PERKS[winner].hp;
-    h.hp = h.maxHp * hpShare;
+    // New people, new hit points (health still counts)
+    sim.applyHealth(h);
     story(h, sim, 'conquered', v.name);
     const r = sim.registry.get(h.id);
     if (r) r.people = winner;

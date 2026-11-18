@@ -6,7 +6,7 @@
  *    who is alone; three or more people close by scare them off
  * Everyone dies of old age; wolves also starve.
  */
-import { ageOf, approach, dist, goTo, randomSpot, tileOf, walk, type Agent, type Animal, type Task, type TaskKind } from './agents';
+import { ageOf, approach, dist, goTo, randomSpot, tileOf, walk, type Agent, type Animal, type Task, type TaskKind, hasPower, type Human } from './agents';
 import { CAPS, type Sim } from './sim';
 
 function setTask(a: Animal, task: Task | null) {
@@ -94,7 +94,7 @@ function thinkWolf(w: Animal, sim: Sim) {
     let prey: Agent | null = sim.nearest(w.x, w.y, 20, (o) => (o.kind === 'sheep' || o.kind === 'chicken') && sim.huntable(o.kind));
     // Very hungry: someone who is alone will do
     if (!prey && w.hunger < 30) {
-      prey = sim.nearest(w.x, w.y, 12, (o) => o.kind === 'human' && sim.near(o.x, o.y, 4, (n) => n.kind === 'human').length === 1);
+      prey = sim.nearest(w.x, w.y, 12, (o) => o.kind === 'human' && !hasPower(o as Human, 'wolfWhisperer') && sim.near(o.x, o.y, 4, (n) => n.kind === 'human').length === 1);
     }
     if (prey) {
       const t = tileOf(prey);
@@ -102,6 +102,14 @@ function thinkWolf(w: Animal, sim: Sim) {
       goTo(w, sim.world, t.x, t.y);
       return;
     }
+  }
+  // A wolf whisperer close by: the wolves follow them around
+  const friend = sim.nearest(w.x, w.y, 15, (o) => o.kind === 'human' && hasPower(o as Human, 'wolfWhisperer'));
+  if (friend && !w.task && Math.hypot(friend.x - w.x, friend.y - w.y) > 2.5) {
+    const t = tileOf(friend);
+    setTask(w, task('wander', sim, t.x, t.y, { until: sim.time + 6 }));
+    goTo(w, sim.world, t.x, t.y);
+    return;
   }
   if (!w.task) wander(w, sim, 8);
 }

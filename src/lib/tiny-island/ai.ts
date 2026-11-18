@@ -8,6 +8,7 @@
  *
  * Needs go from 0 (desperate) to 100 (fine), so `100 - need` is the urge.
  */
+import { onBrawlEnd, revengeTarget } from './drama';
 import {
   approach,
   dist,
@@ -17,6 +18,7 @@ import {
   PERKS,
   randomSpot,
   stage,
+  stat,
   tileOf,
   walk,
   type Human,
@@ -27,9 +29,12 @@ import {
 import { buildStep, gatherTime, villageOf, type Village } from './villages';
 import { FARM_TIME, farmSpot, HARVEST, jobUrge, smithTask, toolFactor, wearTools } from './jobs';
 import { hasBuilding } from './town';
-import { knows } from './inventions';
+import { knows, progressWork } from './inventions';
+import { BALANCE } from './balance';
+import { foodYears } from './hunger';
 import { festiveAt, inspire } from './culture';
 import { armyOf, atWar, equip, isEnemy, isWarrior, trespass, WEAPON_POWER, type Army } from './war';
+import { UNIT, type Unit } from './armies';
 import {
   changeRel,
   chatOutcome,
@@ -48,7 +53,7 @@ import {
   type Choice,
 } from './social';
 import type { Sim } from './sim';
-import { T, W } from './world';
+import { T } from './world';
 
 interface Ctx {
   night: boolean;
@@ -72,15 +77,20 @@ interface Ctx {
 
 const urge = (need: number) => 100 - need;
 
+/** How hard someone hits: strength 5 = as before, giant strength (20) = 1.6×. */
+const might = (h: Human) => 0.8 + stat(h, 'strength') * 0.04;
+
 /** Points per action. Higher wins; the current action gets STICK on top. */
 export const SCORES: Record<Choice, (h: Human, c: Ctx) => number> = {
   // Food in the pocket and hungry: eat it (fast, no walking)
   eat: (h) => (h.food > 0 ? urge(h.hunger) * 1.25 : 0),
   // Hungry and nothing (or little) to eat: go and get some. Greedy people stock up more.
+  // From hunger 50 on (Update 2) the empty-handed go for food in earnest
   gather: (h, c) =>
     c.small || h.food >= (has(h, 'greedy') ? 5 : 3)
       ? 0
-      : (urge(h.hunger) * (h.food === 0 ? 1.1 : 0.7) + (h.food === 0 ? 8 : 0)) * (c.grieving ? 0.75 : 1),
+      : (urge(h.hunger) * (h.food === 0 ? 1.1 : 0.7) + (h.food === 0 ? 8 : 0) + (h.food === 0 && h.hunger <= BALANCE.food.eatAt ? 15 : 0)) *
+        (c.grieving ? 0.75 : 1),
   // Nights are for sleeping; by day only when worn out
   sleep: (h, c) => (c.night ? 50 + urge(h.energy) * 0.6 : h.energy < 18 ? 85 : urge(h.energy) * 0.25),
   // Lonely and someone is around (less so while grieving)
@@ -98,11 +108,12 @@ export const SCORES: Record<Choice, (h: Human, c: Ctx) => number> = {
   // A house is being built: builders first, others lend a hand
   build: (h, c) => (c.village?.site && c.adult ? (h.job === 'builder' ? 55 : 28) * (c.old ? 0.6 : 1) : 0),
   // Artists play music and paint on the square (by day)
-  art: (h, c) => (c.village && h.job === 'artist' && !c.night ? 38 : 0),
+  art: (h, c) => (c.village && !c.night ? (h.job === 'artist' ? 38 : has(h, 'artistic') && c.adult ? 18 : 0) : 0),
   // Soldiers keep watch around the village
   patrol: (h, c) => (c.village && h.job === 'soldier' ? 24 : 0),
   // War: warriors march with their army
-  raid: (_h, c) => (c.army ? 70 : 0),
+  // In an army: by day the march comes first (phase F), at night the tired sleep
+  raid: (_h, c) => (c.army ? (c.night ? 55 : 90) : 0),
   // A festival on the square: everyone comes to dance
   festival: (_h, c) => (festiveAt(c.village, c.sim) ? 62 : 0),
 };
@@ -193,7 +204,9 @@ export function thinkHuman(h: Human, sim: Sim) {
   const enemy = sim.byId(h.attacker);
   if (enemy && sim.time - h.attackedAt < 2.5 && dist(h, enemy) < 7) {
     if (h.task?.kind === 'fight' || h.task?.kind === 'flee' || h.task?.kind === 'brawl') return;
-    if (age === 'adult' && !coward && h.hp > (brave ? 20 : 30)) {
+    // Courage decides: the brave fight on with fewer hit points, the faint-hearted run
+    const courage = stat(h, 'courage') + (brave ? 2 : 0);
+    if (age === 'adult' && !coward && courage >= 3 && h.hp > 45 - courage * 2.5) {
       const lethal = enemy.kind === 'human' && isEnemy(sim, h, enemy as Human);
       setTask(h, newTask('fight', sim, Math.floor(enemy.x), Math.floor(enemy.y), { target: enemy.id, until: sim.time + 12, lethal }));
     } else {
@@ -203,8 +216,8 @@ export function thinkHuman(h: Human, sim: Sim) {
   }
 
   if (war) {
-    // Badly hurt warriors go home to heal
-    if (h.hp < h.maxHp * 0.35 && h.task?.kind !== 'flee') {
+    // Badly hurt warriors go home to heal, and so does an army that ran (phase F)
+    if ((h.hp < h.maxHp * 0.35 || (h.fleeHome ?? 0) > sim.time) && h.task?.kind !== 'flee') {
       const home = villageOf(h, sim);
       if (home && Math.hypot(home.x - h.x, home.y - h.y) > 4) {
         setTask(h, newTask('flee', sim, home.x, home.y, { until: sim.time + 30 }));
@@ -215,13 +228,14 @@ export function thinkHuman(h: Human, sim: Sim) {
     // come and fight, the others run
     if (h.task?.kind !== 'fight' && h.task?.kind !== 'flee') {
       const isFoe = (o: { kind: string }) => o.kind === 'human' && isEnemy(sim, h, o as Human) && isWarrior(o as Human, sim);
-      let foe = sim.nearest(h.x, h.y, 8, isFoe) as Human | null;
+      const reach = h.unit ? Math.max(8, UNIT[h.unit].range + 1) : 8;
+      let foe = sim.nearest(h.x, h.y, reach, isFoe) as Human | null;
       const home = villageOf(h, sim);
       if (!foe && home && age === 'adult' && !coward && Math.hypot(home.x - h.x, home.y - h.y) < 30) {
         foe = sim.nearest(home.x + 0.5, home.y + 0.5, 14, isFoe) as Human | null;
       }
       if (foe) {
-        if (age === 'adult' && !coward && h.hp > h.maxHp * 0.35) {
+        if (age === 'adult' && !coward && stat(h, 'courage') >= 3 && h.hp > h.maxHp * 0.35) {
           setTask(h, newTask('fight', sim, Math.floor(foe.x), Math.floor(foe.y), { target: foe.id, until: sim.time + 12, lethal: true }));
         } else {
           startFlee(h, sim, foe.x, foe.y);
@@ -231,6 +245,13 @@ export function thinkHuman(h: Human, sim: Sim) {
     }
   }
   if (h.task?.kind === 'fight' || h.task?.kind === 'flee' || h.task?.kind === 'brawl') return;
+
+  // Revenge (drama.ts): the vengeful go after whoever killed their kin
+  const foe = revengeTarget(h, sim);
+  if (foe) {
+    setTask(h, newTask('fight', sim, Math.floor(foe.x), Math.floor(foe.y), { target: foe.id, until: sim.time + 20, lethal: true }));
+    return;
+  }
 
   // Family
   if (h.partner !== undefined) {
@@ -381,7 +402,7 @@ function startGather(h: Human, sim: Sim): boolean {
       if (!w.inside(x, y)) continue;
       const d = Math.hypot(x - here.x, y - here.y);
       if (d > R) continue;
-      const i = y * W + x;
+      const i = y * w.w + x;
       if (w.bush[i] > 0 && (!berry || d < berry.d)) berry = { x, y, d };
       if ((!fishSpot || d < fishSpot.d) && w.isLand(w.get(x, y)) && Number.isFinite(w.cost(x, y)) && fishAt(sim, x, y) >= 0) {
         fishSpot = { x, y, d };
@@ -455,6 +476,18 @@ function startRaid(h: Human, sim: Sim, army: Army): boolean {
     setTask(h, newTask('raid', sim, t.x, t.y, { target: general.id, until: sim.time + 6 }));
     return true;
   }
+  // In a battle the general moves up to five tiles from the enemy general and holds there
+  if (army.battle && general === h) {
+    const foe = sim.armies.find((a) => a.id === army.battle!.enemy);
+    const fg = foe ? sim.byId(foe.general) : undefined;
+    if (fg) {
+      const d = dist(h, fg);
+      const k = d > 6 ? (d - 5) / d : 0;
+      const t = { x: Math.floor(h.x + (fg.x - h.x) * k), y: Math.floor(h.y + (fg.y - h.y) * k) };
+      setTask(h, newTask('raid', sim, t.x, t.y, { work: 2, until: sim.time + 6, slow: true }));
+      return k === 0 || goTo(h, sim.world, t.x, t.y) || adjacentGo(h, sim, t.x, t.y);
+    }
+  }
   let spot: { x: number; y: number } | null;
   if (army.state === 'gather') spot = randomSpot(sim.world, { ...h, x: from.x + 0.5, y: from.y + 0.5 }, 3, sim.rand);
   else if (army.state === 'siege') {
@@ -466,6 +499,29 @@ function startRaid(h: Human, sim: Sim, army: Army): boolean {
   setTask(h, newTask('raid', sim, spot.x, spot.y, { work: 3, until: sim.time + (army.state === 'march' ? 30 : 6), slow: army.state === 'march' }));
   return goTo(h, sim.world, spot.x, spot.y) || adjacentGo(h, sim, spot.x, spot.y);
 }
+
+/**
+ * Where someone stands in the formation: `f` tiles ahead of the general and
+ * `r` tiles to the right, turned the way the army faces. Null when the army
+ * has no direction yet or that spot is in the water.
+ */
+function formationSpot(h: Human, g: { x: number; y: number }, sim: Sim): { x: number; y: number } | null {
+  const s = h.slot;
+  if (!s) return null;
+  const army = sim.armies.find((a) => a.id === s.army);
+  const d = army?.dir;
+  if (!d) return null;
+  const x = g.x + d.x * s.f - d.y * s.r;
+  const y = g.y + d.y * s.f + d.x * s.r;
+  const w = sim.world;
+  const tx = Math.floor(x);
+  const ty = Math.floor(y);
+  if (!w.isLand(w.get(tx, ty)) || !Number.isFinite(w.cost(tx, ty))) return null;
+  return { x, y };
+}
+
+/** What a shot looks like. */
+const SHOT_OF: Partial<Record<Unit, 'arrow' | 'bolt' | 'stone' | 'ball' | 'bullet'>> = { archer: 'arrow', crossbow: 'bolt', catapult: 'stone', cannon: 'ball', musketeer: 'bullet' };
 
 /** Walk to a tile next to (x, y) when (x, y) itself cannot be reached. */
 function adjacentGo(h: Human, sim: Sim, x: number, y: number): boolean {
@@ -514,7 +570,7 @@ function startWork(h: Human, sim: Sim, v: Village): boolean {
         if (v.wood >= 1) v.wood--;
       } else if (make === 'club') v.wood -= 2;
       else v.ore--;
-      const craft = (hasBuilding(v, 'smithy') ? 2.5 : 4) * (knows(sim, v.people, 'bronze') ? 0.75 : 1) * (make === 'armor' ? 1.5 : 1);
+      const craft = (hasBuilding(v, 'smithy') ? 2.5 : 4) * (knows(sim, v.people, 'bronze') ? 0.75 : 1) * (make === 'armor' ? 1.5 : 1) * (1.1 - stat(h, 'intelligence') * 0.02) * (hasBuilding(v, 'factory') ? 0.5 : 1);
       setTask(h, newTask('craft', sim, v.x, v.y, { work: craft, until: sim.time + 30, make }));
       return goTo(h, sim.world, v.x, v.y) || adjacentGo(h, sim, v.x, v.y);
     }
@@ -529,27 +585,38 @@ function startWork(h: Human, sim: Sim, v: Village): boolean {
 /** Go to the closest source of the first resource that has one (fishers: only water). */
 function gatherFor(h: Human, sim: Sim, v: Village, order: Resource[], fishOnly = false): boolean {
   for (const res of order) {
-    const spot = findSource(h, sim, res, fishOnly);
+    const spot = findSource(h, sim, res, fishOnly, v);
     if (!spot) continue;
-    setTask(h, newTask('work', sim, spot.x, spot.y, { res, phase: 'go', source: spot.source, work: spot.time * toolFactor(v), until: sim.time + 40 }));
-    if (goTo(h, sim.world, spot.x, spot.y)) return true;
+    // Strong arms cut wood and break stone faster
+    const arms = (res === 'food' ? 1 : Math.max(0.5, 1.1 - stat(h, 'strength') * 0.02)) * progressWork(sim, h.people);
+    setTask(h, newTask('work', sim, spot.x, spot.y, { res, phase: 'go', source: spot.source, work: spot.time * toolFactor(v) * arms, until: sim.time + 40 }));
+    if (goTo(h, sim.world, spot.x, spot.y)) {
+      // A long way from home: take a portion along (Update 2)
+      if (h.food === 0 && v.food >= 3 && foodYears(v) >= 0.5 && Math.hypot(spot.x - v.x, spot.y - v.y) > BALANCE.food.provisionDistance) {
+        v.food--;
+        h.food++;
+      }
+      return true;
+    }
   }
   return false;
 }
 
-function findSource(h: Human, sim: Sim, res: Resource, fishOnly = false): { x: number; y: number; time: number; source?: 'berries' | 'fish' } | null {
+function findSource(h: Human, sim: Sim, res: Resource, fishOnly = false, v?: Village): { x: number; y: number; time: number; source?: 'berries' | 'fish' } | null {
   const w = sim.world;
   const here = tileOf(h);
   const R = res === 'food' ? 18 : 24;
+  // Some sources count as closer than they are (fishing for good fishers, trees in the village area)
+  const minFactor = res === 'wood' ? BALANCE.trees.villageTreeFactor : res === 'food' ? 0.8 : 1;
   let best: { x: number; y: number; d: number; time: number; source?: 'berries' | 'fish' } | null = null;
   for (let y = here.y - R; y <= here.y + R; y++) {
     for (let x = here.x - R; x <= here.x + R; x++) {
       if (!w.inside(x, y)) continue;
       const d = Math.hypot(x - here.x, y - here.y);
-      if (d > R || (best && d >= best.d)) continue;
+      if (d > R || (best && d * minFactor >= best.d)) continue;
       const t = w.get(x, y);
       if (res === 'food') {
-        if (!fishOnly && w.bush[y * W + x] > 0) best = { x, y, d, time: gatherTime('food', 'berries', h.people), source: 'berries' };
+        if (!fishOnly && w.bush[y * w.w + x] > 0) best = { x, y, d, time: gatherTime('food', 'berries', h.people), source: 'berries' };
         else if (w.isLand(t) && Number.isFinite(w.cost(x, y)) && fishAt(sim, x, y) >= 0) {
           const time = gatherTime('food', 'fish', h.people);
           // Fishing counts as a bit further, except for the coast people (and anyone with boats)
@@ -557,7 +624,10 @@ function findSource(h: Human, sim: Sim, res: Resource, fishOnly = false): { x: n
           if (!best || dd < best.d) best = { x, y, d: dd, time, source: 'fish' };
         }
       } else if (res === 'wood') {
-        if (t === T.FOREST) best = { x, y, d, time: gatherTime('wood', 'tree', h.people) };
+        // Trees in the village area are cleared first (Update 2)
+        const home = v && Math.hypot(x - v.x, y - v.y) <= BALANCE.trees.villageClear;
+        const dd = home ? d * BALANCE.trees.villageTreeFactor : d;
+        if (t === T.FOREST && (!best || dd < best.d)) best = { x, y, d: dd, time: gatherTime('wood', 'tree', h.people) };
       } else if (t === T.GRASS || t === T.SAND) {
         if ([w.get(x + 1, y), w.get(x - 1, y), w.get(x, y + 1), w.get(x, y - 1)].includes(T.MOUNTAIN)) {
           // Ore lies deeper: mining takes longer than breaking stone
@@ -581,7 +651,7 @@ function fishAt(sim: Sim, x: number, y: number): number {
     const nx = x + dx;
     const ny = y + dy;
     const t = w.get(nx, ny);
-    if ((t === T.DEEP || t === T.SHALLOW) && w.inside(nx, ny) && w.fish[ny * W + nx] > 0) return ny * W + nx;
+    if ((t === T.DEEP || t === T.SHALLOW) && w.inside(nx, ny) && w.fish[ny * w.w + nx] > 0) return ny * w.w + nx;
   }
   return -1;
 }
@@ -676,7 +746,7 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
       h.path = null;
       h.facing = p.x > h.x ? 1 : -1;
       // The other one stops and joins in, unless busy with something that matters more
-      const busy = ['sleep', 'eat', 'fight', 'flee', 'brawl', 'chat'];
+      const busy = ['sleep', 'eat', 'fight', 'flee', 'brawl', 'chat', 'raid'];
       if (!task.passive && (!p.task || !busy.includes(p.task.kind))) {
         setTask(p, newTask('chat', sim, Math.floor(p.x), Math.floor(p.y), { target: h.id, work: task.work, until: sim.time + 6, passive: true }));
       }
@@ -712,19 +782,33 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
     case 'fight':
     case 'brawl': {
       const enemy = sim.byId(task.target);
-      if (!enemy || dist(h, enemy) > 8) return end(h);
+      const unit = task.lethal && h.unit ? UNIT[h.unit] : undefined;
+      const reach = unit?.range || 0.9;
+      if (!enemy || dist(h, enemy) > Math.max(8, reach + 2)) return end(h);
       // Between people it is a fist fight that ends before anyone gets badly hurt, unless it is war
       const people = enemy.kind === 'human' && !task.lethal;
       if (people && (enemy.hp <= 40 || h.hp <= 40)) {
         changeRel(h, enemy as Human, -10, sim);
+        onBrawlEnd(sim, h, enemy as Human);
         return end(h);
       }
-      if (dist(h, enemy) > 0.9) {
-        chase(h, sim, enemy, dt, speed);
+      if (dist(h, enemy) > reach) {
+        chase(h, sim, enemy, dt, speed * (unit?.speed ?? 1));
         return;
       }
       h.moving = false;
       h.facing = enemy.x > h.x ? 1 : -1;
+      // Shooters (phase F): a shot flies, it hits when it lands
+      if (unit?.range && h.unit) {
+        if (sim.time >= h.hitAt) {
+          h.hitAt = sim.time + unit.reload * (0.9 + sim.rand() * 0.2);
+          sim.shots.push({ x0: h.x, y0: h.y - 0.5, x1: enemy.x, y1: enemy.y - 0.3, born: sim.time, kind: SHOT_OF[h.unit] ?? 'arrow' });
+          // Guns: a puff of smoke at the muzzle
+          if (h.unit === 'musketeer' || h.unit === 'cannon') sim.puff(h.x + h.facing * 0.5, h.y - 0.5, h.unit === 'cannon' ? 5 : 2, ['#d8d4c8', '#ffffff', '#b4b9c2']);
+          if (sim.hit(h, enemy, 10 * PERKS[h.people].fight * unit.power * might(h), false, unit.pierce)) end(h);
+        }
+        return;
+      }
       if (sim.time >= h.hitAt) {
         h.hitAt = sim.time + 0.8;
         if (task.lethal) sim.slashes.push({ x: enemy.x, y: enemy.y - 0.4, born: sim.time, dir: h.facing });
@@ -733,7 +817,11 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
         const walled = task.lethal && hasBuilding(home, 'wall') && home && Math.hypot(home.x - h.x, home.y - h.y) < 12 ? 1.3 : 1;
         // Bronze and iron weapons hit harder in war
         const weapon = task.lethal ? WEAPON_POWER[h.weapon ?? 'none'] : 1;
-        if (sim.hit(h, enemy, (people ? 8 : 10) * PERKS[h.people].fight * walled * weapon, people)) end(h);
+        // Units (phase F): spears are deadly against riders; soldiers from a barracks are drilled
+        const foeUnit = enemy.kind === 'human' ? (enemy as Human).unit : undefined;
+        const kind = unit ? unit.power * (unit.vsRider && foeUnit && UNIT[foeUnit].mounted ? unit.vsRider : 1) : 1;
+        const drill = task.lethal && h.job === 'soldier' && hasBuilding(home, 'barracks') ? 1.15 : 1;
+        if (sim.hit(h, enemy, (people ? 8 : 10) * PERKS[h.people].fight * walled * weapon * kind * drill * might(h), people)) end(h);
       }
       return;
     }
@@ -750,7 +838,7 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
         h.facing = prey.x > h.x ? 1 : -1;
         if (sim.time >= h.hitAt) {
           h.hitAt = sim.time + 0.8;
-          if (sim.hit(h, prey, 10 * PERKS[h.people].fight)) {
+          if (sim.hit(h, prey, 10 * PERKS[h.people].fight * might(h))) {
             h.food += prey.kind === 'sheep' ? 4 : 2;
             trespass(h, sim);
             end(h);
@@ -768,13 +856,15 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
       if (task.source !== 'store') trespass(h, sim);
       if (task.source === 'store') {
         const v = villageOf(h, sim);
-        const take = v ? Math.min(has(h, 'greedy') ? 3 : 2, Math.floor(v.food)) : 0;
+        // Rations: when food is short everyone gets one portion at a time
+        const ration = v && foodYears(v) < BALANCE.food.shortYears ? 1 : has(h, 'greedy') ? 3 : 2;
+        const take = v ? Math.min(ration, Math.floor(v.food)) : 0;
         if (v && take > 0) {
           v.food -= take;
           h.food += take;
         }
       } else if (task.source === 'berries') {
-        const i = task.ty * W + task.tx;
+        const i = task.ty * sim.world.w + task.tx;
         const take = Math.min(2, w.bush[i]);
         if (take > 0) {
           w.bush[i] -= take;
@@ -850,11 +940,22 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
     }
 
     case 'raid': {
-      // Following the general
+      // Following the general, each in their place in the formation (phase F)
       if (task.target !== undefined) {
         const g = sim.byId(task.target);
         if (!g) return end(h);
-        if (dist(h, g) > 2.2) chase(h, sim, g, dt, speed);
+        const spot = formationSpot(h, g, sim);
+        if (spot) {
+          // Whoever has fallen behind hurries to catch up
+          const gap = dist(h, spot);
+          if (gap > 0.5) chase(h, sim, spot, dt, speed * Math.max(1, h.unit ? UNIT[h.unit].speed : 1) * (gap > 2 ? 1.3 : 1));
+          else {
+            h.moving = false;
+            h.path = null;
+            const army = sim.armies.find((a) => a.id === h.slot!.army);
+            if (army?.dir) h.facing = army.dir.x >= 0 ? 1 : -1;
+          }
+        } else if (dist(h, g) > 2.2) chase(h, sim, g, dt, speed);
         else {
           h.moving = false;
           h.path = null;
@@ -881,7 +982,7 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
       h.moving = false;
       // Hammering shows as little puffs now and then
       if (sim.rand() < 0.05) sim.puff(v.site.x + 0.5, v.site.y + 0.2, 1, ['#d9b98b']);
-      if (buildStep(v, sim, dt * (has(h, 'hardworking') ? 1.3 : 1))) end(h);
+      if (buildStep(v, sim, dt * (has(h, 'hardworking') ? 1.3 : 1) * (0.9 + stat(h, 'intelligence') * 0.02))) end(h);
       return;
     }
 
@@ -905,7 +1006,7 @@ function actWork(h: Human, sim: Sim, task: Task, dt: number, speed: number) {
     if (task.work > 0) return;
     let n = 0;
     if (task.farm) {
-      const i = task.ty * W + task.tx;
+      const i = task.ty * sim.world.w + task.tx;
       if (task.farm === 'plough') {
         const t = w.get(task.tx, task.ty);
         if (t === T.GRASS || t === T.FOREST) {
@@ -927,10 +1028,10 @@ function actWork(h: Human, sim: Sim, task: Task, dt: number, speed: number) {
         w.crop[i] = 0;
         w.touch(i);
         // A granary keeps more of the harvest
-        n = HARVEST + (hasBuilding(v, 'granary') ? 2 : 0);
+        n = HARVEST + (hasBuilding(v, 'granary') ? 2 : 0) + (hasBuilding(v, 'windmill') ? 2 : 0);
       }
     } else if (task.res === 'food' && task.source === 'berries') {
-      const i = task.ty * W + task.tx;
+      const i = task.ty * sim.world.w + task.tx;
       n = Math.max(0, Math.min(3, w.bush[i]));
       w.bush[i] -= n;
       w.touch(i);
@@ -939,16 +1040,17 @@ function actWork(h: Human, sim: Sim, task: Task, dt: number, speed: number) {
       if (i >= 0) {
         w.fish[i]--;
         // With boats they row out and catch one more
-        n = (PERKS[h.people].fish > 1 ? 3 : 2) + (knows(sim, h.people, 'boats') ? 1 : 0);
+        n = (PERKS[h.people].fish > 1 ? 3 : 2) + (knows(sim, h.people, 'boats') ? 1 : 0) + (knows(sim, h.people, 'navigation') ? 1 : 0);
       }
     } else if (task.res === 'wood') {
       n = 2;
-      // Some trees are cut down for good; the forest grows back elsewhere
-      if (w.get(task.tx, task.ty) === T.FOREST && sim.rand() < 0.3) w.set(task.tx, task.ty, T.GRASS);
+      // Some trees are cut down for good, those in the village area always; the forest grows back elsewhere
+      const clear = Math.hypot(task.tx - v.x, task.ty - v.y) <= BALANCE.trees.villageClear;
+      if (w.get(task.tx, task.ty) === T.FOREST && (clear || sim.rand() < 0.3)) w.set(task.tx, task.ty, T.GRASS);
     } else if (task.res === 'stone') {
       n = 2;
     } else if (task.res === 'ore') {
-      n = PERKS[h.people].stone > 1 ? 3 : 2;
+      n = (PERKS[h.people].stone > 1 ? 3 : 2) + (hasBuilding(v, 'factory') ? 1 : 0);
     }
     if (!n) return end(h);
     // The wheel: wood, stone and ore go home on a cart, twice as much

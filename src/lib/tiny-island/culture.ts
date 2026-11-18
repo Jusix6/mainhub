@@ -63,7 +63,7 @@ export interface Legend {
   year: number;
 }
 
-export type FestivalKind = 'harvest' | 'midsummer' | 'victory' | 'coronation' | 'gods';
+export type FestivalKind = 'harvest' | 'midsummer' | 'victory' | 'coronation' | 'gods' | 'newAge';
 
 const YEAR = 30;
 /** Seconds of playing on the square for one work. */
@@ -253,7 +253,7 @@ export function giftBuilding(sim: Sim, p: People) {
 export function giftBuildingAt(sim: Sim, v: Village) {
   const p = v.people;
   if (v.ruin) return;
-  let kind: BuildingKind | 'statue' | null = v.site?.kind ?? nextBuilding(v) ?? BUILDINGS.find((b) => !v.buildings.some((x) => x.kind === b)) ?? null;
+  let kind: BuildingKind | 'statue' | null = v.site?.kind ?? nextBuilding(v, sim) ?? BUILDINGS.find((b) => !v.buildings.some((x) => x.kind === b)) ?? null;
   let spot: { x: number; y: number } | null = null;
   if (kind === 'wall') spot = { x: v.x, y: v.y };
   else if (kind && v.site?.kind === kind) spot = { x: v.site.x, y: v.site.y };

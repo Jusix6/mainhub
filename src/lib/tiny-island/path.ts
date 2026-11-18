@@ -4,9 +4,9 @@
  * on land. Paths are cached per world version, so a painted tile makes old
  * paths invalid automatically.
  */
-import { H, W, type World } from './world';
+import { T, type World } from './world';
 
-export type Mover = 'human' | 'animal';
+export type Mover = 'human' | 'animal' | 'ship';
 
 const SQRT2 = Math.SQRT2;
 const DIRS = [
@@ -21,11 +21,21 @@ const DIRS = [
 ] as const;
 
 // Reused between searches; `stamp` avoids clearing the arrays every time
-const g = new Float32Array(W * H);
-const from = new Int32Array(W * H);
-const seen = new Uint32Array(W * H);
-const closed = new Uint32Array(W * H);
+let g = new Float32Array(0);
+let from = new Int32Array(0);
+let seen = new Uint32Array(0);
+let closed = new Uint32Array(0);
 let stamp = 0;
+
+/** The search buffers match the world's size (bigger worlds in phase G). */
+function buffers(n: number) {
+  if (g.length === n) return;
+  g = new Float32Array(n);
+  from = new Int32Array(n);
+  seen = new Uint32Array(n);
+  closed = new Uint32Array(n);
+  stamp = 0;
+}
 
 /** Small binary min-heap of tile indexes, ordered by f score. */
 class Heap {
@@ -86,6 +96,12 @@ const CACHE_MAX = 600;
 
 /** Movement cost of a tile for a mover, Infinity if blocked. */
 export function stepCost(world: World, x: number, y: number, mover: Mover): number {
+  // Ships: open sea, a little slower in the shallows, never on land
+  if (mover === 'ship') {
+    if (!world.inside(x, y)) return Infinity;
+    const t = world.get(x, y);
+    return t === T.DEEP ? 1 : t === T.SHALLOW ? 1.4 : Infinity;
+  }
   const c = world.cost(x, y);
   if (mover === 'animal' && !world.isLand(world.get(x, y))) return Infinity;
   return c;
@@ -98,7 +114,9 @@ export function stepCost(world: World, x: number, y: number, mover: Mover): numb
 export function findPath(world: World, sx: number, sy: number, tx: number, ty: number, mover: Mover, budget = 12000): number[] | null {
   if (sx === tx && sy === ty) return [];
   if (!world.inside(tx, ty) || stepCost(world, tx, ty, mover) === Infinity) return null;
-  const key = `${world.version}:${mover}:${sy * W + sx}:${ty * W + tx}`;
+  const W = world.w;
+  buffers(W * world.h);
+  const key = `${world.version}:${W}:${mover}:${sy * W + sx}:${ty * W + tx}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit && hit.slice();
 

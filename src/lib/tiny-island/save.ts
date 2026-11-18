@@ -4,7 +4,9 @@
  * wars, favourites, rules and the population history. Tasks and paths are
  * not saved; everyone simply thinks again after loading.
  */
-import { PEOPLES, setNextId, type Animal, type Human, type People } from './agents';
+import { familyName } from './names';
+import { type BloodFeud } from './drama';
+import { PEOPLES, rollStats, setNextId, type Animal, type Human, type People } from './agents';
 import type { ChronicleEntry, Ref } from './chronicle';
 import { INVENTIONS, type Invention, type Tech } from './inventions';
 import { randFor } from './rng';
@@ -14,15 +16,19 @@ import type { Village } from './villages';
 import type { Army, War } from './war';
 import type { Kingdom } from './kingdoms';
 import type { Legend, Work } from './culture';
-import type { World } from './world';
+import { H, W, type Island, type World } from './world';
+import type { Ship, Wreck } from './ships';
 
 const KEY = 'jxsi_tiny_island_v1';
 
 type SavedHuman = Omit<Human, 'rel' | 'path' | 'task'> & { rel: [number, number][] };
 type SavedAnimal = Omit<Animal, 'path' | 'task'>;
 
+/** Format version; `migrate` brings older saves up to it. */
+const VERSION = 5;
+
 interface SaveData {
-  v: 1;
+  v: number;
   savedAt: number;
   seed: string;
   time: number;
@@ -51,13 +57,36 @@ interface SaveData {
   nextArmyId?: number;
   alliances?: string[];
   treaties?: [string, number][];
+  /** Who lost the last war between two peoples (phase F). */
+  grudges?: [string, People][];
   vmood?: [string, number][];
+  /** Leagues, plots, places growing together (phase D; older saves have none). */
+  leagues?: Sim['leagues'];
+  nextLeagueId?: number;
+  plots?: Sim['plots'];
+  nextPlotId?: number;
+  fusionWatch?: [string, number][];
+  /** Blood feuds (v4). */
+  bloodFeuds?: [string, BloodFeud][];
   /** Kingdoms (Phase 11). */
   kingdoms?: [People, Kingdom][];
+  /** Tree ages and deaths by cause, storyteller (v2, Update 2). */
+  treeEnd?: string;
+  deaths?: Sim['deaths'];
+  quietSince?: number;
   /** Works of art and legends (Phase 12). */
   works?: Work[];
   nextWorkId?: number;
   legends?: Legend[];
+  /** Phase G (v5): the world's size (older saves: 160 × 100), fog, gold and spices, islands, ships, wrecks. */
+  w?: number;
+  h?: number;
+  fog?: string;
+  deposit?: string;
+  islands?: Island[];
+  ships?: Ship[];
+  nextShipId?: number;
+  wrecks?: Wreck[];
 }
 
 function toB64(bytes: Uint8Array) {
@@ -77,7 +106,7 @@ export function save(sim: Sim, world: World): boolean {
     return rest;
   };
   const data: SaveData = {
-    v: 1,
+    v: VERSION,
     savedAt: Date.now(),
     seed: world.seed,
     time: sim.time,
@@ -85,6 +114,9 @@ export function save(sim: Sim, world: World): boolean {
     bush: toB64(new Uint8Array(world.bush.buffer)),
     fish: toB64(world.fish),
     crop: toB64(world.crop),
+    treeEnd: toB64(new Uint8Array(world.treeEnd.buffer)),
+    deaths: sim.deaths,
+    quietSince: sim.quietSince,
     humans: sim.humans.filter((h) => !h.dead).map((h) => ({ ...strip(h), rel: [...h.rel.entries()].map(([k, v]) => [k, Math.round(v)]) })),
     animals: sim.animals.filter((a) => !a.dead).map(strip),
     graves: sim.graves,
@@ -103,11 +135,26 @@ export function save(sim: Sim, world: World): boolean {
     nextArmyId: sim.nextArmyId,
     alliances: [...sim.alliances],
     treaties: [...sim.treaties.entries()],
+    grudges: [...sim.grudges.entries()],
     vmood: [...sim.vmood.entries()],
     kingdoms: [...sim.kingdoms.entries()],
+    bloodFeuds: [...sim.bloodFeuds.entries()],
+    leagues: sim.leagues,
+    nextLeagueId: sim.nextLeagueId,
+    plots: sim.plots,
+    nextPlotId: sim.nextPlotId,
+    fusionWatch: [...sim.fusionWatch.entries()],
     works: sim.works,
     nextWorkId: sim.nextWorkId,
     legends: sim.legends,
+    w: world.w,
+    h: world.h,
+    fog: toB64(world.fog),
+    deposit: toB64(world.deposit),
+    islands: world.islands,
+    ships: sim.ships.map((s) => ({ ...s, path: null })),
+    nextShipId: sim.nextShipId,
+    wrecks: sim.wrecks,
   };
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
@@ -120,10 +167,50 @@ export function save(sim: Sim, world: World): boolean {
 function read(): SaveData | null {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    return raw && raw.v === 1 ? (raw as SaveData) : null;
+    return raw && typeof raw.v === 'number' && raw.v >= 1 && raw.v <= VERSION ? migrate(raw as SaveData) : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Older saves, step by step:
+ *  - v1 → v2 (Update 2): no tree ages (every forest gets one on the next
+ *    nature check), no death statistics, the storyteller starts counting now
+ *  - v2 → v3 (phase B): abilities for everyone
+ *  - v3 → v4 (phase C): family names (royal blood comes back with the next tick)
+ *  - v4 → v5 (phase G): the old 160 × 100 island stays as it is, no fog, no ships
+ */
+function migrate(d: SaveData): SaveData {
+  if (d.v < 2) {
+    d.deaths = { total: {}, recent: [] };
+    d.quietSince = Math.floor(d.time / 30) + 1;
+    d.v = 2;
+  }
+  if (d.v < 3) {
+    // Everyone gets abilities, from the island's seed so it is the same each time
+    const rand = randFor(d.seed, 'stats');
+    for (const h of d.humans) if (!h.stats) h.stats = rollStats(rand, h.traits ?? []);
+    d.v = 3;
+  }
+  if (d.v < 4) {
+    // Family names: the oldest first, children take their father's (else their mother's)
+    const rand = randFor(d.seed, 'families');
+    const byId = new Map(d.humans.map((h) => [h.id, h]));
+    for (const h of [...d.humans].sort((a, b) => a.born - b.born)) {
+      if (h.surname) continue;
+      const parents = h.parents.map((id) => byId.get(id)).filter((p): p is SavedHuman => !!p);
+      const from = parents.find((p) => !p.female) ?? parents[0];
+      h.surname = from?.surname ?? familyName(rand, h.people);
+    }
+    d.v = 4;
+  }
+  if (d.v < 5) {
+    d.w = W;
+    d.h = H;
+    d.v = 5;
+  }
+  return d;
 }
 
 /** A short summary for the start screen, or null if nothing is saved. */
@@ -152,12 +239,21 @@ function oldTech(sim: Sim) {
 export function load(sim: Sim, world: World): boolean {
   const d = read();
   if (!d) return false;
+  world.resize(d.w ?? W, d.h ?? H);
   world.seed = d.seed;
   fromB64(d.tiles, world.tiles);
   fromB64(d.bush, new Uint8Array(world.bush.buffer));
   fromB64(d.fish, world.fish);
   world.crop.fill(0);
   if (d.crop) fromB64(d.crop, world.crop);
+  world.treeEnd.fill(0);
+  if (d.treeEnd) fromB64(d.treeEnd, new Uint8Array(world.treeEnd.buffer));
+  world.fog.fill(0);
+  if (d.fog) fromB64(d.fog, world.fog);
+  world.deposit.fill(0);
+  if (d.deposit) fromB64(d.deposit, world.deposit);
+  world.islands = d.islands ?? [];
+  world.fogVersion++;
   world.version++;
   world.all = true;
   world.dirty.clear();
@@ -185,7 +281,8 @@ export function load(sim: Sim, world: World): boolean {
     ripe: v.ripe ?? 0,
     buildings: v.buildings ?? [],
     tier: v.tier ?? 'village',
-    arms: v.arms ?? { club: 0, bronze: 0, iron: 0, armor: 0 },
+    // Older saves: no muskets yet (phase E)
+    arms: Object.assign({ club: 0, bronze: 0, iron: 0, musket: 0, armor: 0 }, v.arms),
     need: { ...v.need, ore: v.need?.ore ?? 0 },
   }));
   sim.nextVillageId = d.nextVillageId;
@@ -201,11 +298,24 @@ export function load(sim: Sim, world: World): boolean {
   sim.nextArmyId = d.nextArmyId ?? 1;
   for (const k of d.alliances ?? []) sim.alliances.add(k);
   for (const [k, t] of d.treaties ?? []) sim.treaties.set(k, t);
+  for (const [k, p] of d.grudges ?? []) sim.grudges.set(k, p);
   for (const [k, m] of d.vmood ?? []) sim.vmood.set(k, m);
   for (const [p, k] of d.kingdoms ?? []) sim.kingdoms.set(p, k);
+  for (const [k, f] of d.bloodFeuds ?? []) sim.bloodFeuds.set(k, f);
+  sim.leagues = d.leagues ?? [];
+  sim.nextLeagueId = d.nextLeagueId ?? 1;
+  sim.plots = d.plots ?? [];
+  sim.nextPlotId = d.nextPlotId ?? 1;
+  for (const [k, y] of d.fusionWatch ?? []) sim.fusionWatch.set(k, y);
   sim.works = d.works ?? [];
+  sim.deaths = d.deaths ?? { total: {}, recent: [] };
+  sim.quietSince = d.quietSince ?? sim.year;
   sim.nextWorkId = d.nextWorkId ?? 1;
   sim.legends = d.legends ?? [];
+  sim.nextShipId = d.nextShipId ?? 1;
+  sim.wrecks = d.wrecks ?? [];
+  // Ships plan their course again from where they are
+  sim.ships = (d.ships ?? []).map((s) => ({ ...s, path: null }));
   if (d.tech) for (const [p, t] of d.tech) sim.tech.set(p, { known: [...t.known], progress: t.progress });
   else oldTech(sim);
   setNextId(d.nextAgentId);
