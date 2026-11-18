@@ -1,0 +1,1218 @@
+---
+/**
+ * Tiny Island: shape a little pixel island, put people on it and watch them
+ * live (WorldBox-like, our own take). Full-window canvas; the game code lives
+ * in src/lib/tiny-island/ (world, sim, agents, ai, animals, path, names,
+ * camera, render, ui, main).
+ * The world comes from a seed kept in the URL (?seed=…), so a link gives the
+ * same island again.
+ *
+ * Built in phases (plan in the Tiny Island doc). Phase 1: world and camera.
+ * Phase 2: people and animals live (needs, utility AI, food, age, wolves).
+ * Phase 3: traits, relationships, couples, children, chronicle, profiles.
+ * Phase 4: villages (storage, work, houses, leaders, splits, ruins), people perks.
+ * Phase 5: mood between peoples, wars, conquest, peace; Rules tab with Aggression.
+ * Phase 6: rules for births, lifespan and food, population chart, smoke,
+ * confetti and footprints, saving in localStorage, start screen, sharing.
+ */
+import Fun from '@/layouts/Fun.astro';
+import Sticker from '@/components/Sticker.astro';
+import { UI } from '@/data/ui';
+import { PEOPLE_COLORS, PEOPLES } from '@/lib/tiny-island/agents';
+import { COLORS } from '@/lib/tiny-island/render';
+import { TERRAIN_KEYS } from '@/lib/tiny-island/world';
+import { SITE } from '@/data/site';
+import og from '@/assets/fun/tiny-island-og.png';
+
+const ogImage = new URL(og.src, SITE.fun.url).href;
+
+const T = UI.fun.tinyIsland;
+const strings = {
+  year: T.year,
+  day: T.day,
+  night: T.night,
+  age: T.age,
+  peoples: T.peoples,
+  life: T.life,
+  doing: T.doing,
+  traits: T.traits,
+  chronicle: T.chronicle,
+  profile: T.profile,
+  ruins: T.ruins,
+  rules: T.rules,
+  start: T.start,
+  statsEmpty: T.statsEmpty,
+};
+const rules = [
+  { key: 'aggression', name: T.rules.aggression, low: T.rules.calm, high: T.rules.fierce, min: 0, max: 2 },
+  { key: 'birth', name: T.rules.birth, low: T.rules.birthLow, high: T.rules.birthHigh, min: 0.3, max: 2 },
+  { key: 'lifespan', name: T.rules.lifespan, low: T.rules.lifespanLow, high: T.rules.lifespanHigh, min: 0.6, max: 1.4 },
+  { key: 'food', name: T.rules.food, low: T.rules.foodLow, high: T.rules.foodHigh, min: 0.4, max: 2 },
+];
+const lifeTools = [
+  { key: 'sheep', icon: '🐑' },
+  { key: 'chicken', icon: '🐔' },
+  { key: 'wolf', icon: '🐺' },
+] as const;
+const swatch: Record<(typeof TERRAIN_KEYS)[number], string> = {
+  deep: COLORS.deep,
+  shallow: COLORS.shallow,
+  sand: COLORS.sand,
+  grass: COLORS.grass,
+  forest: COLORS.leaf,
+  mountain: COLORS.rock,
+};
+const speeds = [
+  { value: 0, label: '❚❚', aria: T.pause },
+  { value: 1, label: '1×', aria: '1×' },
+  { value: 3, label: '3×', aria: '3×' },
+  { value: 10, label: '10×', aria: '10×' },
+];
+---
+
+<Fun title={T.title} description={T.description} path="/tiny-island" indexHref="./" image={ogImage} bare>
+  <div class="ti" data-tiny-island data-strings={JSON.stringify(strings)}>
+    <canvas class="ti__map" data-canvas role="img" aria-label={T.canvasLabel}></canvas>
+
+    <header class="ti__top">
+      <a class="ti__fun" href="./" aria-label={UI.fun.indexTitle}><Sticker color="--c-pink" rotate={-4}>{UI.fun.title}</Sticker></a>
+      <h1 class="ti__title">{T.title}</h1>
+      <p class="ti__seed" title={T.world}><span class="ti__seed-label">{T.world}</span> <span data-seed></span></p>
+      <button type="button" class="ti__btn ti__share" data-share>🔗 {T.start.share}</button>
+      <span class="ti__saved" data-saved aria-live="polite"></span>
+      <div class="ti__clock">
+        <span class="ti__daynight" data-daynight data-night="false" role="img" aria-label={T.day}>
+          <svg class="ti__sun" viewBox="0 0 24 24" aria-hidden="true"
+            ><circle cx="12" cy="12" r="5"></circle><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"></path></svg
+          >
+          <svg class="ti__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 13.5A7 7 0 0 1 15 3z"></path></svg>
+        </span>
+        <span class="ti__year" data-year>{T.year.replace('{n}', '1')}</span>
+      </div>
+      <p class="ti__pop" aria-label={T.population}>
+        <span title={T.life.human}>👤 <b data-pop="human">0</b></span>
+        <span title={T.life.sheep}>🐑 <b data-pop="sheep">0</b></span>
+        <span title={T.life.chicken}>🐔 <b data-pop="chicken">0</b></span>
+        <span title={T.life.wolf}>🐺 <b data-pop="wolf">0</b></span>
+        <span title={T.villages}>🏘️ <b data-pop="villages">0</b></span>
+      </p>
+      <button type="button" class="ti__btn ti__chron-btn" data-chron-toggle aria-expanded="false" aria-controls="ti-chronicle" title={T.chronicle.toggle}>
+        📜 <span>{T.chronicle.title}</span>
+      </button>
+      <div class="ti__speed" role="group" aria-label={T.speedLabel}>
+        {
+          speeds.map((s) => (
+            <button type="button" class="ti__btn" data-speed={s.value} aria-label={s.aria} aria-pressed={s.value === 1 ? 'true' : 'false'}>
+              {s.label}
+            </button>
+          ))
+        }
+      </div>
+    </header>
+
+    <nav class="ti__dock" aria-label={T.title}>
+      <div class="ti__tabs" role="tablist">
+        <button type="button" class="ti__tab" role="tab" data-tab="shape" aria-selected="true">{T.tabs.shape}</button>
+        <button type="button" class="ti__tab" role="tab" data-tab="life" aria-selected="false">{T.tabs.life}</button>
+        <button type="button" class="ti__tab" role="tab" data-tab="rules" aria-selected="false">{T.tabs.rules}</button>
+      </div>
+      <div class="ti__panel" data-panel="shape" role="tabpanel">
+        <div class="ti__tools" role="group" aria-label={T.tabs.shape}>
+          <button type="button" class="ti__tool" data-tool="move" aria-pressed="true" title={T.tools.move}>
+            <svg class="ti__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"></path></svg>
+            <span>{T.tools.move}</span>
+          </button>
+          {
+            TERRAIN_KEYS.map((k) => (
+              <button type="button" class="ti__tool" data-tool={k} aria-pressed="false" title={T.tools[k]}>
+                <span class="ti__swatch" style={`--sw: ${swatch[k]}`} data-kind={k} aria-hidden="true" />
+                <span>{T.tools[k]}</span>
+              </button>
+            ))
+          }
+        </div>
+        <div class="ti__sizes" role="group" aria-label={T.brushLabel}>
+          {
+            (['s', 'm', 'l'] as const).map((s) => (
+              <button type="button" class="ti__btn" data-size={s} aria-pressed={s === 'm' ? 'true' : 'false'} aria-label={`${T.brushLabel} ${T.sizes[s]}`}>
+                {T.sizes[s]}
+              </button>
+            ))
+          }
+        </div>
+        <button type="button" class="ti__random" data-random>🎲 {T.random}</button>
+      </div>
+      <div class="ti__panel" data-panel="life" role="tabpanel" hidden>
+        <div class="ti__tools" role="group" aria-label={T.tabs.life}>
+          <button type="button" class="ti__tool" data-tool="move" aria-pressed="true" title={T.tools.move}>
+            <svg class="ti__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"></path></svg>
+            <span>{T.tools.move}</span>
+          </button>
+          <button type="button" class="ti__tool" data-tool="human" aria-pressed="false" title={T.life.human}>
+            <span class="ti__emoji" aria-hidden="true">👤</span>
+            <span>{T.life.human}</span>
+          </button>
+          {
+            lifeTools.map((l) => (
+              <button type="button" class="ti__tool" data-tool={l.key} aria-pressed="false" title={T.life[l.key]}>
+                <span class="ti__emoji" aria-hidden="true">{l.icon}</span>
+                <span>{T.life[l.key]}</span>
+              </button>
+            ))
+          }
+        </div>
+        <div class="ti__peoples" role="group" aria-label={T.peopleLabel}>
+          {
+            PEOPLES.map((k) => (
+              <button type="button" class="ti__people" data-people={k} aria-pressed={k === 'coast' ? 'true' : 'false'} title={T.peoples[k]}>
+                <span class="ti__swatch" style={`--sw: ${PEOPLE_COLORS[k].cloth}`} aria-hidden="true" />
+                <span>{T.peoples[k]}</span>
+              </button>
+            ))
+          }
+        </div>
+        <p class="ti__note">{T.lifeHint}</p>
+      </div>
+      <div class="ti__panel ti__panel--rules" data-panel="rules" role="tabpanel" hidden>
+        {
+          rules.map((r) => (
+            <label class="ti__rule">
+              <span class="ti__rule-name">{r.name}</span>
+              <span class="ti__rule-end">{r.low}</span>
+              <input type="range" min={r.min} max={r.max} step="0.1" value="1" data-rule={r.key} />
+              <span class="ti__rule-end">{r.high}</span>
+            </label>
+          ))
+        }
+        <p class="ti__note">{T.rules.aggressionHint}</p>
+        <div class="ti__relations">
+          <p class="ti__rule-name">{T.rules.relations}</p>
+          <ul class="ti__rel-list" data-relations></ul>
+        </div>
+      </div>
+    </nav>
+
+    <aside class="ti__profile" data-profile hidden aria-live="polite"></aside>
+    <aside class="ti__chron" id="ti-chronicle" data-chron hidden>
+      <h2 class="ti__chron-title">📊 {T.statsTitle}</h2>
+      <p class="ti__legend" aria-hidden="true">
+        {
+          PEOPLES.map((k) => (
+            <span data-legend={k}>
+              <svg width="18" height="6" viewBox="0 0 18 6">
+                <line x1="1" y1="3" x2="17" y2="3" stroke={PEOPLE_COLORS[k].cloth} stroke-width="2" stroke-dasharray={k === 'forest' ? '6 3' : k === 'mountain' ? '2 3' : k === 'steppe' ? '9 3 2 3' : undefined} />
+              </svg>
+              {T.peoples[k]}
+            </span>
+          ))
+        }
+      </p>
+      <div class="ti__stats" data-stats></div>
+      <p class="ti__stats-tip" data-stats-tip hidden></p>
+      <h2 class="ti__chron-title">📜 {T.chronicle.title}</h2>
+      <ol class="ti__chron-list" data-chron-list></ol>
+    </aside>
+    <p class="ti__hint">{T.hint}</p>
+    <div class="ti__start" data-start>
+      <div class="ti__start-card">
+        <p class="ti__start-kicker"><Sticker color="--c-pink" rotate={-4}>{UI.fun.title}</Sticker></p>
+        <h2 class="ti__start-title">{T.title}</h2>
+        <p class="ti__start-tag">{T.tagline}</p>
+        <div class="ti__start-btns">
+          <button type="button" class="ti__start-btn ti__start-btn--main" data-start-continue hidden>
+            ▶ {T.start.continue}<small data-start-info></small>
+          </button>
+          <button type="button" class="ti__start-btn ti__start-btn--main" data-start-shared hidden>
+            🔗 {T.start.playShared}<small data-start-shared-seed></small>
+          </button>
+          <button type="button" class="ti__start-btn" data-start-random>🎲 {T.start.random}<small>{T.start.randomInfo}</small></button>
+          <button type="button" class="ti__start-btn" data-start-empty>🏝️ {T.start.empty}<small>{T.start.emptyInfo}</small></button>
+        </div>
+        <p class="ti__start-note">{T.start.saveNote}</p>
+      </div>
+    </div>
+    <p class="ti__tip" data-tip hidden></p>
+    <noscript><p class="ti__nojs">{T.noJs}</p></noscript>
+  </div>
+</Fun>
+
+<style>
+  .ti {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #2c5fbf;
+    user-select: none;
+  }
+
+  .ti__map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .ti[data-tool]:not([data-tool='move']) .ti__map {
+    cursor: crosshair;
+  }
+
+  .ti.is-panning .ti__map {
+    cursor: grabbing;
+  }
+
+  /* ---- top bar ---- */
+  .ti__top {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    pointer-events: auto;
+  }
+
+  .ti__fun {
+    text-decoration: none;
+  }
+
+  .ti__title {
+    margin: 0;
+    font-size: var(--text-lg);
+    line-height: 1;
+  }
+
+  .ti__seed {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .ti__seed-label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .ti__clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .ti__daynight svg {
+    display: block;
+    width: 22px;
+    height: 22px;
+    stroke: var(--ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .ti__sun circle {
+    fill: var(--c-yellow);
+  }
+
+  .ti__moon {
+    fill: #fff4c9;
+  }
+
+  .ti__moon,
+  [data-night='true'] .ti__sun {
+    display: none !important;
+  }
+
+  [data-night='true'] .ti__moon {
+    display: block !important;
+  }
+
+  .ti__speed,
+  .ti__sizes {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .ti__btn {
+    min-width: 40px;
+    min-height: 36px;
+    padding: 4px 8px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .ti__btn[aria-pressed='true'] {
+    background: var(--c-yellow);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ---- bottom dock ---- */
+  .ti__dock {
+    position: absolute;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 50%;
+    display: grid;
+    gap: 8px;
+    width: min(calc(100% - 20px), 860px);
+    padding: 8px 10px 10px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    transform: translateX(-50%);
+  }
+
+  .ti__tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .ti__tab {
+    padding: 4px 12px;
+    background: none;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  }
+
+  .ti__tab[aria-selected='true'] {
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  .ti__tab[aria-disabled='true'] {
+    color: var(--muted);
+    cursor: default;
+  }
+
+  .ti__tab small {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: lowercase;
+  }
+
+  .ti__panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .ti__panel[hidden] {
+    display: none;
+  }
+
+  .ti__tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .ti__tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 4px 10px 4px 6px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .ti__tool:hover {
+    transform: translateY(-2px);
+  }
+
+  .ti__tool[aria-pressed='true'] {
+    background: var(--c-yellow);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .ti__swatch {
+    width: 20px;
+    height: 20px;
+    background: var(--sw);
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+  }
+
+  .ti__icon {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ti__pop {
+    display: inline-flex;
+    gap: 10px;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .ti__pop b {
+    font-weight: 700;
+  }
+
+  .ti__emoji {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .ti__peoples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .ti__people {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 3px 10px 3px 5px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .ti__people[aria-pressed='true'] {
+    background: var(--c-yellow);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .ti__people .ti__swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+  }
+
+  .ti__note {
+    width: 100%;
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ---- profile (left) and chronicle (right) ---- */
+  .ti__profile,
+  .ti__chron {
+    position: absolute;
+    top: var(--top, 78px);
+    z-index: 2;
+    width: 290px;
+    max-height: calc(100% - var(--top, 78px) - var(--dock, 150px));
+    overflow-y: auto;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    font-size: 13px;
+  }
+
+  .ti__profile {
+    left: 10px;
+  }
+
+  .ti__chron {
+    right: 10px;
+  }
+
+  .ti__profile[hidden],
+  .ti__chron[hidden] {
+    display: none;
+  }
+
+  .ti__chron-title {
+    margin: 0 0 6px;
+    font-size: var(--text-base);
+  }
+
+  .ti__chron-list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ti__chron-list :global(.ti-c__entry) {
+    display: block;
+    width: 100%;
+    padding: 4px 6px;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ti__chron-list :global(.ti-c__entry:hover) {
+    background: var(--bg);
+  }
+
+  .ti__chron-list :global(.ti-c__entry.is-fav) {
+    background: #fff3c4;
+  }
+
+  .ti__chron-list :global(.ti-c__yr) {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .ti__chron-list :global(.ti-c--died) {
+    color: #5a5a5a;
+  }
+
+  .ti__chron-list :global(.ti-c__empty) {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .ti__chron-btn span {
+    margin-left: 2px;
+  }
+
+  .ti__profile :global(.ti-p__head) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .ti__profile :global(.ti-p__name) {
+    margin: 0;
+    font-size: var(--text-lg);
+  }
+
+  .ti__profile :global(.ti-p__close) {
+    width: 30px;
+    height: 30px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .ti__profile :global(.ti-p__meta) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0 6px;
+    color: var(--muted);
+  }
+
+  .ti__profile :global(.ti-p__dot) {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .ti__profile :global(.ti-dot--coast) {
+    background: #3b7ddd;
+  }
+
+  .ti__profile :global(.ti-dot--forest) {
+    background: #3aa64b;
+  }
+
+  .ti__profile :global(.ti-dot--mountain) {
+    background: #9097a6;
+  }
+
+  .ti__profile :global(.ti-dot--steppe) {
+    background: #d9443a;
+  }
+
+  .ti__profile :global(.ti-p__traits) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0 0 8px;
+  }
+
+  .ti__profile :global(.ti-p__village) {
+    margin: 0 0 8px;
+    font-size: 12px;
+  }
+
+  .ti__profile :global(.ti-p__traits span) {
+    padding: 1px 8px;
+    background: #e8f0ff;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .ti__profile :global(.ti-p__need) {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+    font-size: 11px;
+  }
+
+  .ti__profile :global(.ti-p__bar) {
+    height: 8px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .ti__profile :global(.ti-p__bar span) {
+    display: block;
+    height: 100%;
+    background: var(--c-green);
+  }
+
+  .ti__profile :global(.ti-p__fam) {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 3px 6px;
+    margin: 8px 0;
+    font-size: 12px;
+  }
+
+  .ti__profile :global(.ti-p__fam dt) {
+    color: var(--muted);
+  }
+
+  .ti__profile :global(.ti-p__fam dd) {
+    margin: 0;
+  }
+
+  .ti__profile :global(.ti-link) {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .ti__profile :global(.ti-dead) {
+    color: var(--muted);
+  }
+
+  .ti__profile :global(.ti-p__actions) {
+    display: flex;
+    gap: 6px;
+  }
+
+  .ti__profile :global(.ti-p__btn) {
+    min-height: 34px;
+    padding: 3px 10px;
+    background: var(--bg);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .ti__profile :global(.ti-p__btn[aria-pressed='true']) {
+    background: var(--c-yellow);
+  }
+
+  .ti__profile :global(.ti-p__h) {
+    margin: 10px 0 4px;
+    font-size: var(--text-sm);
+  }
+
+  .ti__profile :global(.ti-p__story) {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+  }
+
+  .ti__profile :global(.ti-p__yr) {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* ---- start screen ---- */
+  .ti__start {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgb(20 40 90 / 0.45);
+  }
+
+  .ti__start[hidden] {
+    display: none;
+  }
+
+  .ti__start-card {
+    width: min(420px, 100%);
+    padding: 22px 22px 18px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+  }
+
+  .ti__start-kicker {
+    margin: 0 0 8px;
+  }
+
+  .ti__start-title {
+    margin: 0;
+    font-size: var(--text-2xl);
+  }
+
+  .ti__start-tag {
+    margin: 4px 0 16px;
+    color: var(--muted);
+  }
+
+  .ti__start-btns {
+    display: grid;
+    gap: 8px;
+  }
+
+  .ti__start-btn {
+    display: grid;
+    gap: 2px;
+    min-height: 54px;
+    padding: 8px 14px;
+    background: var(--bg);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .ti__start-btn[hidden] {
+    display: none;
+  }
+
+  .ti__start-btn:hover {
+    transform: translate(-2px, -2px);
+  }
+
+  .ti__start-btn small {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .ti__start-btn--main {
+    background: var(--c-green);
+  }
+
+  .ti__start-btn--main small {
+    color: var(--ink);
+  }
+
+  .ti__start-note {
+    margin: 12px 0 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .ti__share {
+    min-height: 32px;
+    font-size: 12px;
+  }
+
+  .ti__saved {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0;
+    transition: opacity 400ms;
+  }
+
+  .ti__saved:global(.is-shown) {
+    opacity: 1;
+  }
+
+  /* ---- population chart ---- */
+  .ti__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 0 0 4px;
+    font-size: 11px;
+  }
+
+  .ti__legend span[hidden] {
+    display: none;
+  }
+
+  .ti__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .ti__stats :global(.ti-s__svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .ti__stats :global(.ti-s__grid) {
+    stroke: #e2ddd0;
+    stroke-width: 1;
+  }
+
+  .ti__stats :global(.ti-s__tick) {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    fill: var(--muted);
+  }
+
+  .ti__stats :global(.ti-s__label) {
+    font-size: 9px;
+    font-weight: 700;
+    fill: var(--ink);
+  }
+
+  .ti__stats :global(.ti-s__cross) {
+    stroke: var(--ink);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+  }
+
+  .ti__stats :global(.ti-s__empty) {
+    margin: 4px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .ti__stats-tip {
+    margin: 2px 0 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  .ti__stats-tip[hidden] {
+    display: none;
+  }
+
+  .ti__chron .ti__chron-title + .ti__chron-list {
+    margin-top: 2px;
+  }
+
+  /* ---- rules tab ---- */
+  .ti__panel--rules {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .ti__panel--rules[hidden] {
+    display: none;
+  }
+
+  .ti__rule {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__rule input {
+    flex: 1 1 160px;
+    accent-color: #d9443a;
+  }
+
+  .ti__rule-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+  }
+
+  .ti__rule-end {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .ti__rel-list {
+    display: grid;
+    gap: 4px;
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+  }
+
+  .ti__rel-list :global(.ti-r) {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(80px, 2fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__rel-list :global(.ti-r__pair) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 700;
+  }
+
+  .ti__rel-list :global(.ti-r__bar) {
+    position: relative;
+    height: 8px;
+    background: linear-gradient(90deg, #ff8a80, #e2ddd0 50%, #9ee29b);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+  }
+
+  .ti__rel-list :global(.ti-r__bar span) {
+    position: absolute;
+    top: -4px;
+    width: 4px;
+    height: 12px;
+    background: var(--ink);
+    border-radius: 2px;
+    transform: translateX(-50%);
+  }
+
+  .ti__rel-list :global(.ti-r.is-war .ti-r__word) {
+    color: #c62828;
+    font-weight: 700;
+  }
+
+  .ti__rel-list :global(.ti-r__none) {
+    color: var(--muted);
+  }
+
+  .ti__rel-list :global(.ti-p__dot) {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .ti__rel-list :global(.ti-dot--coast) {
+    background: #3b7ddd;
+  }
+
+  .ti__rel-list :global(.ti-dot--forest) {
+    background: #3aa64b;
+  }
+
+  .ti__rel-list :global(.ti-dot--mountain) {
+    background: #9097a6;
+  }
+
+  .ti__rel-list :global(.ti-dot--steppe) {
+    background: #d9443a;
+  }
+
+  .ti__tip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    margin: 0;
+    padding: 3px 8px;
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .ti__tip[hidden] {
+    display: none;
+  }
+
+  .ti__random {
+    margin-left: auto;
+    min-height: 38px;
+    padding: 4px 14px;
+    background: var(--c-green);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: var(--shadow-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .ti__random:hover {
+    transform: translate(-2px, -2px);
+  }
+
+  .ti__hint {
+    position: absolute;
+    bottom: calc(100% - 4px);
+    display: none;
+  }
+
+  .ti__nojs {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    padding: var(--space-3);
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+    transform: translate(-50%, -50%);
+  }
+
+  /* The hint is about shaping; other tabs make the dock taller */
+  .ti:has([data-panel='shape'][hidden]) .ti__hint {
+    display: none !important;
+  }
+
+  /* Hint over the dock on wide screens */
+  @media (min-width: 760px) {
+    .ti__hint {
+      position: absolute;
+      bottom: 150px;
+      left: 50%;
+      display: block;
+      margin: 0;
+      padding: 2px 10px;
+      background: rgb(17 17 17 / 0.55);
+      border-radius: 999px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translateX(-50%);
+    }
+  }
+
+  /* Phones: compact bars, tool names only as tooltips */
+  @media (max-width: 640px) {
+    .ti__top {
+      gap: 6px 8px;
+      padding: 5px 8px;
+    }
+
+    .ti__title {
+      font-size: var(--text-base);
+    }
+
+    .ti__seed,
+    .ti__saved {
+      display: none;
+    }
+
+    .ti__share {
+      min-width: 0;
+      padding: 4px 6px;
+    }
+
+    .ti__speed {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .ti__tool span:not(.ti__swatch, .ti__emoji) {
+      display: none;
+    }
+
+    .ti__pop {
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .ti__note {
+      display: none;
+    }
+
+    .ti__chron-btn span {
+      display: none;
+    }
+
+    /* Panels become sheets across the screen */
+    .ti__profile,
+    .ti__chron {
+      top: auto;
+      right: 10px;
+      bottom: var(--dock, 150px);
+      left: 10px;
+      width: auto;
+      max-height: 42%;
+    }
+
+    .ti__tool {
+      padding: 4px 6px;
+    }
+
+    .ti__random {
+      margin-left: 0;
+    }
+  }
+</style>
+
+<script>
+  import { start } from '@/lib/tiny-island/main';
+
+  let stop: (() => void) | null = null;
+  document.addEventListener('astro:page-load', () => {
+    stop?.();
+    stop = null;
+    const root = document.querySelector<HTMLElement>('[data-tiny-island]');
+    if (root) stop = start(root);
+  });
+</script>

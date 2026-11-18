@@ -1,0 +1,66 @@
+/**
+ * The chronicle: short entries about what matters (couples, births of
+ * favourites, adoptions, deaths, fights, villages founded, new leaders,
+ * groups moving on, villages abandoned). Stored as data, the UI turns them
+ * into sentences with the strings from ui.ts. Newest first, at most 200.
+ */
+import type { People } from './agents';
+
+/** A person as they were when it happened (names never change). */
+export interface Ref {
+  id: number;
+  name: string;
+  people: People;
+}
+
+export interface ChronicleEntry {
+  id: number;
+  year: number;
+  kind: 'couple' | 'birth' | 'adopt' | 'died' | 'brawl' | 'village' | 'resettle' | 'leader' | 'split' | 'ruin' | 'war' | 'peace' | 'conquest';
+  a: Ref;
+  b?: Ref;
+  c?: Ref;
+  /** Age at death. */
+  n?: number;
+  cause?: string;
+  /** Village names (founded, led, left, abandoned; `w` = the new one after a split). */
+  v?: string;
+  w?: string;
+  /** Peoples (war, peace, conquest). */
+  p?: People;
+  q?: People;
+  /** Where it happened, for jumping there (tiles). */
+  x: number;
+  y: number;
+}
+
+export const CHRONICLE_MAX = 200;
+
+export class Chronicle {
+  entries: ChronicleEntry[] = [];
+  /** Goes up with every change, so the list is only redrawn when needed. */
+  version = 0;
+  private nextId = 1;
+
+  add(e: Omit<ChronicleEntry, 'id'>) {
+    this.entries.unshift({ ...e, id: this.nextId++ });
+    if (this.entries.length > CHRONICLE_MAX) this.entries.length = CHRONICLE_MAX;
+    this.version++;
+  }
+
+  clear() {
+    this.entries = [];
+    this.version++;
+  }
+
+  get nextIdValue() {
+    return this.nextId;
+  }
+
+  /** From a saved island. */
+  restore(entries: ChronicleEntry[], nextId: number) {
+    this.entries = entries;
+    this.nextId = nextId;
+    this.version++;
+  }
+}

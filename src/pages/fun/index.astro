@@ -14,6 +14,7 @@ import colorsThumb from '@/assets/fun/thumbs/colors.png';
 import flagThumb from '@/assets/fun/thumbs/flag.png';
 import tenThumb from '@/assets/fun/thumbs/10s.png';
 import buttonThumb from '@/assets/fun/thumbs/the-button.png';
+import islandThumb from '@/assets/fun/thumbs/tiny-island.png';
 
 const L = UI.fun.list;
 
@@ -29,12 +30,22 @@ interface Game {
   /** Release day, shown as "x days ago" on the card. */
   added: string;
   tags: Tag[];
-  chip: Chip;
+  /** Badge on the thumbnail; games without one show only "New" while they are the newest. */
+  chip?: Chip;
   /** Live number filled in by the script below (The Button only). */
   live?: boolean;
 }
 
 const games: Game[] = [
+  {
+    href: 'tiny-island',
+    title: UI.fun.tinyIsland.title,
+    tagline: UI.fun.tinyIsland.tagline,
+    thumb: islandThumb,
+    meta: L.meta.tinyIsland,
+    added: '2026-11-18',
+    tags: [],
+  },
   {
     href: 'colors',
     title: UI.fun.colors.title,
@@ -123,10 +134,14 @@ const monthDay = (iso: string) =>
                   loading={g.href === newest ? 'eager' : 'lazy'}
                 />
                 {g.href === newest && <span class="badge badge--new">{L.chips.new}</span>}
-                <span class:list={['badge', 'badge--chip', `badge--${g.chip}`]}>
-                  {g.chip === 'live' && <span class="dot" aria-hidden="true" />}
-                  {L.chips[g.chip]}
-                </span>
+                {
+                  g.chip && (
+                    <span class:list={['badge', 'badge--chip', `badge--${g.chip}`]}>
+                      {g.chip === 'live' && <span class="dot" aria-hidden="true" />}
+                      {L.chips[g.chip]}
+                    </span>
+                  )
+                }
               </span>
               <span class="tile__info">
                 <Image src={logo} alt="" width={44} height={44} class="tile__avatar" />

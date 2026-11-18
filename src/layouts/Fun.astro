@@ -22,16 +22,18 @@ interface Props {
   image?: string;
   /** Full-window game: no header, footer or padding; the page brings its own top bar. */
   bare?: boolean;
+  /** Keep the page out of search engines, e.g. while a game is still being built. */
+  noIndex?: boolean;
 }
 
-const { title, description, path, indexHref, image, bare = false } = Astro.props;
+const { title, description, path, indexHref, image, bare = false, noIndex = false } = Astro.props;
 const canonical = new URL(path, SITE.fun.url).href;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title={`${title} · ${UI.fun.title}`} description={description} canonical={canonical} image={image} />
+    <Head title={`${title} · ${UI.fun.title}`} description={description} canonical={canonical} image={image} noIndex={noIndex} />
   </head>
   <body>
     <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>
