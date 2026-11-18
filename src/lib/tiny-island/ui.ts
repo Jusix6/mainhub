@@ -7,6 +7,9 @@
 import { ageOf, type AnimalKind, type Human, type People } from './agents';
 import type { Camera } from './camera';
 import { SPEEDS, type Sim, type Speed } from './sim';
+import { loyaltyOf } from './kingdoms';
+import { festiveAt, worksIn } from './culture';
+import type { Village } from './villages';
 import { TERRAIN_BY_KEY, TILE, type TerrainKey, type World } from './world';
 
 export interface Strings {
@@ -17,9 +20,21 @@ export interface Strings {
   peoples: Record<People, string>;
   life: Record<'human' | AnimalKind, string>;
   doing: Record<string, string>;
+  jobs: Record<string, string>;
+  villageTip: string;
+  tiers: Record<string, string>;
+  buildings: Record<string, string>;
+  kingdoms: { realm: Record<'capital' | 'vassal' | 'free', string> };
 }
 
 type LifeTool = 'human' | AnimalKind;
+
+/** Weapons and armour in store, for the village tip (empty when there are none). */
+function armsText(arms: { club: number; bronze: number; iron: number; armor: number } | undefined): string {
+  if (!arms) return '';
+  const weapons = arms.club + arms.bronze + arms.iron;
+  return `${weapons ? ` · ⚔️ ${weapons}` : ''}${arms.armor ? ` · 🛡️ ${arms.armor}` : ''}`;
+}
 type Tool = 'move' | TerrainKey | LifeTool;
 const LIFE_TOOLS: readonly string[] = ['human', 'sheep', 'chicken', 'wolf'];
 const isLife = (t: Tool): t is LifeTool => LIFE_TOOLS.includes(t);
@@ -119,6 +134,21 @@ export class Controls {
     this.root.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== tab));
   }
 
+  /** " · 🎨 3" for works of art made here, " · 🎉" while a festival is on. */
+  private cultureText(v: Village): string {
+    const n = worksIn(this.sim, v).length;
+    return `${n ? ` · 🎨 ${n}` : ''}${festiveAt(v, this.sim) ? ' · 🎉' : ''}`;
+  }
+
+  /** ", capital" / ", loyalty 54" / ", risen up" for places of a kingdom. */
+  private realmText(v: Village): string {
+    const k = this.sim.kingdoms.get(v.people);
+    if (!k) return '';
+    const R = this.S.kingdoms.realm;
+    const text = k.capital === v.id ? R.capital : v.free ? R.free : R.vassal.replace('{n}', String(Math.round(loyaltyOf(v))));
+    return `, ${text}`;
+  }
+
   private renderTool() {
     this.root.querySelectorAll<HTMLElement>('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === this.tool)));
     this.root.querySelectorAll<HTMLElement>('[data-size]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.size === this.size)));
@@ -180,18 +210,35 @@ export class Controls {
     }
     const p = this.cam.toWorld(m.x, m.y);
     const who = this.sim.nearest(p.x / TILE, p.y / TILE + 0.3, 0.8, () => true);
-    if (!who) {
+    // Over a village square: what is in its storage
+    const square = who ? undefined : this.sim.villages.find((v) => !v.ruin && Math.hypot(v.x + 0.5 - p.x / TILE, v.y + 0.5 - p.y / TILE) < 1.4);
+    if (!who && !square) {
       tip.hidden = true;
       return;
     }
     let text: string;
-    if (who.kind === 'human') {
+    if (square) {
+      text = this.S.villageTip
+        .replace('{v}', square.name)
+        .replace('{p}', String(square.members))
+        .replace('{f}', String(Math.floor(square.food)))
+        .replace('{w}', String(square.wood))
+        .replace('{s}', String(square.stone))
+        .replace('{o}', String(square.ore))
+        .replace('{t}', String(square.tools))
+        .replace('{fi}', String(square.fields))
+        .replace('{tier}', this.S.tiers[square.tier ?? 'village'])
+        .replace('{b}', square.buildings.length ? ` · ${square.buildings.map((b) => this.S.buildings[b.kind]).join(', ')}` : '')
+        .replace('{arms}', armsText(square.arms) + this.cultureText(square))
+        .replace('{realm}', this.realmText(square));
+    } else if (who!.kind === 'human') {
       const h = who as Human;
       const age = this.S.age.replace('{n}', String(Math.floor(ageOf(h, this.sim.time))));
       const village = h.village !== undefined ? this.sim.villages.find((v) => v.id === h.village) : undefined;
-      text = `${h.name} · ${village ? village.name : this.S.peoples[h.people]} · ${age} · ${this.S.doing[h.doing] ?? h.doing}`;
+      const job = h.job ? ` · ${this.S.jobs[h.job]}` : '';
+      text = `${h.name} · ${village ? village.name : this.S.peoples[h.people]}${job} · ${age} · ${this.S.doing[h.doing] ?? h.doing}`;
     } else {
-      text = `${this.S.life[who.kind]} · ${this.S.age.replace('{n}', String(Math.floor(ageOf(who, this.sim.time))))}`;
+      text = `${this.S.life[who!.kind as AnimalKind]} · ${this.S.age.replace('{n}', String(Math.floor(ageOf(who!, this.sim.time))))}`;
     }
     if (text !== this.tipFor) {
       tip.textContent = text;

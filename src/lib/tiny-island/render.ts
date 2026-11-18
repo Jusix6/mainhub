@@ -9,8 +9,11 @@ import { GREY_HAIR, PEOPLE_COLORS, stage, type Agent, type Human, type Thought }
 import type { Camera } from './camera';
 import { COLORS, paintTile } from './tiles';
 import type { Sim } from './sim';
-import { enemiesOf, isWarrior } from './war';
-import { H, TILE, W, type Terrain, type World } from './world';
+import { atWar, isWarrior, WALL_HP } from './war';
+import { kingIds } from './kingdoms';
+import { CONFETTI, festiveAt } from './culture';
+import { knows } from './inventions';
+import { H, T, TILE, W, type Terrain, type World } from './world';
 
 export { COLORS };
 
@@ -36,6 +39,36 @@ const TENT = ['....r....', '...rrr...', '..rrRrr..', '.rrrRrrr.', 'rrrrRrrrr', '
 const HOUSE = ['....rr....', '...rrrr...', '..rrrrrr..', '.rrrrrrrr.', 'RRRRRRRRRR', '.wwwwwwww.', '.wywwwyww.', '.wwwDDwww.', '.wwwDDwww.', '.WWWDDWWW.'];
 const STONE_HOUSE = ['....rr....', '...rrrr...', '..rrrrrr..', '.rrrrrrrr.', 'RRRRRRRRRR', '.gGgggGgg.', '.gyggggyg.', '.gggDDggG.', '.gGgDDggg.', '.GGGDDGGG.'];
 const HOUSE_COLORS = { w: '#b07a45', W: '#8a5a2b', g: '#b4b9c2', G: '#8d929c', y: '#3a4a6a', D: '#5a3a1e' };
+// Town buildings (Phase 8), bottom centre on their tile. r/R roof (people colours
+// where it makes sense), w/W wood, g/G stone, y window, D door, o forge glow,
+// k chimney, b bell, c/f goods, p columns, T marble.
+const GRANARY = ['...ssss...', '..ssssss..', '.ssssssss.', 'ssssssssss', '.wwwwwwww.', '.wWwwwwWw.', '.wwwDDwww.', '.wWwDDwWw.', '.wwwDDwww.', '.WWWWWWWW.'];
+const SMITHY = ['.......kk.', '.......kk.', '..RRRRRRR.', '.RRRRRRRRR', 'RRRRRRRRRR', '.gGgggggg.', '.googggDg.', '.googggDg.', '.GGGGGGDG.'];
+const MARKET = ['rwrwrwrwrwr', 'rwrwrwrwrwr', '.b...b...b.', '.bcyfbcfyb.', '.b...b...b.'];
+const TEMPLE = ['.....r.....', '....rrr....', '...rrrrr...', '..rrrrrrr..', '.rrrrrrrrr.', 'TTTTTTTTTTT', '.p.p.p.p.p.', '.p.p.p.p.p.', '.p.p.p.p.p.', 'TTTTTTTTTTT'];
+const TOWNHALL = ['.....RR.....', '....rrrr....', '....rbbr....', '....rrrr....', '..RRRRRRRR..', '.RRRRRRRRRR.', 'RRRRRRRRRRRR', '.gggggggggg.', '.gyyggggyyg.', '.gggggggggg.', '.gyygDDgyyg.', '.ggggDDggggg', '.GGGGDDGGGG.'];
+const TOWNHOUSE = ['....rr....', '...rrrr...', '..rrrrrr..', '.rrrrrrrr.', 'RRRRRRRRRR', '.gggggggg.', '.gyggggyg.', '.gggggggg.', '.gyggggyg.', '.gggDDggg.', '.GGGDDGGG.'];
+const BUILDING_SPRITES: Record<string, string[]> = { granary: GRANARY, smithy: SMITHY, market: MARKET, temple: TEMPLE, townhall: TOWNHALL };
+const BUILDING_COLORS = {
+  s: '#a0522d',
+  w: '#b07a45',
+  W: '#8a5a2b',
+  g: '#b4b9c2',
+  G: '#8d929c',
+  y: '#3a4a6a',
+  D: '#5a3a1e',
+  o: '#ff8a1e',
+  k: '#5a3a1e',
+  b: '#ffd23f',
+  c: '#e8344a',
+  f: '#ffe066',
+  T: '#d8d4c8',
+  p: '#f4f1e8',
+};
+/** A little variety: three wood tones and three stone tones for houses. */
+const WOOD_TONES = ['#b07a45', '#a06a3a', '#c08a50'];
+const STONE_TONES = ['#b4b9c2', '#c3c6cc', '#a6abb6'];
+
 const RUIN = ['..........', '..........', '..........', '.w......w.', '.ww....ww.', '.www..www.', '.wwWW.www.'];
 const RUIN_COLORS = { w: '#8d8a84', W: '#6d6a64' };
 const SITE = ['.b......b.', '.bbbbbbbb.', '.b..b...b.', '.b..b...b.', '.bbbbbbbb.', '.b..b...b.', '.b......b.'];
@@ -53,8 +86,28 @@ const THOUGHTS: Record<Thought, string[]> = {
   sword: ['....g', '...g.', 'b.g..', '.b...', 'b.b..'],
   tear: ['..u..', '.uu..', '.uuu.', 'uuuuu', '.uuu.'],
   food: ['..l..', '.rrr.', 'rrrrr', 'rrrrr', '.rrr.'],
+  note: ['..kk.', '..k.k', '..k..', 'kkk..', 'kkk..'],
 };
-const THOUGHT_COLORS: Record<string, string> = { r: '#e8344a', g: '#8b93a3', b: '#8a5a2b', u: '#4d8dff', l: '#3aa64b' };
+/** A tiny tool in the hand for each job: [x, y, colour] pixels, relative to the hand. */
+const TOOLS: Record<string, [number, number, string][]> = {
+  farmer: [[0, -3, '#8a5a2b'], [0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [-1, -3, '#b4b9c2']],
+  fisher: [[0, -4, '#8a5a2b'], [0, -3, '#8a5a2b'], [0, -2, '#8a5a2b'], [1, -4, '#ffffff'], [1, -3, '#ffffff']],
+  woodcutter: [[0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [1, -2, '#b4b9c2'], [1, -3, '#b4b9c2']],
+  stonemason: [[0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [-1, -3, '#9aa0aa'], [0, -3, '#9aa0aa'], [1, -3, '#9aa0aa']],
+  miner: [[0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [-1, -3, '#6c727d'], [0, -3, '#6c727d'], [1, -3, '#6c727d'], [-1, -4, '#ffd36b']],
+  smith: [[0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [-1, -2, '#4a4e57'], [0, -2, '#4a4e57'], [1, -2, '#4a4e57']],
+  builder: [[0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [-1, -2, '#c08a4a'], [0, -2, '#c08a4a']],
+  artist: [[0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, -3, '#ff5da2']],
+  soldier: [[0, -4, '#b4b9c2'], [0, -3, '#8a5a2b'], [0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b']],
+};
+const THOUGHT_COLORS: Record<string, string> = { r: '#e8344a', g: '#8b93a3', b: '#8a5a2b', u: '#4d8dff', l: '#3aa64b', k: '#111111' };
+/** Blades: a flint knife without a weapon from the smith, then bronze and iron swords. */
+const BLADE = { flint: '#a89a84', bronze: '#d08a3a', iron: '#d7dbe3' };
+const BOAT = ['w......w', 'wwwwwwww', '.WWWWWW.'];
+/** A statue of marble on a stone base (Phase 12). */
+const STATUE = ['..m..', '.mmm.', 'm.m.m', '..m..', '.mmm.', '.m.m.', 'ppppp', '.PPP.'];
+const STATUE_COLORS = { m: '#e8e4d8', p: '#9aa0aa', P: '#7a808a' };
+const BOAT_COLORS = { w: '#b07a45', W: '#8a5a2b' };
 const GRAVE = ['.GGG.', 'GGgGG', 'GgggG', 'GGgGG', 'GGGGG', 'ddddd'];
 const GRAVE_COLORS = { G: '#a3a9b4', g: '#6c727d', d: '#7a5c3c' };
 
@@ -70,6 +123,12 @@ export class Renderer {
   private readonly lights: [number, number][] = [];
   /** Text after a village name when it lies in ruins. */
   ruinsLabel = 'ruins';
+  /** Generals of the armies on the move (they carry a banner), refreshed every frame. */
+  private generals = new Set<number>();
+  /** Ruling kings and queens (a big crown), refreshed every frame. */
+  private kings = new Set<number>();
+  /** Names of the tiers for the signs ("town", "city"). */
+  tierLabels: Record<string, string> = { town: 'town', city: 'city' };
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -178,10 +237,31 @@ export class Renderer {
       const cx = v.x * TILE + 4;
       const cy = v.y * TILE + 4;
 
-      // The square: a patch of trodden earth
+      // The square: a patch of trodden earth, bigger in towns and cities
+      const tier = v.tier ?? 'village';
+      const grow = tier === 'city' ? 4 : tier === 'town' ? 2 : 0;
       ctx.fillStyle = v.ruin ? 'rgba(150, 135, 110, 0.45)' : 'rgba(214, 186, 132, 0.75)';
-      ctx.fillRect(cx - 9, cy - 5, 18, 11);
-      ctx.fillRect(cx - 7, cy - 7, 14, 15);
+      ctx.fillRect(cx - 9 - grow, cy - 5 - grow, 18 + grow * 2, 11 + grow * 2);
+      ctx.fillRect(cx - 7 - grow, cy - 7 - grow, 14 + grow * 2, 15 + grow * 2);
+
+      // Paths from the square to every house and building
+      if (!v.ruin) {
+        ctx.fillStyle = 'rgba(204, 174, 124, 0.55)';
+        for (const p of [...v.houses, ...v.buildings]) this.path(cx, cy, p.x * TILE + 4, p.y * TILE + 6);
+      }
+
+      // City wall: a ring of stone with four gates
+      if (!v.ruin && v.buildings.some((b) => b.kind === 'wall')) this.wall(sim, cx, cy, 11 * TILE, 1 - (v.wallHp ?? WALL_HP) / WALL_HP);
+
+      for (const b of v.buildings) {
+        const rows = BUILDING_SPRITES[b.kind];
+        if (!rows) continue;
+        const px = b.x * TILE + 4;
+        const py = b.y * TILE + 8;
+        this.figure(rows, { ...BUILDING_COLORS, r: v.ruin ? '#8d8a84' : b.kind === 'market' ? cloth.cloth : roof.r, R: v.ruin ? '#6d6a64' : roof.R }, px, py, false);
+        if (b.kind === 'townhall' || b.kind === 'temple') this.lights.push([px - 3, py - 4]);
+        if (b.kind === 'smithy') this.lights.push([px - 3, py - 3]);
+      }
 
       for (const h of v.houses) {
         const px = h.x * TILE + 4;
@@ -190,8 +270,10 @@ export class Renderer {
           this.figure(RUIN, RUIN_COLORS, px, py, false);
           continue;
         }
-        const rows = h.level === 0 ? TENT : h.level === 1 ? HOUSE : STONE_HOUSE;
-        this.figure(rows, { ...HOUSE_COLORS, ...roof }, px, py, false);
+        const rows = h.level === 0 ? TENT : h.level === 1 ? HOUSE : h.level === 2 ? STONE_HOUSE : TOWNHOUSE;
+        const tone = (h.x * 3 + h.y * 7) % 3;
+        this.figure(rows, { ...HOUSE_COLORS, w: WOOD_TONES[tone], g: STONE_TONES[tone], ...roof }, px, py, false);
+        if (h.level === 3) this.lights.push([px - 3, py - 7]);
         if (h.level > 0) {
           this.lights.push([px - 3, py - 4]);
           this.lights.push([px + 1, py - 4]);
@@ -209,6 +291,29 @@ export class Renderer {
         }
       }
       if (v.ruin) continue;
+
+      // Statues next to the square, murals (a few bright pixels) on house walls
+      for (const p of v.art ?? []) {
+        const px = p.x * TILE + 4;
+        const py = p.y * TILE + 8;
+        if (p.kind === 'statue') {
+          this.figure(STATUE, STATUE_COLORS, px, py, false);
+          continue;
+        }
+        for (let i = 0; i < 6; i++) {
+          ctx.fillStyle = CONFETTI[(p.work + i) % 5];
+          ctx.fillRect(px + 1 + (i % 3), py - 3 + Math.floor(i / 3), 1, 1);
+        }
+      }
+      // Festival: bunting in all colours around the square
+      if (festiveAt(v, sim)) {
+        const n = 30;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          ctx.fillStyle = CONFETTI[i % 5];
+          ctx.fillRect(Math.round(cx + Math.cos(a) * 18) - 1, Math.round(cy + Math.sin(a) * 12) - 1, 2, 2);
+        }
+      }
 
       const s = v.site;
       if (s) this.figure(SITE, SITE_COLORS, s.x * TILE + 4, s.y * TILE + 8, false);
@@ -229,7 +334,7 @@ export class Renderer {
       ctx.fillStyle = cloth.cloth;
       ctx.fillRect(cx - 6, cy - 12, 4, 3);
       // At war: a red war flag with crossed swords flies next to it
-      if (enemiesOf(sim, v.people).length) {
+      if (atWar(sim, { people: v.people, village: v.id })) {
         const wave = Math.floor(sim.time * 4) % 2;
         ctx.fillStyle = '#6b4325';
         ctx.fillRect(cx + 6, cy - 14, 1, 11);
@@ -246,6 +351,33 @@ export class Renderer {
     }
   }
 
+  /** A trodden path of 2 x 2 pixel steps from (x0, y0) to (x1, y1). */
+  private path(x0: number, y0: number, x1: number, y1: number) {
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / Math.max(1, steps);
+      this.ctx.fillRect(Math.round(x0 + (x1 - x0) * t) - 1, Math.round(y0 + (y1 - y0) * t) - 1, 2, 2);
+    }
+  }
+
+  /** A round wall of stone blocks with gates north, east, south and west; only on land. Damage (0…1) knocks out blocks. */
+  private wall(sim: Sim, cx: number, cy: number, r: number, damage = 0) {
+    const ctx = this.ctx;
+    const n = Math.round((2 * Math.PI * r) / 4);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const gate = Math.abs(((a + Math.PI / 4) % (Math.PI / 2)) - Math.PI / 4) < 0.18;
+      if (gate || ((i * 37) % 100) / 100 < damage) continue;
+      const x = Math.round(cx + Math.cos(a) * r);
+      const y = Math.round(cy + Math.sin(a) * r * 0.8);
+      if (!sim.world.isLand(sim.world.get(Math.floor(x / TILE), Math.floor(y / TILE)))) continue;
+      ctx.fillStyle = '#8d929c';
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+      ctx.fillStyle = '#b4b9c2';
+      ctx.fillRect(x - 2, y - 3, 4, 2);
+    }
+  }
+
   /** Village names over the squares, in screen pixels so they stay readable. */
   private drawLabels(cam: Camera, sim: Sim, ruinsLabel: string) {
     if (cam.zoom < 0.5) return;
@@ -259,7 +391,11 @@ export class Renderer {
       const sx = ((v.x + 0.5) * TILE - cam.x) * cam.zoom * dpr + (cam.vw / 2) * dpr;
       const sy = ((v.y + 0.5) * TILE - 14 - cam.y) * cam.zoom * dpr + (cam.vh / 2) * dpr - 10 * dpr;
       if (sx < -100 || sy < -30 || sx > this.canvas.width + 100 || sy > this.canvas.height + 30) continue;
-      const text = v.ruin ? `${v.name} · ${ruinsLabel}` : v.name;
+      const tier = v.tier ?? 'village';
+      // Capitals get a crown sign in front of the name
+      const name = !v.ruin && [...sim.kingdoms.values()].some((k) => k.capital === v.id) ? `♛ ${v.name}` : v.name;
+      const text = v.ruin ? `${v.name} · ${ruinsLabel}` : tier === 'village' ? name : `${name} · ${this.tierLabels[tier] ?? tier}`;
+      ctx.font = `700 ${Math.round((tier === 'city' ? 13 : tier === 'town' ? 12 : 11) * dpr)}px system-ui, sans-serif`;
       const w = ctx.measureText(text).width + 12 * dpr;
       const h = 17 * dpr;
       ctx.globalAlpha = v.ruin ? 0.6 : 0.95;
@@ -317,6 +453,8 @@ export class Renderer {
     this.drawVillages(sim, visible);
     for (const g of sim.graves) if (visible(g)) this.figure(GRAVE, GRAVE_COLORS, g.x * TILE, g.y * TILE + 3, false);
 
+    this.generals = new Set(sim.armies.map((a) => a.general));
+    this.kings = kingIds(sim);
     const all: Agent[] = [];
     for (const h of sim.humans) if (visible(h)) all.push(h);
     for (const a of sim.animals) if (visible(a)) all.push(a);
@@ -352,7 +490,31 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /** A fisher who knows boats sits in one on the water next to the fishing spot. */
+  private boatTile(h: Human, sim: Sim): { x: number; y: number } | null {
+    const t = h.task;
+    if (h.job !== 'fisher' || t?.kind !== 'work' || t.source !== 'fish' || t.phase !== 'gather' || !knows(sim, h.people, 'boats')) return null;
+    const w = sim.world;
+    for (const [dx, dy] of [
+      [0, 1],
+      [1, 0],
+      [-1, 0],
+      [0, -1],
+    ]) {
+      const k = w.get(t.tx + dx, t.ty + dy);
+      if (k === T.SHALLOW || k === T.DEEP) return { x: t.tx + dx, y: t.ty + dy };
+    }
+    return null;
+  }
+
   private human(h: Human, sim: Sim, px: number, py: number, flip: boolean, step: boolean) {
+    const boat = this.boatTile(h, sim);
+    if (boat) {
+      px = boat.x * TILE + 4;
+      py = boat.y * TILE + 6;
+    }
+    // Dancing at a festival: a little hop
+    if (h.task?.kind === 'festival' && h.task.arrived && Math.floor(sim.time * 4 + h.id) % 2 === 0) py -= 1;
     const age = stage(h, sim.time);
     const cloth = PEOPLE_COLORS[h.people];
     const colors = {
@@ -382,21 +544,94 @@ export class Renderer {
     const rows = age === 'child' ? (walking ? CHILD_WALK : CHILD) : h.female ? (walking ? WOMAN_WALK : WOMAN) : walking ? MAN_WALK : MAN;
     this.figure(rows, colors, px, py, flip);
     const top = Math.round(py - rows.length);
-    // Carrying a load for the village: on the back
+    // In the boat: the hull hides the legs, a line goes into the water
+    if (boat) {
+      this.figure(BOAT, BOAT_COLORS, px, py + 1, flip);
+      ctx.fillStyle = '#ffffff';
+      const lx = Math.round(px) + (flip ? -5 : 5);
+      ctx.fillRect(lx, top + 1, 1, 6);
+    }
+    // Carrying a load for the village: on the back, or on a cart once they know the wheel
     if (h.carry) {
-      ctx.fillStyle = h.carry.res === 'wood' ? '#8a5a2b' : h.carry.res === 'stone' ? '#9aa0aa' : '#e8344a';
-      ctx.fillRect(Math.round(px) - (flip ? -2 : 3), top + 2, 2, 2);
+      const load = h.carry.res === 'wood' ? '#8a5a2b' : h.carry.res === 'stone' ? '#9aa0aa' : h.carry.res === 'ore' ? '#6c727d' : '#e8344a';
+      if (h.carry.res !== 'food' && knows(sim, h.people, 'wheel')) {
+        const cx = Math.round(px) + (flip ? 3 : -7);
+        const fy = Math.round(py);
+        ctx.fillStyle = load;
+        ctx.fillRect(cx, fy - 4, 4, 2);
+        ctx.fillStyle = '#8a5a2b';
+        ctx.fillRect(cx, fy - 2, 4, 1);
+        ctx.fillRect(flip ? cx - 1 : cx + 4, fy - 3, 1, 1);
+        ctx.fillStyle = '#3a2a20';
+        ctx.fillRect(cx, fy - 1, 1, 1);
+        ctx.fillRect(cx + 3, fy - 1, 1, 1);
+      } else {
+        ctx.fillStyle = load;
+        ctx.fillRect(Math.round(px) - (flip ? -2 : 3), top + 2, 2, 2);
+      }
     }
-    // Warriors carry a little sword
-    if (isWarrior(h, sim)) {
+    // A tool in the free hand shows the job (warriors in a war hold a sword instead)
+    const warrior = isWarrior(h, sim);
+    const tool = h.job && !(warrior && h.job === 'soldier') ? TOOLS[h.job] : undefined;
+    if (tool && !h.carry && !boat && !this.generals.has(h.id)) {
+      const hx = Math.round(px) + (flip ? 3 : -3);
+      for (const [dx, dy, col] of tool) {
+        ctx.fillStyle = col;
+        ctx.fillRect(hx + (flip ? -dx : dx), top + 3 + dy, 1, 1);
+      }
+    }
+    // Warriors (and armed soldiers) carry their weapon: a club, a bronze or an iron sword
+    if (warrior || (h.job === 'soldier' && h.weapon)) {
       const sx = Math.round(px) + (flip ? -3 : 3);
-      ctx.fillStyle = '#d7dbe3';
-      ctx.fillRect(sx, top + 1, 1, 4);
-      ctx.fillStyle = '#8a5a2b';
-      ctx.fillRect(sx - 1, top + 4, 3, 1);
+      if (h.weapon === 'club') {
+        ctx.fillStyle = '#8a5a2b';
+        ctx.fillRect(sx, top + 2, 1, 3);
+        ctx.fillStyle = '#6b4325';
+        ctx.fillRect(flip ? sx - 1 : sx, top, 2, 2);
+      } else {
+        ctx.fillStyle = h.weapon ? BLADE[h.weapon] : BLADE.flint;
+        ctx.fillRect(sx, top + 1, 1, 4);
+        ctx.fillStyle = '#8a5a2b';
+        ctx.fillRect(sx - 1, top + 4, 3, 1);
+      }
     }
-    // The village leader wears a little crown
-    if (sim.villages.some((v) => v.leader === h.id && !v.ruin)) {
+    // Armour: a helmet with a little crest
+    if (h.armor && age !== 'child') {
+      const x0 = Math.round(px - 2.5);
+      ctx.fillStyle = '#9aa0aa';
+      ctx.fillRect(x0 + 1, top, 3, 1);
+      ctx.fillStyle = '#c3c6cc';
+      ctx.fillRect(x0 + 2, top - 1, 1, 1);
+    }
+    // An army's general carries its banner
+    if (this.generals.has(h.id)) {
+      const hx = Math.round(px) + (flip ? 3 : -3);
+      const wave = Math.floor(sim.time * 4) % 2;
+      const fx = flip ? hx + 1 : hx - 5;
+      ctx.fillStyle = '#6b4325';
+      ctx.fillRect(hx, top - 7, 1, 12);
+      // Dark edge so it stands out on any ground, people colour inside, a white sign in the middle
+      ctx.fillStyle = '#241a14';
+      ctx.fillRect(fx, top - 7, 5, 5);
+      ctx.fillRect(flip ? fx + 5 : fx - 1, top - 6 + wave, 1, 3);
+      ctx.fillStyle = cloth.cloth;
+      ctx.fillRect(fx + 1, top - 6, 3, 3);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(fx + 2, top - 5, 1, 1);
+      ctx.fillStyle = '#ffd23f';
+      ctx.fillRect(hx, top - 8, 1, 1);
+    }
+    // Kings and queens wear a big crown with a ruby, village leaders a little one
+    if (this.kings.has(h.id)) {
+      const x = Math.round(px);
+      ctx.fillStyle = '#ffc83d';
+      ctx.fillRect(x - 2, top - 2, 5, 1);
+      ctx.fillRect(x - 2, top - 3, 1, 1);
+      ctx.fillRect(x, top - 4, 1, 2);
+      ctx.fillRect(x + 2, top - 3, 1, 1);
+      ctx.fillStyle = '#e8344a';
+      ctx.fillRect(x, top - 2, 1, 1);
+    } else if (sim.villages.some((v) => v.leader === h.id && !v.ruin)) {
       ctx.fillStyle = '#ffc83d';
       ctx.fillRect(Math.round(px) - 1, top - 2, 3, 1);
       ctx.fillRect(Math.round(px) - 1, top - 3, 1, 1);

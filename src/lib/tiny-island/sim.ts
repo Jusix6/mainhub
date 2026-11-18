@@ -28,10 +28,13 @@ import {
 import { Chronicle, type Ref } from './chronicle';
 import { onDeath, story } from './social';
 import { settle, villageThink, type Village } from './villages';
-import { countLoss, warTick, type War } from './war';
+import { ARMOR, countLoss, warTick, type Army, type War } from './war';
 import { record, type Snapshot } from './stats';
 import { actAnimal, thinkAnimal } from './animals';
 import { actHuman, thinkHuman } from './ai';
+import { researchTick, type Tech } from './inventions';
+import { kingdomTick, type Kingdom } from './kingdoms';
+import { countKill, cultureTick, onHeroDeath, type Legend, type Work } from './culture';
 import { pickName } from './names';
 import { randFor, type Rand } from './rng';
 import { H, T, W, type World } from './world';
@@ -71,6 +74,20 @@ export class Sim {
   /** Mood between peoples (key "a|b") and running wars. */
   readonly mood = new Map<string, number>();
   readonly wars = new Map<string, War>();
+  /** Armies on the move, alliances and peace treaties (key → end time), moods between villages of one people (war.ts). */
+  armies: Army[] = [];
+  nextArmyId = 1;
+  readonly alliances = new Set<string>();
+  readonly treaties = new Map<string, number>();
+  readonly vmood = new Map<string, number>();
+  /** Works of art and legends (culture.ts). */
+  works: Work[] = [];
+  nextWorkId = 1;
+  legends: Legend[] = [];
+  /** Kingdom of each people that has one (kingdoms.ts). */
+  readonly kingdoms = new Map<People, Kingdom>();
+  /** What each people has invented so far (inventions.ts). */
+  readonly tech = new Map<People, Tech>();
   /** Player rules (Rules tab), each a factor around 1. */
   readonly rules = { aggression: 1, birth: 1, lifespan: 1, food: 1 };
   slashes: Slash[] = [];
@@ -104,6 +121,16 @@ export class Sim {
     this.nextVillageId = 1;
     this.mood.clear();
     this.wars.clear();
+    this.tech.clear();
+    this.armies = [];
+    this.nextArmyId = 1;
+    this.alliances.clear();
+    this.treaties.clear();
+    this.vmood.clear();
+    this.kingdoms.clear();
+    this.works = [];
+    this.nextWorkId = 1;
+    this.legends = [];
     this.slashes = [];
     this.footprints = [];
     this.history = [];
@@ -146,6 +173,9 @@ export class Sim {
       this.villageClock -= 1;
       for (const v of this.villages) villageThink(v, this);
       warTick(this);
+      kingdomTick(this);
+      researchTick(this);
+      cultureTick(this);
       if (Math.round(this.time) % 2 === 0) settle(this);
     }
 
@@ -195,7 +225,9 @@ export class Sim {
         h.hunger = Math.min(100, h.hunger + 34);
       }
     }
-    h.social = Math.max(0, h.social - 1.2 * DT);
+    // Belonging to a place with a temple, people feel less lonely
+    const temple = h.village !== undefined && this.villages.some((v) => v.id === h.village && v.buildings?.some((b) => b.kind === 'temple'));
+    h.social = Math.max(0, h.social - (temple ? 0.8 : 1.2) * DT);
     if (!h.asleep) h.energy = Math.max(0, h.energy - 3.6 * DT);
     if (h.hunger <= 0) this.hurt(h, 3 * DT, 'hunger');
     else if (h.hunger > 30 && h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + 1.5 * DT);
@@ -345,6 +377,8 @@ export class Sim {
    * strikes (fist fights between people) never go below 35 hit points.
    */
   hit(attacker: Agent, target: Agent, damage: number, gentle = false): boolean {
+    // Armour takes the edge off real blows
+    if (!gentle && target.kind === 'human' && target.armor) damage *= ARMOR;
     target.hp = gentle ? Math.max(35, target.hp - damage) : target.hp - damage;
     target.attacker = attacker.id;
     target.attackedAt = this.time;
@@ -360,7 +394,11 @@ export class Sim {
     if (a.dead) return;
     a.dead = true;
     this.byIdMap.delete(a.id);
+    // Warriors count the foes they beat, hunters the wolves (for legends)
+    const killer = a.attacker !== undefined ? this.byIdMap.get(a.attacker) : undefined;
+    if (cause === 'human' && killer?.kind === 'human') countKill(killer as Human, a);
     if (a.kind === 'human') {
+      onHeroDeath(this, a);
       this.graves.push({ x: a.x, y: a.y, until: this.time + GRAVE_TIME });
       const r = this.registry.get(a.id);
       if (r) r.alive = false;

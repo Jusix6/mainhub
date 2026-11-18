@@ -11,10 +11,15 @@
 import { ageOf, has, PERKS, stage, type Human, type People } from './agents';
 import { villageName } from './names';
 import type { Sim } from './sim';
+import { assignJobs } from './jobs';
+import type { FestivalKind, Piece } from './culture';
+import { knows } from './inventions';
+import { BUILDING_COST, crowdedAt, nextBuilding, promote, spoil, tierOf, trade, type Building, type BuildingKind, type Tier } from './town';
 import { refOf, story } from './social';
 import { T } from './world';
 
-export type HouseLevel = 0 | 1 | 2;
+/** Tent, wooden house, stone house, town house (two floors, cities only). */
+export type HouseLevel = 0 | 1 | 2 | 3;
 
 export interface House {
   x: number;
@@ -31,6 +36,8 @@ export interface Site {
   level: HouseLevel;
   /** Upgrading this house (else a new one). */
   house?: House;
+  /** A special building instead of a house (town.ts). */
+  kind?: BuildingKind;
   /** Person-seconds of work done and needed. */
   done: number;
   needed: number;
@@ -46,14 +53,44 @@ export interface Village {
   food: number;
   wood: number;
   stone: number;
+  /** Ore from the mountains and the tools the smith makes of it (Phase 7). */
+  ore: number;
+  tools: number;
+  /** Fields around the square and how many are ripe (counted with the jobs). */
+  fields: number;
+  ripe: number;
   houses: House[];
+  /** Granary, market, temple … (town.ts). */
+  buildings: Building[];
+  tier?: Tier;
+  /** Next yearly trade at the market, and with whom it last traded. */
+  tradeAt?: number;
+  tradedWith?: string;
   site: Site | null;
   leader?: number;
   members: number;
   founded: number;
   ruin: boolean;
   /** 0 … 1, how badly the storage needs each resource (for the work score). */
-  need: { food: number; wood: number; stone: number };
+  need: { food: number; wood: number; stone: number; ore: number };
+  /** Next game time to hand out jobs again. */
+  jobsAt?: number;
+  /** Mountains close enough to get stone and ore from (counted with the jobs). */
+  rock?: boolean;
+  /** Weapons and armour in store (Phase 10). */
+  arms: { club: number; bronze: number; iron: number; armor: number };
+  /** What is left of the city wall under a siege (full when unset). */
+  wallHp?: number;
+  /** No new army sets out before this game time. */
+  armyAt?: number;
+  /** Kingdoms (Phase 11): risen up against the crown, and loyalty 0 … 100 (60 when unset). */
+  free?: boolean;
+  loyalty?: number;
+  /** Culture (Phase 12): statues and murals, the festival going on and the next one. */
+  art?: Piece[];
+  festivalUntil?: number;
+  festivalKind?: FestivalKind;
+  nextFestival?: number;
 }
 
 /** Building costs per level: tent, wooden house, stone house. */
@@ -61,10 +98,12 @@ const COST: { wood: number; stone: number; work: number }[] = [
   { wood: 2, stone: 0, work: 4 },
   { wood: 6, stone: 0, work: 8 },
   { wood: 2, stone: 6, work: 12 },
+  { wood: 4, stone: 6, work: 14 },
 ];
 
+const costOf = (s: Omit<Site, 'done' | 'needed'>) => (s.kind ? BUILDING_COST[s.kind] : COST[s.level]);
+
 export const FOUND_SIZE = 4;
-const CROWDED = 20;
 const RADIUS = 8;
 
 export const villageOf = (h: Human, sim: Sim) => (h.village === undefined ? undefined : sim.villages.find((v) => v.id === h.village));
@@ -72,9 +111,16 @@ export const villageOf = (h: Human, sim: Sim) => (h.village === undefined ? unde
 const isAdult = (h: Human, sim: Sim) => stage(h, sim.time) !== 'child';
 
 /** A free land tile around (x, y) between r0 and r1 tiles away, not on a house. */
-function freeSpot(sim: Sim, x: number, y: number, r0: number, r1: number) {
+export function freeSpot(sim: Sim, x: number, y: number, r0: number, r1: number) {
   const taken = (tx: number, ty: number) =>
-    sim.villages.some((v) => (v.x === tx && v.y === ty) || v.houses.some((h) => Math.abs(h.x - tx) < 2 && Math.abs(h.y - ty) < 2) || (v.site && Math.abs(v.site.x - tx) < 2 && Math.abs(v.site.y - ty) < 2));
+    sim.villages.some(
+      (v) =>
+        (Math.abs(v.x - tx) < 2 && Math.abs(v.y - ty) < 2) ||
+        v.houses.some((h) => Math.abs(h.x - tx) < 2 && Math.abs(h.y - ty) < 2) ||
+        v.buildings.some((b) => Math.abs(b.x - tx) < 2 && Math.abs(b.y - ty) < 2) ||
+        !!v.art?.some((p) => p.kind === 'statue' && Math.abs(p.x - tx) < 2 && Math.abs(p.y - ty) < 2) ||
+        (v.site && Math.abs(v.site.x - tx) < 2 && Math.abs(v.site.y - ty) < 2),
+    );
   for (let k = 0; k < 60; k++) {
     const ang = sim.rand() * Math.PI * 2;
     const d = r0 + sim.rand() * (r1 - r0);
@@ -96,12 +142,19 @@ function newVillage(sim: Sim, people: People, x: number, y: number): Village {
     food: 4,
     wood: 2,
     stone: 0,
+    ore: 0,
+    tools: 0,
+    fields: 0,
+    ripe: 0,
     houses: [],
+    buildings: [],
+    arms: { club: 0, bronze: 0, iron: 0, armor: 0 },
+    tier: 'village',
     site: null,
     members: 0,
     founded: sim.year,
     ruin: false,
-    need: { food: 0, wood: 0, stone: 0 },
+    need: { food: 0, wood: 0, stone: 0, ore: 0 },
   };
   sim.villages.push(v);
   return v;
@@ -194,9 +247,16 @@ export function villageThink(v: Village, sim: Sim) {
   const foodTarget = members.length * 2.5;
   v.need.food = Math.max(0, Math.min(0.9, 1 - v.food / foodTarget));
   const next = plan(v, sim, members, grownUps.length);
-  const cost = next ? COST[next.level] : null;
+  const cost = next ? costOf(next) : null;
   v.need.wood = cost && v.wood < cost.wood + 2 ? 0.8 : v.wood < 4 ? 0.3 : 0;
   v.need.stone = cost && cost.stone && v.stone < cost.stone ? 0.8 : 0;
+  v.need.ore = v.ore < 6 ? 0.4 : 0;
+
+  // Jobs every few seconds (jobs.ts)
+  if ((v.jobsAt ?? 0) <= sim.time) {
+    v.jobsAt = sim.time + 5;
+    assignJobs(v, sim, members);
+  }
 
   // Start building when the materials are there
   if (!v.site && next && cost) {
@@ -226,7 +286,12 @@ export function villageThink(v: Village, sim: Sim) {
     }
   }
 
-  if (members.length > CROWDED) split(v, sim, members);
+  // Towns and cities (town.ts)
+  promote(v, sim, members);
+  spoil(v);
+  trade(v, sim);
+
+  if (members.length > crowdedAt(v)) split(v, sim, members);
 }
 
 /** Next thing to build: a new tent while there are too few houses, else an upgrade. */
@@ -237,10 +302,25 @@ function plan(v: Village, sim: Sim, members: Human[], grownUps: number): Omit<Si
     const spot = freeSpot(sim, v.x, v.y, 2, 4 + v.houses.length * 0.5);
     return spot ? { x: spot.x, y: spot.y, level: 0 } : null;
   }
+  // Special buildings of the tier (granary, market, temple …)
+  const kind = nextBuilding(v);
+  // Without rock nearby a place cannot count on stone: skip what it cannot pay
+  const masonry = knows(sim, v.people, 'masonry');
+  // City walls need masonry
+  const blocked = kind && ((BUILDING_COST[kind].stone > v.stone && !v.rock) || (kind === 'wall' && !masonry));
+  if (kind && !blocked) {
+    const spot = kind === 'wall' ? { x: v.x, y: v.y } : freeSpot(sim, v.x, v.y, kind === 'market' ? 2 : 3, kind === 'market' ? 4 : 7);
+    if (spot) return { x: spot.x, y: spot.y, level: 0, kind };
+  }
   const tent = v.houses.find((h) => h.level === 0);
   if (tent) return { x: tent.x, y: tent.y, level: 1, house: tent };
+  // Stone houses and town houses need masonry
+  if (!masonry) return null;
   const wooden = v.houses.find((h) => h.level === 1);
   if (wooden && (v.people === 'mountain' || members.length >= 8)) return { x: wooden.x, y: wooden.y, level: 2, house: wooden };
+  // Cities build town houses with two floors
+  const stone = tierOf(v) === 'city' ? v.houses.find((h) => h.level === 2) : undefined;
+  if (stone) return { x: stone.x, y: stone.y, level: 3, house: stone };
   return null;
 }
 
@@ -250,14 +330,17 @@ export function buildStep(v: Village, sim: Sim, dt: number): boolean {
   if (!s) return true;
   s.done += dt;
   if (s.done < s.needed) return false;
-  if (s.house) s.house.level = s.level;
+  if (s.kind) {
+    v.buildings.push({ kind: s.kind, x: s.x, y: s.y });
+    sim.chronicle.add({ year: sim.year, kind: 'building', a: { id: 0, name: v.name, people: v.people }, v: v.name, w: s.kind, x: s.x, y: s.y });
+  } else if (s.house) s.house.level = s.level;
   else v.houses.push({ x: s.x, y: s.y, level: s.level, owners: [] });
   sim.puff(s.x + 0.5, s.y, 6, ['#ffffff', '#ffe066', '#d9b98b']);
   v.site = null;
   return true;
 }
 
-/** More than 20 people: a group of young grown-ups (with partners and small children) moves on. */
+/** Too many people (see crowdedAt): a group of young grown-ups (with partners and small children) moves on. */
 function split(v: Village, sim: Sim, members: Human[]) {
   const young = members.filter((h) => {
     const age = ageOf(h, sim.time);

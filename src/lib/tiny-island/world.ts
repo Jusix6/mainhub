@@ -20,6 +20,8 @@ export const T = {
   GRASS: 3,
   FOREST: 4,
   MOUNTAIN: 5,
+  /** Farmland, ploughed by farmers (Phase 7). */
+  FIELD: 6,
 } as const;
 export type Terrain = (typeof T)[keyof typeof T];
 
@@ -36,7 +38,7 @@ export const TERRAIN_BY_KEY: Record<TerrainKey, Terrain> = {
 };
 
 /** Walking cost per terrain (Infinity = blocked). Shallow water: wading. */
-const COST = [Infinity, 2.6, 1, 1, 1.6, Infinity];
+const COST = [Infinity, 2.6, 1, 1, 1.6, Infinity, 1.2];
 
 export const MAX_BERRIES = 3;
 export const MAX_FISH = 4;
@@ -62,6 +64,8 @@ export class World {
   readonly bush = new Int8Array(W * H).fill(-1);
   /** Fish per water tile, 0…4. */
   readonly fish = new Uint8Array(W * H);
+  /** Crop on a field tile: 0 = bare, 1–3 growing, 4 = ripe. */
+  readonly crop = new Uint8Array(W * H);
   private natureClock = 0;
 
   inside(x: number, y: number) {
@@ -79,6 +83,7 @@ export class World {
     this.tiles[i] = t;
     this.version++;
     if (t !== T.GRASS) this.bush[i] = -1;
+    this.crop[i] = 0;
     this.fish[i] = this.isLand(t) ? 0 : 2;
     // Neighbours too: shore foam, snow caps and forest edges depend on them
     for (let dy = -1; dy <= 1; dy++)
@@ -132,6 +137,7 @@ export class World {
         this.tiles[i] = t;
         this.bush[i] = t === T.GRASS && rand() < 0.08 ? MAX_BERRIES : -1;
         this.fish[i] = this.isLand(t) ? 0 : MAX_FISH;
+        this.crop[i] = 0;
       }
     }
     this.version++;
@@ -150,6 +156,7 @@ export class World {
         this.tiles[i] = t;
         this.bush[i] = t === T.GRASS && (x + y) % 5 === 0 ? MAX_BERRIES : -1;
         this.fish[i] = this.isLand(t) ? 0 : MAX_FISH;
+        this.crop[i] = 0;
       }
     }
     this.version++;
@@ -191,6 +198,12 @@ export class World {
       if (b >= 0) {
         if (b < MAX_BERRIES && rand() < 0.12 * food) {
           this.bush[i] = b + 1;
+          this.touch(i);
+        }
+      } else if (this.tiles[i] === T.FIELD) {
+        const c = this.crop[i];
+        if (c >= 1 && c < 4 && rand() < 0.14 * food) {
+          this.crop[i] = c + 1;
           this.touch(i);
         }
       } else if (this.tiles[i] === T.GRASS) {

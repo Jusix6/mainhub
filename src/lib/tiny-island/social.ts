@@ -9,10 +9,10 @@
 import { ageOf, dist, has, pickTraits, stage, tileOf, type Human, type StoryEntry, type Thought, type Trait } from './agents';
 import type { Ref } from './chronicle';
 import type { Sim } from './sim';
-import { shiftMood } from './war';
+import { shiftMood, shiftVillageMood } from './war';
 
 /** Actions the AI can score (ai.ts). */
-export type Choice = 'eat' | 'gather' | 'sleep' | 'chat' | 'wander' | 'court' | 'work' | 'build' | 'raid';
+export type Choice = 'eat' | 'gather' | 'sleep' | 'chat' | 'wander' | 'court' | 'work' | 'build' | 'raid' | 'art' | 'patrol' | 'festival';
 
 /** Extra points per trait and action. Tune here. */
 export const TRAIT_MODS: Record<Trait, Partial<Record<Choice, number>>> = {
@@ -229,12 +229,15 @@ export function wantsBrawl(h: Human, sim: Sim): Human | null {
   if (has(h, 'warlike')) chance *= 2;
   if (has(h, 'cowardly')) chance *= 0.2;
   if (has(h, 'friendly')) chance *= 0.5;
+  // A temple keeps the peace
+  if (sim.villages.some((v) => v.id === h.village && v.buildings?.some((b) => b.kind === 'temple'))) chance *= 0.5;
   if (sim.rand() > chance) return null;
   return sim.nearest(h.x, h.y, 4, (o) => o.kind === 'human' && o !== h && relOf(h, o as Human) <= RIVAL && !(o as Human).asleep) as Human | null;
 }
 
 export function startBrawl(a: Human, b: Human, sim: Sim) {
   shiftMood(sim, a.people, b.people, -6);
+  if (a.people === b.people && a.village !== undefined && b.village !== undefined) shiftVillageMood(sim, a.village, b.village, -3);
   story(a, sim, 'brawl', b.name);
   story(b, sim, 'brawl', a.name);
   think(a, 'sword', 3, sim);

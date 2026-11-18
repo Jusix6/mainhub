@@ -5,6 +5,7 @@
  * into sentences with the strings from ui.ts. Newest first, at most 200.
  */
 import type { People } from './agents';
+import type { Work } from './culture';
 
 /** A person as they were when it happened (names never change). */
 export interface Ref {
@@ -16,7 +17,44 @@ export interface Ref {
 export interface ChronicleEntry {
   id: number;
   year: number;
-  kind: 'couple' | 'birth' | 'adopt' | 'died' | 'brawl' | 'village' | 'resettle' | 'leader' | 'split' | 'ruin' | 'war' | 'peace' | 'conquest';
+  kind:
+    | 'couple'
+    | 'birth'
+    | 'adopt'
+    | 'died'
+    | 'brawl'
+    | 'village'
+    | 'resettle'
+    | 'leader'
+    | 'split'
+    | 'ruin'
+    | 'war'
+    | 'peace'
+    | 'conquest'
+    | 'tier'
+    | 'building'
+    | 'invention'
+    | 'feud'
+    | 'army'
+    | 'breach'
+    | 'subdued'
+    | 'alliance'
+    | 'allianceEnd'
+    | 'joinWar'
+    | 'kingdom'
+    | 'succession'
+    | 'newDynasty'
+    | 'capital'
+    | 'revolt'
+    | 'overthrown'
+    | 'returned'
+    | 'godCrowned'
+    | 'godDeposed'
+    | 'fall'
+    | 'artwork'
+    | 'legend'
+    | 'festival'
+    | 'gift';
   a: Ref;
   b?: Ref;
   c?: Ref;
@@ -26,9 +64,13 @@ export interface ChronicleEntry {
   /** Village names (founded, led, left, abandoned; `w` = the new one after a split). */
   v?: string;
   w?: string;
-  /** Peoples (war, peace, conquest). */
+  /** Peoples (war, peace, conquest, invention). */
   p?: People;
   q?: People;
+  /** A work of art (a copy, so the line keeps its title when old songs are forgotten). */
+  work?: Work;
+  /** Peace: the side that pays tribute (a people, or a village id in a feud). */
+  loser?: string;
   /** Where it happened, for jumping there (tiles). */
   x: number;
   y: number;

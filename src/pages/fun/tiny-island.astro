@@ -14,6 +14,12 @@
  * Phase 5: mood between peoples, wars, conquest, peace; Rules tab with Aggression.
  * Phase 6: rules for births, lifespan and food, population chart, smoke,
  * confetti and footprints, saving in localStorage, start screen, sharing.
+ * Phase 7 (expansion): jobs, fields with crops, ore and tools (jobs.ts).
+ * Phase 8: towns and cities, special buildings, walls, town houses (town.ts).
+ * Phase 9: inventions with research, effects and god gifts (inventions.ts).
+ * Phase 10: weapons and armour, armies and sieges, feuds, alliances, treaties (war.ts).
+ * Phase 11: kingdoms with kings, houses, capitals, vassals, revolts, god gifts (kingdoms.ts).
+ * Phase 12: art, legends, festivals, god gifts festival and building (culture.ts).
  */
 import Fun from '@/layouts/Fun.astro';
 import Sticker from '@/components/Sticker.astro';
@@ -42,6 +48,15 @@ const strings = {
   rules: T.rules,
   start: T.start,
   statsEmpty: T.statsEmpty,
+  jobs: T.jobs,
+  villageTip: T.villageTip,
+  tiers: T.tiers,
+  buildings: T.buildings,
+  inventions: T.inventions,
+  weapons: T.weapons,
+  armor: T.armor,
+  kingdoms: T.kingdoms,
+  culture: T.culture,
 };
 const rules = [
   { key: 'aggression', name: T.rules.aggression, low: T.rules.calm, high: T.rules.fierce, min: 0, max: 2 },
@@ -188,6 +203,18 @@ const speeds = [
         <div class="ti__relations">
           <p class="ti__rule-name">{T.rules.relations}</p>
           <ul class="ti__rel-list" data-relations></ul>
+        </div>
+        <div class="ti__relations">
+          <p class="ti__rule-name">{T.kingdoms.title}</p>
+          <ul class="ti__rel-list ti__king-list" data-kingdoms></ul>
+        </div>
+        <div class="ti__relations">
+          <p class="ti__rule-name">{T.culture.title}</p>
+          <ul class="ti__rel-list ti__tech-list ti__culture-list" data-culture></ul>
+        </div>
+        <div class="ti__relations">
+          <p class="ti__rule-name">{T.rules.inventions}</p>
+          <ul class="ti__rel-list ti__tech-list" data-tech></ul>
         </div>
       </div>
     </nav>
@@ -741,7 +768,13 @@ const speeds = [
 
   .ti__profile :global(.ti-p__actions) {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
+  }
+
+  .ti__profile :global(.ti-p__royal) {
+    margin: 0;
+    font-weight: 700;
   }
 
   .ti__profile :global(.ti-p__btn) {
@@ -1031,6 +1064,139 @@ const speeds = [
   .ti__rel-list :global(.ti-r.is-war .ti-r__word) {
     color: #c62828;
     font-weight: 700;
+  }
+
+  .ti__king-list :global(.ti-k) {
+    display: grid;
+    grid-template-columns: minmax(110px, auto) auto 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__culture-list :global(.ti-cu) {
+    display: grid;
+    grid-template-columns: minmax(110px, auto) auto minmax(140px, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__culture-list :global(.ti-cu__works) {
+    white-space: nowrap;
+  }
+
+  .ti__culture-list :global(.ti-cu__legends) {
+    color: var(--muted);
+  }
+
+  .ti__culture-list :global(.ti-cu__gifts) {
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  .ti__culture-list :global(.ti-cu__h) {
+    margin-top: 4px;
+    font-weight: 700;
+  }
+
+  .ti__culture-list :global(.ti-cu__work) {
+    color: var(--muted);
+  }
+
+  @media (max-width: 700px) {
+    .ti__culture-list :global(.ti-cu) {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+  }
+
+  .ti__king-list :global(.ti-k__realm) {
+    color: var(--muted);
+  }
+
+  .ti__king-list :global(.ti-link) {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  @media (max-width: 700px) {
+    .ti__king-list :global(.ti-k) {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+  }
+
+  .ti__tech-list :global(.ti-t) {
+    display: grid;
+    grid-template-columns: minmax(110px, auto) auto auto minmax(80px, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__tech-list :global(.ti-t__icons) {
+    display: inline-flex;
+    gap: 1px;
+    font-size: 14px;
+  }
+
+  .ti__tech-list :global(.ti-t__icon) {
+    opacity: 0.25;
+    filter: grayscale(1);
+  }
+
+  .ti__tech-list :global(.ti-t__icon.is-known) {
+    opacity: 1;
+    filter: none;
+  }
+
+  .ti__tech-list :global(.ti-t__next) {
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .ti__tech-list :global(.ti-t__bar) {
+    background: #e2ddd0;
+  }
+
+  .ti__tech-list :global(.ti-t__bar span) {
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 100%;
+    background: #ffc83d;
+    border-radius: 999px;
+    transform: none;
+  }
+
+  .ti__tech-list :global(.ti-t__gift) {
+    padding: 2px 8px;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    background: #fff3c4;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .ti__tech-list :global(.ti-t__gift:hover) {
+    background: #ffe066;
+  }
+
+  @media (max-width: 700px) {
+    .ti__tech-list :global(.ti-t) {
+      grid-template-columns: 1fr auto;
+    }
+
+    .ti__tech-list :global(.ti-t__bar) {
+      grid-column: 1 / -1;
+    }
   }
 
   .ti__rel-list :global(.ti-r__none) {

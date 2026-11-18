@@ -34,6 +34,12 @@ export const COLORS = {
   rockLight: '#a8adba',
   rockDark: '#626777',
   snow: '#f5f7fc',
+  soil: '#9a6b3c',
+  soilDark: '#86592f',
+  sprout: '#7fd35c',
+  wheatGreen: '#b9cf52',
+  wheat: '#e8c34a',
+  wheatTop: '#f6dd7a',
   bush: '#2f7d36',
   bushLight: '#47a54d',
   berry: '#e8344a',
@@ -119,6 +125,9 @@ export function paintTile(world: World, buf: Uint32Array, x: number, y: number) 
       case T.MOUNTAIN:
         mountain(x, y);
         break;
+      case T.FIELD:
+        field(x, y);
+        break;
     }
   }
 
@@ -146,6 +155,20 @@ export function paintTile(world: World, buf: Uint32Array, x: number, y: number) 
       if (land(0, 1)) dot(x, y, i, 7, C.foam);
       if (land(-1, 0)) dot(x, y, 0, i, C.foam);
       if (land(1, 0)) dot(x, y, 7, i, C.foam);
+    }
+  }
+
+  /** Ploughed soil in furrows; the crop grows from sprouts to golden ears. */
+  function field(x: number, y: number) {
+    fill(x, y, C.soil);
+    for (let py = 1; py < TILE; py += 2) for (let px = 0; px < TILE; px++) dot(x, y, px, py, C.soilDark);
+    const c = world.crop[y * W + x];
+    if (!c) return;
+    const color = c >= 4 ? C.wheat : c === 3 ? C.wheatGreen : C.sprout;
+    const tall = c >= 3 ? 3 : c;
+    for (let px = 1; px < TILE; px += 2) {
+      for (let h = 0; h < tall; h++) dot(x, y, px, 6 - h, color);
+      if (c >= 4) dot(x, y, px, 6 - tall, C.wheatTop);
     }
   }
 

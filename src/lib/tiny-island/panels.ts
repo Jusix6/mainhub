@@ -10,8 +10,11 @@ import type { ChronicleEntry, Ref } from './chronicle';
 import type { Sim } from './sim';
 import { FRIEND, RIVAL } from './social';
 import { villageOf } from './villages';
-import { moodOf, warBetween } from './war';
+import { allied, moodOf, pairKey, warBetween } from './war';
+import { crown, depose, kingOf, loyaltyOf, realmOf } from './kingdoms';
+import { blessedPlace, culturedPeoples, giftBuilding, giftFestival, type Work } from './culture';
 import { chartSvg, indexAt, tipText, CHART_W } from './stats';
+import { COSTS, gift, INVENTIONS, nextInvention, researchRate, techOf } from './inventions';
 import { PEOPLES } from './agents';
 import { TILE } from './world';
 
@@ -35,12 +38,48 @@ export interface PanelStrings {
     warVillage: string;
     peace: string;
     conquest: string;
+    tier: Record<string, string>;
+    building: string;
+    invention: string;
+    inventionPeople: string;
+    peaceTribute: string;
+    feudPeace: string;
+    feudTribute: string;
+    feud: string;
+    army: string;
+    breach: string;
+    subdued: string;
+    alliance: string;
+    allianceEnd: string;
+    joinWar: string;
+    kingdom: string;
+    succession: string;
+    newDynasty: string;
+    capital: string;
+    revolt: string;
+    overthrown: string;
+    returned: string;
+    godCrowned: string;
+    godDeposed: string;
+    fall: string;
+    artwork: Record<'song' | 'mural' | 'statue', string>;
+    legend: string;
+    festival: Record<string, string>;
+    gift: string;
     died: Record<string, string>;
   };
   rules: {
     none: string;
     atWar: string;
     moods: Record<'friendly' | 'neutral' | 'tense' | 'hostile', string>;
+    techNone: string;
+    allies: string;
+    treaty: string;
+    feud: string;
+    next: string;
+    allKnown: string;
+    gift: string;
+    giftTitle: string;
   };
   profile: {
     woman: string;
@@ -66,6 +105,44 @@ export interface PanelStrings {
   };
   year: string;
   statsEmpty: string;
+  jobs: Record<string, string>;
+  buildings: Record<string, string>;
+  inventions: Record<string, { name: string; icon: string; does: string }>;
+  weapons: Record<string, string>;
+  armor: string;
+  culture: {
+    none: string;
+    works: string;
+    legends: string;
+    noLegends: string;
+    latest: string;
+    festival: string;
+    festivalTitle: string;
+    donate: string;
+    donateTitle: string;
+    epithets: Record<string, string>;
+    titles: Record<'song' | 'mural' | 'statue', Record<string, string>>;
+    adjectives: string[];
+    nouns: Record<People, string[]>;
+    icons: Record<'song' | 'mural' | 'statue', string>;
+  };
+  kingdoms: {
+    none: string;
+    king: string;
+    queen: string;
+    royal: { king: string; queen: string };
+    noKing: string;
+    house: string;
+    capital: string;
+    vassals: string;
+    loyalty: string;
+    rebels: string;
+    kingOf: string;
+    crown: string;
+    crownTitle: string;
+    depose: string;
+    deposeTitle: string;
+  };
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -79,10 +156,16 @@ export class Panels {
   private chronicleShown = -1;
   private favShown = '';
   private profileAt = 0;
+  /** Last profile markup, and whether a button in it is being pressed (then it must not be replaced). */
+  private profileShown = '';
+  private pressedAt = 0;
   private rulesAt = 0;
   private statsKey = '';
   private statsHover = -1;
   private relationsShown = '';
+  private techShown = '';
+  private kingdomsShown = '';
+  private cultureShown = '';
 
   constructor(
     private readonly root: HTMLElement,
@@ -91,6 +174,10 @@ export class Panels {
     private readonly cam: Camera,
   ) {
     this.profile = root.querySelector<HTMLElement>('[data-profile]')!;
+    // Redrawing the profile between press and release would swallow the click
+    this.profile.addEventListener('pointerdown', () => (this.pressedAt = performance.now()), { signal: this.ac.signal });
+    window.addEventListener('pointerup', () => (this.pressedAt = 0), { signal: this.ac.signal });
+    window.addEventListener('pointercancel', () => (this.pressedAt = 0), { signal: this.ac.signal });
     this.list = root.querySelector<HTMLElement>('[data-chron-list]')!;
     const chron = root.querySelector<HTMLElement>('[data-chron]')!;
     // Open by default only where there is room for it
@@ -131,11 +218,34 @@ export class Panels {
           this.centerOn(id);
         } else if (entry) {
           this.jump(Number(entry.dataset.entry));
+        } else if (t.closest('[data-festival]')) {
+          // God gifts: a festival or a building for the people's biggest place
+          giftFestival(this.sim, t.closest<HTMLElement>('[data-festival]')!.dataset.festival as People);
+          this.rulesAt = 0;
+        } else if (t.closest('[data-donate]')) {
+          giftBuilding(this.sim, t.closest<HTMLElement>('[data-donate]')!.dataset.donate as People);
+          this.rulesAt = 0;
+        } else if (t.closest('[data-gift]')) {
+          // God gift: the next invention for that people, right away
+          gift(this.sim, t.closest<HTMLElement>('[data-gift]')!.dataset.gift as People);
+          this.rulesAt = 0;
         } else if (t.closest('[data-p-close]')) {
           this.select(null);
         } else if (t.closest('[data-p-follow]')) {
           this.following = !this.following;
           this.profileAt = 0;
+        } else if (t.closest('[data-p-crown]') && this.selected !== null) {
+          // God gift: crown this person
+          const h = this.sim.byId(this.selected) as Human | undefined;
+          if (h) crown(this.sim, h);
+          this.profileAt = 0;
+          this.rulesAt = 0;
+        } else if (t.closest('[data-p-depose]') && this.selected !== null) {
+          // God gift: take the crown away
+          const k = realmOf(this.sim, this.selected);
+          if (k) depose(this.sim, k);
+          this.profileAt = 0;
+          this.rulesAt = 0;
         } else if (t.closest('[data-p-fav]') && this.selected !== null) {
           const fav = this.sim.favorites;
           if (fav.has(this.selected)) fav.delete(this.selected);
@@ -220,6 +330,9 @@ export class Panels {
     if (now - this.rulesAt > 500) {
       this.rulesAt = now;
       this.renderRelations();
+      this.renderTech();
+      this.renderKingdoms();
+      this.renderCulture();
       this.renderStats(false);
     }
     const favKey = [...this.sim.favorites].join(',');
@@ -255,15 +368,17 @@ export class Panels {
     if (!r) return;
     const fav = this.sim.favorites.has(id);
     if (!h) {
-      this.profile.innerHTML = `
+      this.setProfile(`
         <header class="ti-p__head"><h2 class="ti-p__name">† ${esc(r.name)}</h2><button type="button" class="ti-p__close" data-p-close aria-label="×">×</button></header>
-        <p class="ti-p__meta">${esc(this.S.peoples[r.people])} · ${esc(P.dead)}</p>`;
+        <p class="ti-p__meta">${esc(this.S.peoples[r.people])} · ${esc(P.dead)}</p>`);
       return;
     }
     const age = Math.floor(ageOf(h, this.sim.time));
     const village = villageOf(h, this.sim);
     const kid = stage(h, this.sim.time) === 'child';
     const sex = h.female ? (kid ? P.girl : P.woman) : kid ? P.boy : P.man;
+    const K = this.S.kingdoms;
+    const realm = realmOf(this.sim, h.id);
     const friends: number[] = [];
     const rivals: number[] = [];
     for (const [oid, v] of [...h.rel.entries()].sort((a, b) => b[1] - a[1])) {
@@ -275,16 +390,28 @@ export class Panels {
       `<div class="ti-p__need"><span>${esc(label)}</span><span class="ti-p__bar"><span style="width:${Math.round(v)}%"></span></span></div>`;
     const story = [...h.story]
       .reverse()
-      .map((s) => `<li><span class="ti-p__yr">${esc(this.S.year.replace('{n}', String(s.year)))}</span> ${esc(P.story[s.kind].replace('{o}', s.other ?? ''))}</li>`)
+      .map((s) => {
+        const work = s.kind === 'artwork' ? this.sim.works.find((w) => String(w.id) === s.other) : undefined;
+        const other =
+          s.kind === 'invented'
+            ? (this.S.inventions[s.other ?? '']?.name ?? '')
+            : s.kind === 'artwork'
+              ? work
+                ? this.workTitle(work)
+                : '…'
+              : (s.other ?? '');
+        return `<li><span class="ti-p__yr">${esc(this.S.year.replace('{n}', String(s.year)))}</span> ${esc(P.story[s.kind].replace('{o}', other))}</li>`;
+      })
       .join('');
-    this.profile.innerHTML = `
+    this.setProfile(`
       <header class="ti-p__head">
         <h2 class="ti-p__name">${esc(h.name)}</h2>
         <button type="button" class="ti-p__close" data-p-close aria-label="×">×</button>
       </header>
       <p class="ti-p__meta"><span class="ti-p__dot ti-dot--${h.people}"></span>${esc(this.S.peoples[h.people])} · ${esc(sex)} · ${esc(this.S.age.replace('{n}', String(age)))}</p>
+      ${realm ? `<p class="ti-p__royal">👑 ${esc(K.kingOf.replace('{r}', h.female ? K.queen : K.king).replace('{p}', this.S.peoples[realm.people]))} · ${esc(K.house.replace('{d}', realm.dynasty))}</p>` : ''}
       <p class="ti-p__traits">${h.traits.map((t) => `<span>${esc(this.S.traits[t])}</span>`).join('')}</p>
-      <p class="ti-p__village">🏠 ${village ? `<b>${esc(village.name)}</b>${village.leader === h.id ? ` · 👑 ${esc(P.leader)}` : ''}` : esc(P.noVillage)}</p>
+      <p class="ti-p__village">🏠 ${village ? `<b>${esc(village.name)}</b>${village.leader === h.id ? ` · 👑 ${esc(P.leader)}` : ''}` : esc(P.noVillage)}${h.job ? ` · 🛠️ ${esc(this.S.jobs[h.job])}` : ''}${h.weapon ? ` · ⚔️ ${esc(this.S.weapons[h.weapon])}` : ''}${h.armor ? ` · 🛡️ ${esc(this.S.armor)}` : ''}</p>
       ${bar(P.needs.hunger, h.hunger)}${bar(P.needs.energy, h.energy)}${bar(P.needs.social, h.social)}
       <dl class="ti-p__fam">
         <dt>${esc(P.partner)}</dt><dd>${h.partner !== undefined ? this.person(h.partner) : P.none}</dd>
@@ -296,9 +423,23 @@ export class Panels {
       <div class="ti-p__actions">
         <button type="button" class="ti-p__btn" data-p-follow aria-pressed="${this.following}">${esc(this.following ? P.following : P.follow)}</button>
         <button type="button" class="ti-p__btn" data-p-fav aria-pressed="${fav}">${fav ? '★' : '☆'} ${esc(P.favorite)}</button>
+        ${
+          realm
+            ? `<button type="button" class="ti-p__btn" data-p-depose title="${esc(K.deposeTitle)}">${esc(K.depose)}</button>`
+            : village && !kid
+              ? `<button type="button" class="ti-p__btn" data-p-crown title="${esc(K.crownTitle)}">👑 ${esc(K.crown)}</button>`
+              : ''
+        }
       </div>
       <h3 class="ti-p__h">${esc(P.life)}</h3>
-      <ol class="ti-p__story">${story}</ol>`;
+      <ol class="ti-p__story">${story}</ol>`);
+  }
+
+  /** Only touches the DOM when something changed, and never while a button is held down (at most a second). */
+  private setProfile(html: string) {
+    if (html === this.profileShown || (this.pressedAt && performance.now() - this.pressedAt < 1000)) return;
+    this.profileShown = html;
+    this.profile.innerHTML = html;
   }
 
   /* ---- population chart ------------------------------------------------------- */
@@ -345,14 +486,167 @@ export class Panels {
         const pct = (m + 100) / 2;
         rows.push(
           `<li class="ti-r${war ? ' is-war' : ''}"><span class="ti-r__pair"><span class="ti-p__dot ti-dot--${a}"></span>${esc(this.S.peoples[a])} · <span class="ti-p__dot ti-dot--${b}"></span>${esc(this.S.peoples[b])}</span>` +
-            `<span class="ti-r__bar"><span style="left:${pct}%"></span></span><span class="ti-r__word">${war ? `⚔️ ${esc(this.S.rules.atWar)}` : `${esc(word)} ${m > 0 ? '+' : ''}${m}`}</span></li>`,
+            `<span class="ti-r__bar"><span style="left:${pct}%"></span></span><span class="ti-r__word">${war ? `⚔️ ${esc(this.S.rules.atWar)}` : `${esc(word)} ${m > 0 ? '+' : ''}${m}`}${this.pactText(pairKey(a, b), allied(this.sim, a, b))}</span></li>`,
         );
       }
+    }
+    // Feuds between places of one people
+    for (const w of this.sim.wars.values()) {
+      if (w.va === undefined) continue;
+      const va = this.sim.villages.find((v) => v.id === w.va);
+      const vb = this.sim.villages.find((v) => v.id === w.vb);
+      if (!va || !vb) continue;
+      rows.push(
+        `<li class="ti-r is-war"><span class="ti-r__pair"><span class="ti-p__dot ti-dot--${va.people}"></span>${esc(va.name)} · ${esc(vb.name)}</span>` +
+          `<span></span><span class="ti-r__word">⚔️ ${esc(this.S.rules.feud)}</span></li>`,
+      );
     }
     const html = rows.length ? rows.join('') : `<li class="ti-r__none">${esc(this.S.rules.none)}</li>`;
     if (html !== this.relationsShown) {
       this.relationsShown = html;
       box.innerHTML = html;
+    }
+  }
+
+  /** " · 🤝 allies" or " · 📜 treaty 12 y" after the mood. */
+  private pactText(key: string, ally: boolean): string {
+    if (ally) return ` · 🤝 ${esc(this.S.rules.allies)}`;
+    const until = this.sim.treaties.get(key) ?? 0;
+    if (until <= this.sim.time) return '';
+    return ` · 📜 ${esc(this.S.rules.treaty.replace('{n}', String(Math.ceil((until - this.sim.time) / 30))))}`;
+  }
+
+  /* ---- culture (Rules tab) ------------------------------------------------------ */
+
+  /** A work's title from its building blocks. */
+  workTitle(w: Work): string {
+    const C = this.S.culture;
+    const x = w.name ? (w.epithet ? `${w.name} ${C.epithets[w.epithet] ?? ''}` : w.name) : '';
+    return (C.titles[w.kind]?.[w.tpl] ?? '')
+      .replace('{x}', x)
+      .replace('{adj}', C.adjectives[w.adj ?? 0] ?? '')
+      .replace('{noun}', C.nouns[w.people]?.[w.noun ?? 0] ?? '');
+  }
+
+  /**
+   * One line per people: its works, its legends and the two god gifts; then
+   * the latest works on the island.
+   */
+  private renderCulture() {
+    const box = this.root.querySelector<HTMLElement>('[data-culture]');
+    if (!box || box.closest('[hidden]')) return;
+    const C = this.S.culture;
+    const rows: string[] = [];
+    for (const p of culturedPeoples(this.sim)) {
+      const works = this.sim.works.filter((w) => w.people === p);
+      const count = (k: Work['kind']) => works.filter((w) => w.kind === k).length;
+      const legends = this.sim.legends
+        .filter((l) => l.people === p)
+        .slice(-3)
+        .reverse()
+        .map((l) => `${l.name} ${C.epithets[l.epithet] ?? ''}`);
+      const place = blessedPlace(this.sim, p)?.name ?? '';
+      rows.push(
+        `<li class="ti-cu"><span class="ti-r__pair"><span class="ti-p__dot ti-dot--${p}"></span>${esc(this.S.peoples[p])}</span>` +
+          `<span class="ti-cu__works">🎨 ${esc(C.works.replace('{n}', String(works.length)))} · ${C.icons.song} ${count('song')} · ${C.icons.mural} ${count('mural')} · ${C.icons.statue} ${count('statue')}</span>` +
+          `<span class="ti-cu__legends">${esc(legends.length ? C.legends.replace('{l}', legends.join(', ')) : C.noLegends)}</span>` +
+          `<span class="ti-cu__gifts"><button type="button" class="ti-t__gift" data-festival="${p}" title="${esc(C.festivalTitle.replace('{v}', place))}">🎉 ${esc(C.festival)}</button>` +
+          `<button type="button" class="ti-t__gift" data-donate="${p}" title="${esc(C.donateTitle.replace('{v}', place))}">🏛️ ${esc(C.donate)}</button></span></li>`,
+      );
+    }
+    const latest = this.sim.works.slice(-4).reverse();
+    if (latest.length) {
+      rows.push(`<li class="ti-cu__h">${esc(C.latest)}</li>`);
+      for (const w of latest) {
+        rows.push(`<li class="ti-cu__work">${C.icons[w.kind]} <b>“${esc(this.workTitle(w))}”</b>${w.artist.id ? ` · ${esc(w.artist.name)}` : ''} · ${esc(this.S.year.replace('{n}', String(w.year)))}</li>`);
+      }
+    }
+    const html = rows.length ? rows.join('') : `<li class="ti-r__none">${esc(C.none)}</li>`;
+    if (html !== this.cultureShown) {
+      this.cultureShown = html;
+      box.innerHTML = html;
+    }
+  }
+
+  /* ---- kingdoms (Rules tab) ---------------------------------------------------- */
+
+  /** One line per kingdom: ruler, house, capital, vassals with their mean loyalty, places that rose up. */
+  private renderKingdoms() {
+    const box = this.root.querySelector<HTMLElement>('[data-kingdoms]');
+    if (!box || box.closest('[hidden]')) return;
+    const K = this.S.kingdoms;
+    const rows: string[] = [];
+    for (const k of this.sim.kingdoms.values()) {
+      const king = kingOf(this.sim, k);
+      const capital = this.sim.villages.find((v) => v.id === k.capital);
+      const places = this.sim.villages.filter((v) => !v.ruin && v.people === k.people && v.id !== k.capital);
+      const vassals = places.filter((v) => !v.free);
+      const rebels = places.length - vassals.length;
+      const loyalty = vassals.length ? Math.round(vassals.reduce((n, v) => n + loyaltyOf(v), 0) / vassals.length) : null;
+      const ruler = king ? `👑 ${esc(king.female ? K.queen : K.king)} ${this.person(king.id)}` : esc(K.noKing);
+      rows.push(
+        `<li class="ti-k"><span class="ti-r__pair"><span class="ti-p__dot ti-dot--${k.people}"></span>${esc(this.S.peoples[k.people])}</span>` +
+          `<span>${ruler} · ${esc(K.house.replace('{d}', k.dynasty))}</span>` +
+          `<span class="ti-k__realm">${esc(K.capital.replace('{v}', capital?.name ?? '–'))} · ${esc(K.vassals.replace('{n}', String(vassals.length)))}` +
+          `${loyalty !== null ? ` · ${esc(K.loyalty.replace('{n}', String(loyalty)))}` : ''}${rebels ? ` · ⚔️ ${esc(K.rebels.replace('{n}', String(rebels)))}` : ''}</span></li>`,
+      );
+    }
+    const html = rows.length ? rows.join('') : `<li class="ti-r__none">${esc(K.none)}</li>`;
+    if (html !== this.kingdomsShown) {
+      this.kingdomsShown = html;
+      box.innerHTML = html;
+    }
+  }
+
+  /* ---- inventions (Rules tab) ------------------------------------------------- */
+
+  /**
+   * One block per people with villages: the icons of what it knows, a bar to
+   * its next invention and the gift button. The list is only rebuilt when
+   * something new was invented; the bars are updated in place.
+   */
+  private renderTech() {
+    const box = this.root.querySelector<HTMLElement>('[data-tech]');
+    if (!box || box.closest('[hidden]')) return;
+    const R = this.S.rules;
+    const I = this.S.inventions;
+    const present = PEOPLES.filter((p) => this.sim.villages.some((v) => !v.ruin && v.people === p));
+    const key = present.map((p) => `${p}:${techOf(this.sim, p).known.join(',')}`).join('|');
+    if (key !== this.techShown) {
+      this.techShown = key;
+      box.innerHTML = present.length
+        ? present
+            .map((p) => {
+              const t = techOf(this.sim, p);
+              const next = nextInvention(this.sim, p);
+              const icons = INVENTIONS.map(
+                (i) => `<span class="ti-t__icon${t.known.includes(i) ? ' is-known' : ''}" title="${esc(`${I[i].name}: ${I[i].does}`)}">${I[i].icon}</span>`,
+              ).join('');
+              return (
+                `<li class="ti-t"><span class="ti-r__pair"><span class="ti-p__dot ti-dot--${p}"></span>${esc(this.S.peoples[p])}</span>` +
+                `<span class="ti-t__icons">${icons}</span>` +
+                (next
+                  ? `<span class="ti-t__next" data-tech-next="${p}"></span><span class="ti-r__bar ti-t__bar"><span data-tech-bar="${p}"></span></span>` +
+                    `<button type="button" class="ti-t__gift" data-gift="${p}" title="${esc(R.giftTitle.replace('{i}', I[next].name))}">🎁 ${esc(R.gift)}</button>`
+                  : `<span class="ti-t__next">${esc(R.allKnown)}</span>`) +
+                `</li>`
+              );
+            })
+            .join('')
+        : `<li class="ti-r__none">${esc(R.techNone)}</li>`;
+    }
+    for (const p of present) {
+      const next = nextInvention(this.sim, p);
+      if (!next) continue;
+      const pct = Math.min(100, Math.round((techOf(this.sim, p).progress / COSTS[next]) * 100));
+      const bar = box.querySelector<HTMLElement>(`[data-tech-bar="${p}"]`);
+      const label = box.querySelector<HTMLElement>(`[data-tech-next="${p}"]`);
+      if (bar) bar.style.width = `${pct}%`;
+      if (label) {
+        const rate = researchRate(this.sim, p);
+        label.textContent = R.next.replace('{i}', `${I[next].icon} ${I[next].name}`).replace('{n}', String(pct));
+        label.title = `+${rate.toFixed(1)} / s`;
+      }
     }
   }
 
@@ -364,7 +658,30 @@ export class Panels {
 
   text(e: ChronicleEntry): string {
     const C = this.S.chronicle;
-    const tpl = e.kind === 'died' ? (C.died[e.cause ?? ''] ?? C.died.other) : e.kind === 'war' && !e.a.id ? C.warVillage : C[e.kind];
+    const tpl =
+      e.kind === 'died'
+        ? (C.died[e.cause ?? ''] ?? C.died.other)
+        : e.kind === 'war' && !e.a.id
+          ? C.warVillage
+          : e.kind === 'tier'
+            ? (C.tier[e.w ?? ''] ?? '')
+            : e.kind === 'building'
+              ? C.building.replace('{b}', this.S.buildings[e.w ?? ''] ?? e.w ?? '')
+              : e.kind === 'invention'
+                ? (e.a.id ? C.invention : C.inventionPeople).replace('{i}', this.S.inventions[e.w ?? '']?.name ?? e.w ?? '')
+                : e.kind === 'peace'
+                  ? this.peaceText(e)
+                  : e.kind === 'artwork'
+                    ? e.work
+                      ? C.artwork[e.work.kind].replace('{t}', this.workTitle(e.work))
+                      : ''
+                    : e.kind === 'legend'
+                      ? C.legend.replace('{e}', `${e.a.name} ${this.S.culture.epithets[e.w ?? ''] ?? ''}`)
+                      : e.kind === 'festival'
+                        ? (C.festival[e.w ?? ''] ?? '')
+                        : e.kind === 'gift'
+                          ? C.gift.replace('{b}', this.S.buildings[e.w ?? ''] ?? e.w ?? '')
+                          : C[e.kind];
     return esc(tpl)
       .replace('{a}', this.ref(e.a))
       .replace('{b}', this.ref(e.b))
@@ -373,7 +690,20 @@ export class Panels {
       .replace('{v}', `<b>${esc(e.v ?? '')}</b>`)
       .replace('{w}', `<b>${esc(e.w ?? '')}</b>`)
       .replace('{p}', e.p ? `<b>${esc(this.S.peoples[e.p])}</b>` : '')
+      .replace('{r}', esc(this.sim.registry.get(e.a.id)?.female ? this.S.kingdoms.royal.queen : this.S.kingdoms.royal.king))
       .replace('{q}', e.q ? `<b>${esc(this.S.peoples[e.q])}</b>` : '');
+  }
+
+  /** Peace between peoples or the end of a feud, with who pays tribute. */
+  private peaceText(e: ChronicleEntry): string {
+    const C = this.S.chronicle;
+    if (e.v && e.w) {
+      if (!e.loser) return C.feudPeace;
+      const loser = this.sim.villages.find((v) => String(v.id) === e.loser)?.name ?? '';
+      return C.feudTribute.replace('{l}', loser);
+    }
+    if (!e.loser) return C.peace;
+    return C.peaceTribute.replace('{l}', this.S.peoples[e.loser as People] ?? '');
   }
 
   private renderChronicle() {

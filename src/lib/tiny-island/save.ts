@@ -4,13 +4,16 @@
  * wars, favourites, rules and the population history. Tasks and paths are
  * not saved; everyone simply thinks again after loading.
  */
-import { setNextId, type Animal, type Human } from './agents';
+import { PEOPLES, setNextId, type Animal, type Human, type People } from './agents';
 import type { ChronicleEntry, Ref } from './chronicle';
+import { INVENTIONS, type Invention, type Tech } from './inventions';
 import { randFor } from './rng';
 import type { Sim } from './sim';
 import type { Snapshot } from './stats';
 import type { Village } from './villages';
-import type { War } from './war';
+import type { Army, War } from './war';
+import type { Kingdom } from './kingdoms';
+import type { Legend, Work } from './culture';
 import type { World } from './world';
 
 const KEY = 'jxsi_tiny_island_v1';
@@ -26,6 +29,8 @@ interface SaveData {
   tiles: string;
   bush: string;
   fish: string;
+  /** Crops on fields (Phase 7; older saves have none). */
+  crop?: string;
   humans: SavedHuman[];
   animals: SavedAnimal[];
   graves: Sim['graves'];
@@ -39,6 +44,20 @@ interface SaveData {
   registry: [number, Ref & { alive: boolean; female: boolean }][];
   rules: Sim['rules'];
   history: Snapshot[];
+  /** Inventions per people (Phase 9; older saves have none). */
+  tech?: [People, Tech][];
+  /** Armies, alliances, treaties and moods between villages (Phase 10). */
+  armies?: Army[];
+  nextArmyId?: number;
+  alliances?: string[];
+  treaties?: [string, number][];
+  vmood?: [string, number][];
+  /** Kingdoms (Phase 11). */
+  kingdoms?: [People, Kingdom][];
+  /** Works of art and legends (Phase 12). */
+  works?: Work[];
+  nextWorkId?: number;
+  legends?: Legend[];
 }
 
 function toB64(bytes: Uint8Array) {
@@ -65,6 +84,7 @@ export function save(sim: Sim, world: World): boolean {
     tiles: toB64(world.tiles),
     bush: toB64(new Uint8Array(world.bush.buffer)),
     fish: toB64(world.fish),
+    crop: toB64(world.crop),
     humans: sim.humans.filter((h) => !h.dead).map((h) => ({ ...strip(h), rel: [...h.rel.entries()].map(([k, v]) => [k, Math.round(v)]) })),
     animals: sim.animals.filter((a) => !a.dead).map(strip),
     graves: sim.graves,
@@ -78,6 +98,16 @@ export function save(sim: Sim, world: World): boolean {
     registry: [...sim.registry.entries()],
     rules: sim.rules,
     history: sim.history,
+    tech: [...sim.tech.entries()],
+    armies: sim.armies,
+    nextArmyId: sim.nextArmyId,
+    alliances: [...sim.alliances],
+    treaties: [...sim.treaties.entries()],
+    vmood: [...sim.vmood.entries()],
+    kingdoms: [...sim.kingdoms.entries()],
+    works: sim.works,
+    nextWorkId: sim.nextWorkId,
+    legends: sim.legends,
   };
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
@@ -102,6 +132,22 @@ export function savedSummary(): { year: number; people: number; seed: string } |
   return d ? { year: Math.floor(d.time / 30) + 1, people: d.humans.length, seed: d.seed } : null;
 }
 
+/**
+ * Saves from before inventions: every people keeps what it already had, so
+ * it gets the inventions up to the last one it was using (tools, fields,
+ * stone houses or walls).
+ */
+function oldTech(sim: Sim) {
+  for (const p of PEOPLES) {
+    const vs = sim.villages.filter((v) => v.people === p && !v.ruin);
+    let upTo: Invention | null = null;
+    if (vs.some((v) => v.tools > 0)) upTo = 'tools';
+    if (vs.some((v) => v.fields > 0)) upTo = 'agriculture';
+    if (vs.some((v) => v.houses.some((h) => h.level >= 2) || v.buildings.some((b) => b.kind === 'wall'))) upTo = 'masonry';
+    if (upTo) sim.tech.set(p, { known: INVENTIONS.slice(0, INVENTIONS.indexOf(upTo) + 1), progress: 0 });
+  }
+}
+
 /** Loads the saved island into `sim` and `world`; false if there is none. */
 export function load(sim: Sim, world: World): boolean {
   const d = read();
@@ -110,6 +156,8 @@ export function load(sim: Sim, world: World): boolean {
   fromB64(d.tiles, world.tiles);
   fromB64(d.bush, new Uint8Array(world.bush.buffer));
   fromB64(d.fish, world.fish);
+  world.crop.fill(0);
+  if (d.crop) fromB64(d.crop, world.crop);
   world.version++;
   world.all = true;
   world.dirty.clear();
@@ -128,7 +176,18 @@ export function load(sim: Sim, world: World): boolean {
     sim.index(animal);
   }
   sim.graves = d.graves;
-  sim.villages = d.villages;
+  // Older saves: villages without the Phase 7 storage
+  sim.villages = d.villages.map((v) => ({
+    ...v,
+    ore: v.ore ?? 0,
+    tools: v.tools ?? 0,
+    fields: v.fields ?? 0,
+    ripe: v.ripe ?? 0,
+    buildings: v.buildings ?? [],
+    tier: v.tier ?? 'village',
+    arms: v.arms ?? { club: 0, bronze: 0, iron: 0, armor: 0 },
+    need: { ...v.need, ore: v.need?.ore ?? 0 },
+  }));
   sim.nextVillageId = d.nextVillageId;
   sim.chronicle.restore(d.chronicle.entries, d.chronicle.nextId);
   for (const [k, v] of d.mood) sim.mood.set(k, v);
@@ -138,6 +197,17 @@ export function load(sim: Sim, world: World): boolean {
   Object.assign(sim.rules, d.rules);
   sim.history = d.history;
   sim.historyYear = sim.year;
+  sim.armies = d.armies ?? [];
+  sim.nextArmyId = d.nextArmyId ?? 1;
+  for (const k of d.alliances ?? []) sim.alliances.add(k);
+  for (const [k, t] of d.treaties ?? []) sim.treaties.set(k, t);
+  for (const [k, m] of d.vmood ?? []) sim.vmood.set(k, m);
+  for (const [p, k] of d.kingdoms ?? []) sim.kingdoms.set(p, k);
+  sim.works = d.works ?? [];
+  sim.nextWorkId = d.nextWorkId ?? 1;
+  sim.legends = d.legends ?? [];
+  if (d.tech) for (const [p, t] of d.tech) sim.tech.set(p, { known: [...t.known], progress: t.progress });
+  else oldTech(sim);
   setNextId(d.nextAgentId);
   return true;
 }

@@ -5,6 +5,7 @@
  * indexes from path.ts; speed depends on the terrain underfoot.
  */
 import { findPath, type Mover } from './path';
+import type { Job } from './jobs';
 import type { Rand } from './rng';
 import { W, type World } from './world';
 
@@ -50,19 +51,37 @@ export function pickTraits(rand: Rand, inherited: Trait[] = []): Trait[] {
 }
 
 /** Little pictures over the head: what someone wants or feels. */
-export type Thought = 'heart' | 'sword' | 'tear' | 'food';
+export type Thought = 'heart' | 'sword' | 'tear' | 'food' | 'note';
 
 /** One line in a person's life story; `other` is a name, kept as text. */
 export interface StoryEntry {
   year: number;
-  kind: 'arrive' | 'born' | 'couple' | 'child' | 'adopt' | 'adopted' | 'widowed' | 'friend' | 'rival' | 'brawl' | 'founded' | 'leader' | 'moved' | 'joined' | 'conquered';
+  kind: 'arrive' | 'born' | 'couple' | 'child' | 'adopt' | 'adopted' | 'widowed' | 'friend' | 'rival' | 'brawl' | 'founded' | 'leader' | 'moved' | 'joined' | 'conquered' | 'invented' | 'crowned' | 'deposed' | 'artwork';
   other?: string;
 }
 
-export type TaskKind = 'eat' | 'gather' | 'sleep' | 'chat' | 'wander' | 'fight' | 'flee' | 'hunt' | 'graze' | 'court' | 'brawl' | 'work' | 'build' | 'raid';
+export type TaskKind =
+  | 'eat'
+  | 'gather'
+  | 'sleep'
+  | 'chat'
+  | 'wander'
+  | 'fight'
+  | 'flee'
+  | 'hunt'
+  | 'graze'
+  | 'court'
+  | 'brawl'
+  | 'work'
+  | 'build'
+  | 'raid'
+  | 'craft'
+  | 'art'
+  | 'patrol'
+  | 'festival';
 
 /** What a village stores and people carry back to it. */
-export type Resource = 'food' | 'wood' | 'stone';
+export type Resource = 'food' | 'wood' | 'stone' | 'ore';
 
 export interface Task {
   kind: TaskKind;
@@ -78,6 +97,8 @@ export interface Task {
   /** Work task: what to bring to the village, and how far along. */
   res?: Resource;
   phase?: 'go' | 'gather' | 'return';
+  /** Farm work on a field tile. */
+  farm?: 'plough' | 'sow' | 'harvest';
   /** Give up after this game time. */
   until: number;
   arrived?: boolean;
@@ -85,6 +106,10 @@ export interface Task {
   passive?: boolean;
   /** A fight in a war: nobody holds back. */
   lethal?: boolean;
+  /** Craft task: what the smith makes (default: a tool). */
+  make?: 'tool' | 'club' | 'bronze' | 'iron' | 'armor';
+  /** Walks a bit slower (an army's general, so the others keep up). */
+  slow?: boolean;
 }
 
 interface Base {
@@ -144,8 +169,17 @@ export interface Human extends Base {
   lastBirth: number;
   /** Village they belong to (id), if any. */
   village?: number;
+  /** Job in the village (jobs.ts); none = helps wherever needed. */
+  job?: Job;
   /** Carrying something to the village storage. */
   carry: { res: Resource; n: number } | null;
+  /** Culture (Phase 12): an artist's inspiration, foes and wolves beaten (for legends). */
+  inspiration?: number;
+  kills?: number;
+  wolves?: number;
+  /** Weapon and armour from the smith (Phase 10). */
+  weapon?: 'club' | 'bronze' | 'iron';
+  armor?: boolean;
   /** Who they fall for: most people the other sex, some their own, some both. */
   likesWomen: boolean;
   likesMen: boolean;

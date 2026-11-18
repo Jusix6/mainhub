@@ -20,6 +20,7 @@ const AUTOSAVE_MS = 60_000;
 
 interface MainStrings {
   ruins: string;
+  tiers: Record<string, string>;
   start: { continueInfo: string; saved: string; shared: string; copied: string; share: string };
 }
 
@@ -46,6 +47,7 @@ export function start(root: HTMLElement): () => void {
   const cam = new Camera(W * TILE, H * TILE);
   const renderer = new Renderer(canvas, world);
   renderer.ruinsLabel = S.ruins ?? 'ruins';
+  renderer.tierLabels = S.tiers ?? renderer.tierLabels;
   const panels = new Panels(root, S, sim, cam);
   let playing = false;
 
