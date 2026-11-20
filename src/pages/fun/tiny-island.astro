@@ -428,6 +428,7 @@ const speeds = [
       <div class="ti__cine-bar ti__cine-bar--top"></div>
       <div class="ti__cine-bar ti__cine-bar--bottom"><p class="ti__cine-sub" data-cine-sub aria-live="polite"></p></div>
       <p class="ti__cine-chapter" data-cine-chapter hidden></p>
+      <p class="ti__cine-ff" data-cine-ff hidden></p>
       <p class="ti__cine-exit">{T.cinema.exit}</p>
     </div>
     <aside class="ti__profile" data-profile hidden aria-live="polite"></aside>
@@ -1062,8 +1063,22 @@ const speeds = [
     animation: cine-in 1200ms ease-out;
   }
 
-  .ti__cine-chapter[hidden] {
+  .ti__cine-chapter[hidden],
+  .ti__cine-ff[hidden] {
     display: none;
+  }
+
+  /* Time-lapse: the years fly by */
+  .ti__cine-ff {
+    position: absolute;
+    top: calc(11vh + 8px);
+    left: 12px;
+    margin: 0;
+    color: rgb(255 255 255 / 0.85);
+    font-family: var(--ti-pixel);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-shadow: 0 1px 2px #000;
   }
 
   .ti__cine-exit {

@@ -492,6 +492,7 @@ export const UI = {
         clean: 'Clean screen (cinema without bars and subtitles)',
         exit: 'Esc or click to leave',
         chapter: 'Chapter {n} – {a}',
+        ff: '▶▶ Year {y}',
         calm: [
           'Year {y}. Life goes on in {v}.',
           'Year {y}. In {v}, nobody knows what the years will bring.',
@@ -504,6 +505,7 @@ export const UI = {
           battle: ['Year {y}. Two armies meet at {v}.', 'Year {y}. Steel rings out at {v}.', 'Year {y}. At {v}, nobody will forget this day.'],
           battleWon: ['Year {y}. The battle of {v} is decided.', 'Year {y}. The field at {v} belongs to the victors.', 'Year {y}. Cheers and silence at {v}.'],
           live_battle: ['Year {y}. Armies clash near {v}.', 'Year {y}. Battle near {v}.', 'Year {y}. Shields up near {v}.'],
+          live_army: ['Year {y}. An army is on the march near {v}.', 'Year {y}. Boots on the road near {v}: war is coming.', 'Year {y}. Banners move through the land near {v}.'],
           live_siege: ['Year {y}. {v} is under siege.', 'Year {y}. Its walls are all that keep {v} free.', 'Year {y}. Catapults and ladders before {v}.'],
           conquest: ['Year {y}. {v} falls to the {p}.', 'Year {y}. New banners fly over {v}.', 'Year {y}. {v} has new masters: the {p}.'],
           breach: ['Year {y}. The walls of {w} give way.', 'Year {y}. A breach in the walls of {w}!', 'Year {y}. Stone falls, and {w} lies open.'],

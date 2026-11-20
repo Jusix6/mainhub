@@ -5,11 +5,18 @@
  *
  * - Scenes come from new chronicle entries (each kind has a tension value,
  *   chronicle.ts `TENSION`) and from what is going on right now: battles and
- *   sieges, eruptions, hurricanes, big fires, festivals; when nothing
- *   happens, a quiet scene (people at work, children at play) and time runs
- *   faster. Own characters and favourites count 20 more.
- * - A scene runs at least 6 and at most 20 seconds; the same scene never
- *   twice in a row. The camera glides there (battles from afar, weddings
+ *   sieges, armies on the march, eruptions, hurricanes, big fires; when nothing
+ *   happens, a time-lapse: the years run ten times as fast and the camera
+ *   drifts from place to place (5 s each) until something big happens, then
+ *   it cuts there at once. Small things (tension under 35) are left out;
+ *   festivals are no scene of their own, the time-lapse likes to drift over
+ *   a place that celebrates. A kind of scene seen in the last 45 s counts
+ *   20 less, so it does not show five deaths in a row.
+ *   Own characters and favourites count 20 more.
+ * - A scene runs 4 to 12 seconds (the more exciting, the longer; battles,
+ *   sieges and disasters as long as they go on, at most 25); the same scene
+ *   never twice in a row.
+ *   Smaller scenes (under 60) run at 3x. The camera glides there (battles from afar, weddings
  *   close up) and follows what moves.
  * - Climaxes (a wall breaks, a volcano erupts, a kingdom falls) run 2
  *   seconds in slow motion (0.3×); a new age opens a chapter card.
@@ -32,6 +39,8 @@ export interface CinemaStrings {
   peoples: Record<string, string>;
   calm: string[];
   calmWild: string[];
+  /** Time-lapse sign: "Year {y}". */
+  ff: string;
   lines: Record<string, string[]>;
 }
 
@@ -50,6 +59,11 @@ interface Scene {
   /** Real time (ms) the candidate is forgotten. */
   expires: number;
 }
+
+/** Below this a chronicle entry is not worth a scene; at least this cuts a time-lapse at once. */
+const WORTH = 35;
+/** The time-lapse shot of one place (s). */
+const LAPSE = 5;
 
 /** Climaxes that slow time down for a moment. */
 const CLIMAX = new Set(['breach', 'eruption', 'fall', 'overthrown', 'conquest']);
@@ -111,7 +125,7 @@ const BASE: Record<string, number> = {
   fall: 80,
   wonderBuilt: 75,
   royalWedding: 70,
-  festival: 60,
+  festival: 30,
   newAge: 60,
   legend: 55,
   independence: 65,
@@ -154,6 +168,10 @@ export class Cinema {
   private speed: Sim['speed'] = 1;
   private chapter = 0;
   private chapterUntil = 0;
+  /** Places the time-lapse has shown lately (so it wanders). */
+  private shown: number[] = [];
+  /** When each kind of scene was shown last (real time). */
+  private recent = new Map<string, number>();
 
   constructor(
     private readonly sim: Sim,
@@ -201,16 +219,35 @@ export class Cinema {
     this.candidates = this.candidates.filter((c) => c.expires > now && (!c.alive || c.alive()));
     const s = this.scene;
     const age = (now - this.since) / 1000;
-    const best = this.candidates.filter((c) => c.key !== s?.key && c.key !== this.lastKey).sort((a, b) => b.tension - a.tension)[0];
-    const over = !s || age > 20 || (s.alive && !s.alive());
-    const better = s && best && age > 6 && best.tension > s.tension + 5;
+    // Seen the same kind of thing a moment ago: worth less
+    const score = (c: Scene) => c.tension - (now - (this.recent.get(c.kind) ?? -Infinity) < 45000 ? 20 : 0);
+    const best = this.candidates
+      .filter((c) => c.key !== s?.key && c.key !== this.lastKey && score(c) >= WORTH)
+      .sort((a, b) => score(b) - score(a))[0];
+    const lapse = !s || s.kind === 'calm';
+    const over = !s || age > this.length(s) || (!!s.alive && !s.alive() && age > 1.5);
+    // A time-lapse gives way at once, a scene only to something clearly bigger
+    const better = !!best && (lapse || (age > 4 && score(best) > (s?.tension ?? 0) + 5));
     if (over || better) this.cut(best ?? this.calm(now), now);
     this.move(dt);
-    // Calm times run faster
-    this.sim.speed = (this.scene?.tension ?? 0) <= 15 ? 3 : 1;
+    // Nothing big: the years fly by; smaller scenes at 3x, big ones in real time
+    const t = this.scene?.tension ?? 0;
+    this.sim.speed = this.scene?.kind === 'calm' ? 10 : t < 60 ? 3 : 1;
     const card = this.view.querySelector<HTMLElement>('[data-cine-chapter]');
     if (card) card.hidden = now > this.chapterUntil;
+    const ff = this.view.querySelector<HTMLElement>('[data-cine-ff]');
+    if (ff) {
+      ff.hidden = this.scene?.kind !== 'calm' || this.clean;
+      if (!ff.hidden) ff.textContent = this.S.ff.replace('{y}', String(this.sim.year));
+    }
     return now < this.slowUntil ? 0.3 : 1;
+  }
+
+  /** How long a scene may run (s): the more exciting, the longer; live ones while they last. */
+  private length(s: Scene) {
+    if (s.kind === 'calm') return LAPSE;
+    if (s.alive && s.tension >= 80) return 25;
+    return Math.min(12, 4 + (s.tension - WORTH) / 7);
   }
 
   /** New chronicle entries become candidates (with a place to look at). */
@@ -222,10 +259,10 @@ export class Cinema {
       let tension = (TENSION as Record<string, number | undefined>)[e.kind] ?? BASE[e.kind] ?? 15;
       // Own characters and favourites (+20)
       if ([e.a, e.b, e.c].some((r) => r?.id && (this.sim.favorites.has(r.id) || this.sim.registry.get(r.id)?.custom))) tension += 20;
-      if (tension <= 20) continue;
+      if (tension < WORTH) continue;
       const at = this.placeOf(e);
       if (!at) continue;
-      this.candidates.push({ key: `e${e.id}`, kind: e.kind, tension, x: at.x, y: at.y, zoom: this.zoomFor(e.kind), entry: e, expires: now + 25000 });
+      this.candidates.push({ key: `e${e.id}`, kind: e.kind, tension, x: at.x, y: at.y, zoom: this.zoomFor(e.kind), entry: e, expires: now + 15000 });
       if (e.kind === 'newAge') this.chapterCard(e, now);
     }
   }
@@ -262,6 +299,10 @@ export class Cinema {
       } else if (a.state === 'siege') {
         const t = sim.villages.find((v) => v.id === a.target);
         if (t) add(`siege${a.id}`, 'siege', 90, t.x, t.y, () => sim.armies.some((x) => x.id === a.id && x.state === 'siege'));
+      } else if (a.state === 'march' || a.state === 'sail') {
+        // An army on its way: the war is coming
+        const g = sim.byId(a.general);
+        if (g) add(`march${a.id}`, 'army', 65, g.x, g.y, () => sim.armies.some((x) => x.id === a.id && (x.state === 'march' || x.state === 'sail')), () => sim.byId(a.general) ?? null);
       }
     }
     for (const v of sim.volcanoes) {
@@ -271,26 +312,44 @@ export class Cinema {
     const hu = sim.hurricane;
     if (hu) add(`hurricane${hu.name}`, 'hurricane', 95, hu.x, hu.y, () => sim.hurricane === hu, () => (sim.hurricane ? { x: sim.hurricane.x, y: sim.hurricane.y } : null));
     if (sim.fireEvent && sim.fires.size >= 5) add(`fire${sim.fireEvent.name}`, 'fire', 80, sim.fireEvent.x, sim.fireEvent.y, () => sim.fires.size > 0);
-    for (const v of sim.villages) {
-      if (!v.ruin && (v.festivalUntil ?? 0) > sim.time) add(`fest${v.id}:${v.festivalUntil}`, 'festival', 60, v.x, v.y, () => (v.festivalUntil ?? 0) > sim.time);
-    }
   }
 
-  /** A quiet scene: someone at work or at play in a place (a favourite if there is one). */
+  /**
+   * The time-lapse: the camera drifts slowly over a place (one not shown
+   * lately, bigger ones more often; sometimes a favourite), the years fly by.
+   */
   private calm(now: number): Scene {
     const sim = this.sim;
-    const pool = sim.humans.filter((h) => !h.dead && h.village !== undefined && h.aboard === undefined);
-    const fav = pool.filter((h) => sim.favorites.has(h.id));
-    const h = (fav.length && Math.random() < 0.5 ? fav : pool)[Math.floor(Math.random() * Math.max(1, (fav.length ? fav : pool).length))] as Human | undefined;
+    const fav = sim.humans.filter((h) => !h.dead && h.aboard === undefined && sim.favorites.has(h.id));
+    if (fav.length && Math.random() < 0.3) {
+      const h = fav[Math.floor(Math.random() * fav.length)] as Human;
+      return { key: `calm${now}`, kind: 'calm', tension: 10, x: h.x, y: h.y, zoom: 3.4, follow: () => (sim.byId(h.id) as Human | undefined) ?? null, expires: now + 20000 };
+    }
+    const places = sim.villages.filter((v) => !v.ruin && !v.merged);
+    // Half the time a place that celebrates, if there is one
+    const fest = places.filter((v) => (v.festivalUntil ?? 0) > sim.time && !this.shown.includes(v.id));
+    const fresh = fest.length && Math.random() < 0.5 ? fest : places.filter((v) => !this.shown.includes(v.id));
+    const pool = fresh.length ? fresh : places;
+    const weight = (v: (typeof pool)[number]) => 1 + v.houses.length;
+    let roll = Math.random() * pool.reduce((n, v) => n + weight(v), 0);
+    const v = pool.find((p) => (roll -= weight(p)) <= 0) ?? pool[0];
+    if (v) this.shown = [v.id, ...this.shown].slice(0, Math.max(1, Math.min(6, places.length - 1)));
+    const cx = v ? v.x : this.cam.x / TILE;
+    const cy = v ? v.y : this.cam.y / TILE;
+    // A slow drift across the place
+    const a = Math.random() * Math.PI * 2;
+    const start = now;
     return {
       key: `calm${now}`,
       kind: 'calm',
       tension: 10,
-      x: h?.x ?? this.cam.x / TILE,
-      y: h?.y ?? this.cam.y / TILE,
-      zoom: 3.6,
-      follow: h ? () => (sim.byId(h.id) as Human | undefined) ?? null : undefined,
-      alive: h ? () => !!sim.byId(h.id) : undefined,
+      x: cx - Math.cos(a) * 4,
+      y: cy - Math.sin(a) * 4,
+      zoom: 2.4 + Math.random() * 0.8,
+      follow: () => {
+        const k = Math.min(1, (performance.now() - start) / (LAPSE * 1000));
+        return { x: cx + Math.cos(a) * (k * 8 - 4), y: cy + Math.sin(a) * (k * 8 - 4) };
+      },
       expires: now + 20000,
     };
   }
@@ -300,9 +359,11 @@ export class Cinema {
     if (this.scene) this.lastKey = this.scene.key;
     this.scene = s;
     this.since = now;
+    this.recent.set(s.kind, now);
     this.candidates = this.candidates.filter((c) => c !== s);
     if (CLIMAX.has(s.kind)) this.slowUntil = now + 2000;
-    this.music.setMood(MOOD_OF[s.kind] ?? 'peace');
+    const party = s.kind === 'calm' && this.sim.villages.some((v) => (v.festivalUntil ?? 0) > this.sim.time && Math.hypot(v.x - s.x, v.y - s.y) < 6);
+    this.music.setMood(party ? 'festival' : (MOOD_OF[s.kind] ?? 'peace'));
     this.render(this.narrate(s));
   }
 
@@ -312,14 +373,17 @@ export class Cinema {
     const pick = (list: string[], seed: number) => list[Math.abs(seed) % list.length];
     if (s.kind === 'calm') {
       const v = sim.villages.filter((x) => !x.ruin).sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y))[0];
+      const fest = v && (v.festivalUntil ?? 0) > sim.time ? this.S.lines.live_festival : undefined;
       // Before the first place there is only the island
-      return pick(v ? this.S.calm : this.S.calmWild, Math.floor(s.x * 7 + s.y))
+      return pick(fest?.length ? fest : v ? this.S.calm : this.S.calmWild, Math.floor(s.x * 7 + s.y))
         .replace('{y}', String(sim.year))
         .replace('{v}', v?.name ?? '');
     }
     const e = s.entry;
     const lines = this.S.lines[s.kind];
     if (e && lines?.length) {
+      // Entries like a declaration of war keep the other side in p (the own people is the one of a)
+      const foe = !e.q && !!e.p && e.p !== e.a.people;
       return pick(lines, e.id)
         .replace('{y}', String(e.year))
         .replace('{a}', e.a.name)
@@ -327,8 +391,8 @@ export class Cinema {
         .replace('{v}', e.v ?? '')
         .replace('{w}', e.w ?? '')
         .replace('{u}', (e.u ?? '').replace(/^faith:\d+$/, ''))
-        .replace('{p}', this.S.peoples[e.p ?? e.a.people] ?? '')
-        .replace('{q}', e.q ? (this.S.peoples[e.q] ?? '') : '');
+        .replace('{p}', this.S.peoples[foe ? e.a.people : (e.p ?? e.a.people)] ?? '')
+        .replace('{q}', this.S.peoples[foe ? (e.p ?? '') : (e.q ?? '')] ?? '');
     }
     if (e) return `${e.year}. ${this.describe(e)}`;
     // Live scenes without an entry
