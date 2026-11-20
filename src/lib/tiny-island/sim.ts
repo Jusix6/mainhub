@@ -45,7 +45,7 @@ import { lifeBonus, WONDER_SIZE, wonderTick, wonderWork, type Wonder } from './w
 import { actHuman, thinkHuman } from './ai';
 import { researchTick, type Tech, knows } from './inventions';
 import { kingdomTick, type Kingdom } from './kingdoms';
-import { claimLand, territoryTick, type Claim } from './territory';
+import { claimLand, ownerPeople, territoryTick, type Claim } from './territory';
 import { comfortOf } from './town';
 import { penTick } from './pens';
 import { onProphetDeath, religionTick, type Religion } from './religion';
@@ -789,7 +789,25 @@ export class Sim {
   }
 
   /** Placed by the player: true if the spot works for this kind. */
-  place(kind: 'human' | AnimalKind, x: number, y: number, people: People): boolean {
+  /**
+   * The people a new person placed at (x, y) belongs to (no choosing): the
+   * people whose land it is, else of the nearest place on that land, else of
+   * the nearest person, else one at random.
+   */
+  peopleAt(x: number, y: number): People {
+    const owner = ownerPeople(this, x, y);
+    if (owner) return owner;
+    const w = this.world;
+    const place = this.villages
+      .filter((v) => !v.ruin && !v.merged && w.sameLand(v.x, v.y, x, y))
+      .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+    if (place) return place.people;
+    const near = this.nearest(x, y, 60, (o) => o.kind === 'human') as Human | null;
+    if (near) return near.people;
+    return PLAYABLE[Math.floor(this.rand() * PLAYABLE.length)];
+  }
+
+  place(kind: 'human' | AnimalKind, x: number, y: number, people: People = this.peopleAt(x, y)): boolean {
     const w = this.world;
     if (!w.isLand(w.get(x, y)) || !Number.isFinite(w.cost(x, y))) return false;
     if (kind === 'human') this.addHuman(x, y, people, this.rand() < 0.5);

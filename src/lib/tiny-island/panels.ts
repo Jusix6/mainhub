@@ -24,6 +24,7 @@ import { TILE } from './world';
 import { landShares } from './territory';
 import { religionById, SYMBOL_ICON } from './religion';
 import { LEVELS } from './society';
+import { buildingHtml, type BuildingRef, type BuildingStrings } from './building-panel';
 
 export interface PanelStrings {
   age: string;
@@ -281,6 +282,9 @@ export interface PanelStrings {
     nouns: Record<People, string[]>;
     icons: Record<'song' | 'mural' | 'statue', string>;
   };
+  /** Update 3: profiles of houses and buildings, and animal names. */
+  building: BuildingStrings;
+  life: Record<string, string>;
   /** Update 3, phase F: the warming in the Population tab. */
   disasters: { temperature: string; movement: string; melted: string };
   /** Update 3, phase D: the Religions tab and faith lines. */
@@ -343,6 +347,8 @@ export class Panels {
   following = false;
   /** The place whose profile is open (instead of a person), if any. */
   selectedVillage: number | null = null;
+  /** Update 3: the house or building whose profile is open. */
+  selectedBuilding: BuildingRef | null = null;
   private readonly profile: HTMLElement;
   private readonly list: HTMLElement;
   private readonly ac = new AbortController();
@@ -530,6 +536,7 @@ export class Panels {
     if (id !== this.selected) this.following = false;
     this.selected = id;
     this.selectedVillage = null;
+    this.selectedBuilding = null;
     this.profileAt = 0;
     this.profile.hidden = id === null;
     if (id !== null && this.narrow()) {
@@ -537,6 +544,45 @@ export class Panels {
       this.syncToggle();
       this.closeWindows();
     }
+  }
+
+  /** Opens the profile of a house or building (Update 3). */
+  selectBuilding(ref: BuildingRef) {
+    this.select(null);
+    this.selectedBuilding = ref;
+    this.profile.hidden = false;
+    if (this.narrow()) {
+      this.root.querySelector<HTMLElement>('[data-chron]')!.hidden = true;
+      this.syncToggle();
+      this.closeWindows();
+    }
+  }
+
+  private renderBuilding() {
+    const ref = this.selectedBuilding;
+    if (!ref) return;
+    const html = buildingHtml(
+      {
+        sim: this.sim,
+        S: this.S.building,
+        esc,
+        buildings: this.S.buildings,
+        peoples: this.S.peoples,
+        life: this.S.life,
+        jobs: this.S.jobs,
+        royal: this.S.kingdoms.royal,
+        wonderName: (w) => this.wonderName(wonderTag(w)),
+        faithName: (id) => this.faithName(id),
+        person: (id) => this.person(id),
+        village: (v) => this.villageLink(v),
+      },
+      ref,
+    );
+    if (html === null) {
+      this.select(null);
+      return;
+    }
+    this.setProfile(html);
   }
 
   /** Opens the profile of a place. */
@@ -659,6 +705,10 @@ export class Panels {
         this.profileAt = now;
         this.renderProfile();
       }
+    }
+    if (this.selectedBuilding && now - this.profileAt > 250) {
+      this.profileAt = now;
+      this.renderBuilding();
     }
     if (this.selectedVillage !== null && now - this.profileAt > 250) {
       this.profileAt = now;

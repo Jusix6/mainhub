@@ -215,7 +215,7 @@ export class Controls {
     const chip = this.root.querySelector<HTMLElement>('[data-drop-tool]');
     if (chip) {
       chip.hidden = this.tool === 'move' || this.openWindow() === 'build';
-      const label = this.tool === 'character' ? (this.placing?.name ?? '') : this.tool === 'human' ? `${this.S.life.human} · ${this.S.peoples[this.people]}` : (this.root.querySelector<HTMLElement>(`[data-tool="${this.tool}"]`)?.title ?? '');
+      const label = this.tool === 'character' ? (this.placing?.name ?? '') : this.tool === 'human' ? this.S.life.human : (this.root.querySelector<HTMLElement>(`[data-tool="${this.tool}"]`)?.title ?? '');
       chip.querySelector('[data-current]')!.textContent = label;
     }
   }
@@ -391,7 +391,8 @@ export class Controls {
         this.mode = 'none';
       } else if (!pan && isLife(this.tool)) {
         const t = this.tileAt(p.x, p.y);
-        this.sim.place(this.tool, t.x, t.y, this.people);
+        // A person joins the people of the land it is placed on (Update 3: no choosing)
+        this.sim.place(this.tool, t.x, t.y);
         this.mode = 'none';
       } else if (!pan) {
         this.lastTile = null;

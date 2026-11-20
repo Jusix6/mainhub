@@ -7,6 +7,7 @@
  * "Play shared world" when the link carries ?world=<seed>. The island is
  * saved to localStorage every 60 seconds and when the page is left.
  */
+import { buildingAt } from './building-panel';
 import { Cinema, type CinemaStrings } from './cinema';
 import { Music } from './music';
 import { heatwave, hurricane, rain, strike, wakeVolcano } from './disasters';
@@ -130,12 +131,19 @@ export function start(root: HTMLElement): () => void {
       const p = cam.toWorld(x, y);
       const who = sim.nearest(p.x / TILE, p.y / TILE + 0.3, 0.9, (a) => a.kind === 'human');
       if (who) return panels.select(who.id);
+      // A house or building (Update 3): who lives there, what it does
+      const building = buildingAt(sim, p.x / TILE, p.y / TILE);
+      if (building) return panels.selectBuilding(building);
       // So does its square
       const square = sim.villages.find((v) => Math.hypot(v.x + 0.5 - p.x / TILE, v.y + 0.5 - p.y / TILE) < 1.4);
       if (square) return panels.selectVillage(square.id);
       panels.select(null);
     },
-    pointable: (x, y) => renderer.villageAt(x, y) !== null,
+    pointable: (x, y) => {
+      if (renderer.villageAt(x, y) !== null) return true;
+      const p = cam.toWorld(x, y);
+      return buildingAt(sim, p.x / TILE, p.y / TILE) !== null;
+    },
     onPan: () => panels.stopFollow(),
     onWindow: () => panels.makeRoom(),
     // Update 3, phase F: the gods send disasters (and rain)
@@ -364,6 +372,7 @@ export function start(root: HTMLElement): () => void {
     panels.update(now);
     renderer.flush();
     renderer.selectedVillage = panels.selectedVillage;
+    renderer.selectedBuilding = panels.selectedBuilding;
     renderer.draw(cam, sim, controls.brush(), panels.selected);
     controls.renderClock();
     controls.renderPopulation();

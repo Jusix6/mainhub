@@ -324,6 +324,8 @@ export class Renderer {
   private px: Uint32Array;
   private dpr = 1;
   private selected: number | null = null;
+  /** Update 3: the house or building whose profile is open (a golden frame). */
+  selectedBuilding: { kind: string; village: number; x: number; y: number; id?: number } | null = null;
   /** Update 3, phase D: the places tinted in the colour of their faith (Religions tab). */
   faithView = false;
   /** Update 3, phase B: how the land is shown (key G): tinted with borders, stronger, or not at all. */
@@ -564,6 +566,7 @@ export class Renderer {
     this.drawScars(sim);
     this.drawLife(cam, sim);
     this.drawDisasters(sim);
+    this.drawSelectedBuilding(sim, cam);
     // No fog on the screen any more (Update 3): the player always sees the whole world;
     // what the peoples know (world.fog) only steers explorers and discoveries
 
@@ -759,7 +762,6 @@ export class Renderer {
     }
   }
 
-  /** A round wall of stone blocks with gates north, east, south and west; only on land. Damage (0…1) knocks out blocks. */
   /** Windmill sails, slowly turning around their hub. */
   private sails(x: number, y: number, time: number) {
     const ctx = this.ctx;
@@ -786,7 +788,6 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** Railways: a track from every town of a railway people to its nearest town (phase E). */
   /** Holy places of the living faiths (Update 3): shrines with a light; the faith map tints whole places. */
   private holyPlaces(sim: Sim, visible: (a: { x: number; y: number }) => boolean) {
     const ctx = this.ctx;
@@ -819,6 +820,22 @@ export class Renderer {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** A golden frame around the house or building whose profile is open. */
+  private drawSelectedBuilding(sim: Sim, cam: Camera) {
+    const b = this.selectedBuilding;
+    if (!b) return;
+    const v = sim.villages.find((x) => x.id === b.village);
+    const kind = b.kind === 'building' ? v?.buildings.find((o) => o.x === b.x && o.y === b.y)?.kind : undefined;
+    const half = b.kind === 'wonder' ? 0 : kind === 'castle' || kind === 'pen' ? 2 : 0;
+    const size = b.kind === 'wonder' ? 4 : 1 + half * 2;
+    const x0 = (b.x - half) * TILE - 1;
+    const y0 = (b.y - half - (b.kind === 'wonder' ? 0 : half ? 0 : 1)) * TILE - 1;
+    const ctx = this.ctx;
+    ctx.strokeStyle = '#ffd23f';
+    ctx.lineWidth = Math.max(1, 2 / cam.zoom);
+    ctx.strokeRect(x0, y0, size * TILE + 2, (size + (half || b.kind === 'wonder' ? 0 : 1)) * TILE + 2);
   }
 
   /** Burn scars (Update 3): dark patches where a fire was, for a few years. */
@@ -1037,7 +1054,27 @@ export class Renderer {
     const r = (livingRadius(v) + 1) * TILE;
     const castle = knows(sim, v.people, 'castle');
     const style = castle ? 'castle' : v.people === 'steppe' || ageIndex(sim, v.people) < 2 ? 'palisade' : 'stone';
-    const land = (x: number, y: number) => sim.world.isLand(sim.world.get(Math.floor(x / TILE), Math.floor(y / TILE)));
+    // Only on the place's own (or free) land, never on mountains or in the water: no walls
+    // through a neighbour's town or up a mountain (Update 3)
+    const w = sim.world;
+    const free = (x: number, y: number) => {
+      const tx = Math.floor(x / TILE);
+      const ty = Math.floor(y / TILE);
+      const t = w.get(tx, ty);
+      if (!w.isLand(t) || t === T.MOUNTAIN) return false;
+      const o = w.owner[ty * w.w + tx];
+      return o < 0 || o === v.id;
+    };
+    // Other places close by: where their ring begins, this wall stops (two walls never cross)
+    const others = sim.villages
+      .filter((u) => u !== v && !u.merged && !u.ruin && Math.hypot(u.x - v.x, u.y - v.y) * TILE < r + (livingRadius(u) + 2) * TILE)
+      .map((u) => ({ x: u.x * TILE + 4, y: u.y * TILE + 4, r: (livingRadius(u) + 1.5) * TILE }));
+    const land = (x: number, y: number) => {
+      // The whole block (and a mountain drawn up from the tile below) must be clear
+      if (!free(x - 3, y - 4) || !free(x + 3, y - 4) || !free(x - 3, y + 3) || !free(x + 3, y + 3)) return false;
+      if (w.get(Math.floor(x / TILE), Math.floor(y / TILE) + 1) === T.MOUNTAIN) return false;
+      return !others.some((o) => Math.hypot(x - o.x, y - o.y) < o.r);
+    };
     const n = Math.round((2 * Math.PI * r) / (style === 'palisade' ? 3 : 4));
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;

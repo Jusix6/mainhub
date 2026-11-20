@@ -99,6 +99,7 @@ const strings = {
   editor: T.editor,
   territory: T.territory,
   religion: T.religion,
+  building: T.building,
   disasters: T.disasters,
   cinema: T.cinema,
   borders: T.bar.borderModes,
@@ -243,16 +244,6 @@ const speeds = [
                 <button type="button" class="ti__tool" data-tool={l.key} aria-pressed="false" title={T.life[l.key]}>
                   <span class="ti__emoji" aria-hidden="true">{l.icon}</span>
                   <span>{T.life[l.key]}</span>
-                </button>
-              ))
-            }
-          </div>
-          <div class="ti__peoples" role="group" aria-label={T.peopleLabel}>
-            {
-              PLAYABLE.map((k) => (
-                <button type="button" class="ti__people" data-people={k} aria-pressed={k === 'coast' ? 'true' : 'false'} title={T.peoples[k]}>
-                  <span class="ti__swatch" style={`--sw: ${PEOPLE_COLORS[k].cloth}`} aria-hidden="true" />
-                  <span>{T.peoples[k]}</span>
                 </button>
               ))
             }
