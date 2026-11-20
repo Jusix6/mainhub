@@ -21,6 +21,7 @@ import {
   stat,
   tileOf,
   walk,
+  type Animal,
   type Human,
   type Resource,
   type Task,
@@ -31,6 +32,10 @@ import { FARM_TIME, farmSpot, HARVEST, jobUrge, smithTask, toolFactor, wearTools
 import { hasBuilding } from './town';
 import { knows, progressWork } from './inventions';
 import { BALANCE } from './balance';
+import { catchAnimal, herdWork } from './pens';
+import { believes, nextPilgrimage, pilgrimSite, preach, preachTarget } from './religion';
+import { perform, performSpot, visitGain, visitSpot } from './society';
+import { douse, nearestFire } from './disasters';
 import { foodYears } from './hunger';
 import { festiveAt, inspire } from './culture';
 import { armyOf, atWar, equip, isEnemy, isWarrior, trespass, WEAPON_POWER, type Army } from './war';
@@ -57,7 +62,6 @@ import type { Sim } from './sim';
 import { T } from './world';
 
 interface Ctx {
-  night: boolean;
   /** Someone awake nearby to talk to. */
   partner: Human | null;
   /** That someone is single and a match: worth getting to know. */
@@ -92,8 +96,9 @@ export const SCORES: Record<Choice, (h: Human, c: Ctx) => number> = {
       ? 0
       : (urge(h.hunger) * (h.food === 0 ? 1.1 : 0.7) + (h.food === 0 ? 8 : 0) + (h.food === 0 && h.hunger <= BALANCE.food.eatAt ? 15 : 0)) *
         (c.grieving ? 0.75 : 1),
-  // Nights are for sleeping; by day only when worn out
-  sleep: (h, c) => (c.night ? 50 + urge(h.energy) * 0.6 : h.energy < 18 ? 85 : urge(h.energy) * 0.25),
+  // No nights (Update 3): a nap when tired, before anything else when worn out; a nap once begun is finished
+  sleep: (h) =>
+    h.task?.kind === 'sleep' ? 100 : h.energy < BALANCE.sleep.exhausted ? 95 : h.energy < BALANCE.sleep.tired ? 70 + urge(h.energy) * 0.3 : 0,
   // Lonely and someone is around (less so while grieving)
   chat: (h, c) => (c.partner ? urge(h.social) * 0.75 * (c.grieving ? 0.5 : 1) + (c.flirt ? 40 : 0) : 0),
   // Nothing urgent; singles with nobody to fall for nearby like to roam
@@ -109,20 +114,31 @@ export const SCORES: Record<Choice, (h: Human, c: Ctx) => number> = {
   // A house is being built: builders first, others lend a hand
   // A world wonder (phase H) comes first for builders by day
   build: (h, c) =>
-    c.adult && !c.night && h.job === 'builder' && !c.village?.site && projectOf(c.sim, c.village)
+    c.adult && h.job === 'builder' && !c.village?.site && projectOf(c.sim, c.village)
       ? 70 * (c.old ? 0.6 : 1)
       : c.village?.site && c.adult
         ? (h.job === 'builder' ? 55 : 28) * (c.old ? 0.6 : 1)
         : 0,
   // Artists play music and paint on the square (by day)
-  art: (h, c) => (c.village && !c.night ? (h.job === 'artist' ? 38 : has(h, 'artistic') && c.adult ? 18 : 0) : 0),
+  art: (h, c) => (c.village ? (h.job === 'artist' ? 38 : has(h, 'artistic') && c.adult ? 18 : 0) : 0),
   // Soldiers keep watch around the village
   patrol: (h, c) => (c.village && h.job === 'soldier' ? 24 : 0),
   // War: warriors march with their army
-  // In an army: by day the march comes first (phase F), at night the tired sleep
-  raid: (_h, c) => (c.army ? (c.night ? 55 : 90) : 0),
+  // In an army the march comes first (phase F); only the worn out nap in the camp
+  raid: (_h, c) => (c.army ? 90 : 0),
   // A festival on the square: everyone comes to dance
   festival: (_h, c) => (festiveAt(c.village, c.sim) ? 62 : 0),
+  // Update 3: prophets preach (before everything quiet), priests and missionaries are at it all day
+  preach: (h, c) => (!c.adult ? 0 : h.prophet !== undefined ? 45 : h.job === 'priest' || h.job === 'missionary' ? 30 : 0),
+  // The devout go on a pilgrimage now and then
+  // Update 3, phase E: culture people perform, everyone short of culture visits a tavern, theatre …
+  // (only with a full stomach and a full store: culture comes after bread)
+  perform: (h, c) =>
+    c.adult && c.village && h.role && h.hunger > 50 && c.village.need.food < 0.4 ? (h.role === 'actor' && !hasBuilding(c.village, 'theater') ? 0 : h.role === 'musician' ? 22 : 20) : 0,
+  visit: (h, c) => (c.adult && h.hunger > 55 && c.village && c.village.need.food < 0.4 && (h.culture ?? 60) < 30 && visitSpot(c.village) ? 18 + urge(h.culture ?? 60) * 0.2 : 0),
+  // A fire close by: everyone grown-up runs to put it out (Update 3)
+  douse: (h, c) => (c.adult && !c.army && c.sim.fires.size && nearestFire(c.sim, h) ? 85 : 0),
+  pilgrim: (h, c) => (c.adult && h.faith !== undefined && (h.devotion ?? 0) >= 70 && (h.pilgrimAt ?? Infinity) <= c.sim.time ? 55 : 0),
 };
 
 /** Bonus for keeping the current action, so nobody flips back and forth. */
@@ -157,6 +173,12 @@ const CHOICE_OF: Partial<Record<TaskKind, Choice>> = {
   art: 'art',
   patrol: 'patrol',
   festival: 'festival',
+  herd: 'work',
+  preach: 'preach',
+  pilgrim: 'pilgrim',
+  perform: 'perform',
+  visit: 'visit',
+  douse: 'douse',
 };
 
 function setTask(h: Human, task: Task | null) {
@@ -276,7 +298,6 @@ export function thinkHuman(h: Human, sim: Sim) {
 
   const partner = chatPartner(h, sim);
   const ctx: Ctx = {
-    night: sim.isNight,
     partner,
     flirt: !!partner && single(h, sim) && single(partner, sim) && match(h, partner),
     love: findLove(h, sim),
@@ -312,13 +333,17 @@ function start(h: Human, choice: Choice, sim: Sim, ctx: Ctx): boolean {
       setTask(h, newTask('eat', sim, here.x, here.y, { work: 1 }));
       return true;
     case 'sleep': {
-      // Couples and their children sleep at home; warriors on the march sleep where they are
-      const home = armyOf(sim, h) ? null : h.home;
-      if (home && Math.hypot(home.x - here.x, home.y - here.y) > 3) {
-        setTask(h, newTask('sleep', sim, home.x, home.y, { until: sim.time + 40 }));
-        if (goTo(h, sim.world, home.x, home.y)) return true;
+      // A short nap (Update 3): at home, else at the village fire, if one is near;
+      // warriors on campaign nap in the camp, everyone else where they are
+      const S = BALANCE.sleep;
+      const nap = S.napMin + sim.rand() * (S.napMax - S.napMin);
+      const near = (p: { x: number; y: number } | null | undefined) => (p && Math.hypot(p.x - here.x, p.y - here.y) <= S.homeRange ? p : null);
+      const bed = armyOf(sim, h) ? null : (near(h.home) ?? near(ctx.village));
+      if (bed && Math.hypot(bed.x - here.x, bed.y - here.y) > 2) {
+        setTask(h, newTask('sleep', sim, bed.x, bed.y, { until: sim.time + 30, work: nap }));
+        if (goTo(h, sim.world, bed.x, bed.y)) return true;
       }
-      setTask(h, newTask('sleep', sim, here.x, here.y, { until: sim.time + 40, arrived: true }));
+      setTask(h, newTask('sleep', sim, here.x, here.y, { until: sim.time + 30, work: nap, arrived: true }));
       return true;
     }
     case 'chat':
@@ -342,6 +367,40 @@ function start(h: Human, choice: Choice, sim: Sim, ctx: Ctx): boolean {
       return startWork(h, sim, ctx.village);
     case 'raid':
       return ctx.army ? startRaid(h, sim, ctx.army) : false;
+    case 'preach': {
+      // Update 3: to a place of another faith (missionaries, prophets) or the temple at home (priests)
+      const v = preachTarget(sim, h);
+      if (!v) return false;
+      const temple = h.job === 'priest' ? v.buildings.find((b) => b.kind === 'temple' || b.kind === 'cathedral' || b.kind === 'altar') : undefined;
+      const spot = randomSpot(sim.world, { ...h, x: (temple?.x ?? v.x) + 0.5, y: (temple?.y ?? v.y) + 1.5 }, 2, sim.rand);
+      if (!spot) return false;
+      setTask(h, newTask('preach', sim, spot.x, spot.y, { work: 6 + sim.rand() * 6, until: sim.time + 60 }));
+      return goTo(h, sim.world, spot.x, spot.y);
+    }
+    case 'douse': {
+      const f = nearestFire(sim, h);
+      if (!f) return false;
+      setTask(h, newTask('douse', sim, f.x, f.y, { target: f.i, until: sim.time + 25 }));
+      return goTo(h, sim.world, f.x, f.y) || adjacentGo(h, sim, f.x, f.y);
+    }
+    case 'perform':
+    case 'visit': {
+      // Update 3: on the stage (tavern, theatre, library, square), or as a guest
+      const v = ctx.village;
+      if (!v) return false;
+      const at = choice === 'perform' ? performSpot(v, h) : visitSpot(v);
+      if (!at) return false;
+      const spot = randomSpot(sim.world, { ...h, x: at.x + 0.5, y: at.y + 0.5 }, 2, sim.rand) ?? at;
+      setTask(h, newTask(choice, sim, spot.x, spot.y, { work: choice === 'perform' ? 8 + sim.rand() * 6 : 4 + sim.rand() * 3, until: sim.time + 40 }));
+      return goTo(h, sim.world, spot.x, spot.y) || adjacentGo(h, sim, spot.x, spot.y);
+    }
+    case 'pilgrim': {
+      const site = pilgrimSite(sim, h);
+      h.pilgrimAt = nextPilgrimage(sim);
+      if (!site) return false;
+      setTask(h, newTask('pilgrim', sim, site.x, site.y, { work: 4, until: sim.time + 90 }));
+      return goTo(h, sim.world, site.x, site.y) || adjacentGo(h, sim, site.x, site.y);
+    }
     case 'festival': {
       const v = ctx.village;
       if (!v) return false;
@@ -427,13 +486,17 @@ function startGather(h: Human, sim: Sim): boolean {
     }
   }
   const adult = stage(h, sim.time) !== 'child';
-  const prey = adult ? sim.nearest(h.x, h.y, R, (o) => (o.kind === 'sheep' || o.kind === 'chicken') && sim.huntable(o.kind)) : null;
+  // Penned animals belong to a place; cows are game too; a faith of nature does not hunt (Update 3)
+  const prey = adult && !believes(sim, h, 'nature')
+    ? sim.nearest(h.x, h.y, R, (o) => (o.kind === 'sheep' || o.kind === 'chicken' || o.kind === 'cow') && (o as Animal).pen === undefined && sim.huntable(o.kind))
+    : null;
 
   const options: { d: number; go: () => boolean }[] = [];
   if (berry) {
     const b = berry;
     options.push({
-      d: b.d,
+      // Peoples with fields leave the berries for the hungry (Update 3)
+      d: b.d * (knows(sim, h.people, 'agriculture') ? BALANCE.bushes.farmerFactor : 1),
       go: () => {
         setTask(h, newTask('gather', sim, b.x, b.y, { source: 'berries', work: 1.5 }));
         return goTo(h, w, b.x, b.y);
@@ -573,9 +636,14 @@ function startWork(h: Human, sim: Sim, v: Village): boolean {
       return gatherFor(h, sim, v, ['food'], true);
     case 'woodcutter':
     case 'builder':
-      return gatherFor(h, sim, v, ['wood']);
+      // A full woodshed (Update 3): no more felling, they help where the storage needs it
+      if (v.wood < BALANCE.trees.woodStock * (hasBuilding(v, 'warehouse') ? 2 : 1)) return gatherFor(h, sim, v, ['wood']);
+      break;
     case 'stonemason':
       return gatherFor(h, sim, v, ['stone']);
+    case 'shepherd':
+      // Pens (Update 3): wolves off, animals in, else tending
+      return herdWork(h, sim, v, (kind, x, y, extra) => setTask(h, newTask(kind, sim, x, y, extra)));
     case 'miner':
       return gatherFor(h, sim, v, ['ore']);
     case 'smith': {
@@ -605,7 +673,7 @@ function gatherFor(h: Human, sim: Sim, v: Village, order: Resource[], fishOnly =
     const spot = findSource(h, sim, res, fishOnly, v);
     if (!spot) continue;
     // Strong arms cut wood and break stone faster
-    const arms = (res === 'food' ? 1 : Math.max(0.5, 1.1 - stat(h, 'strength') * 0.02)) * progressWork(sim, h.people);
+    const arms = (res === 'food' ? 1 : Math.max(0.5, 1.1 - stat(h, 'strength') * 0.02)) * progressWork(sim, h.people) * (believes(sim, h, 'poverty') ? BALANCE.religion.povertyWork : 1);
     setTask(h, newTask('work', sim, spot.x, spot.y, { res, phase: 'go', source: spot.source, work: spot.time * toolFactor(v) * arms, until: sim.time + 40 }));
     if (goTo(h, sim.world, spot.x, spot.y)) {
       // A long way from home: take a portion along (Update 2)
@@ -626,6 +694,8 @@ function findSource(h: Human, sim: Sim, res: Resource, fishOnly = false, v?: Vil
   // Some sources count as closer than they are (fishing for good fishers, trees in the village area)
   const minFactor = res === 'wood' ? BALANCE.trees.villageTreeFactor : res === 'food' ? 0.8 : 1;
   let best: { x: number; y: number; d: number; time: number; source?: 'berries' | 'fish' } | null = null;
+  // Peoples with fields count berries as further away (Update 3)
+  const bf = res === 'food' && knows(sim, h.people, 'agriculture') ? BALANCE.bushes.farmerFactor : 1;
   for (let y = here.y - R; y <= here.y + R; y++) {
     for (let x = here.x - R; x <= here.x + R; x++) {
       if (!w.inside(x, y)) continue;
@@ -633,7 +703,7 @@ function findSource(h: Human, sim: Sim, res: Resource, fishOnly = false, v?: Vil
       if (d > R || (best && d * minFactor >= best.d)) continue;
       const t = w.get(x, y);
       if (res === 'food') {
-        if (!fishOnly && w.bush[y * w.w + x] > 0) best = { x, y, d, time: gatherTime('food', 'berries', h.people), source: 'berries' };
+        if (!fishOnly && w.bush[y * w.w + x] > 0 && (bf === 1 || !best || d * bf < best.d)) best = { x, y, d: d * bf, time: gatherTime('food', 'berries', h.people), source: 'berries' };
         else if (w.isLand(t) && Number.isFinite(w.cost(x, y)) && fishAt(sim, x, y) >= 0) {
           const time = gatherTime('food', 'fish', h.people);
           // Fishing counts as a bit further, except for the coast people (and anyone with boats)
@@ -721,10 +791,15 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
         if (walk(h, w, dt, speed)) task.arrived = true;
         return;
       }
+      // A nap of 2–3 seconds fills the energy back up
       h.asleep = true;
       h.moving = false;
-      h.energy = Math.min(100, h.energy + 12 * dt);
-      if (h.energy >= 99 || (!sim.isNight && h.energy > 65)) end(h);
+      h.energy = Math.min(100, h.energy + 45 * dt);
+      task.work -= dt;
+      if (task.work <= 0) {
+        h.energy = Math.max(h.energy, 95);
+        end(h);
+      }
       return;
 
     case 'eat':
@@ -843,6 +918,30 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
       return;
     }
 
+    case 'herd': {
+      // Catching an animal for a pen, or tending (Update 3)
+      const a = task.target !== undefined ? (sim.byId(task.target) as Animal | undefined) : undefined;
+      if (task.target !== undefined) {
+        const v = villageOf(h, sim);
+        if (!a || !v || a.pen !== undefined) return end(h);
+        if (dist(h, a) > 1.2) {
+          chase(h, sim, a, dt, speed);
+          return;
+        }
+        catchAnimal(sim, v, a);
+        sim.puff(a.x, a.y - 0.3, 3, ['#ffffff', '#ffe066']);
+        return end(h);
+      }
+      if (!task.arrived) {
+        if (walk(h, w, dt, speed)) task.arrived = true;
+        return;
+      }
+      h.moving = false;
+      task.work -= dt;
+      if (task.work <= 0) end(h);
+      return;
+    }
+
     case 'gather': {
       if (task.source === 'hunt') {
         const prey = sim.byId(task.target);
@@ -856,7 +955,7 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
         if (sim.time >= h.hitAt) {
           h.hitAt = sim.time + 0.8;
           if (sim.hit(h, prey, 10 * PERKS[h.people].fight * might(h))) {
-            h.food += prey.kind === 'sheep' ? 4 : 2;
+            h.food += prey.kind === 'cow' ? 6 : prey.kind === 'sheep' ? 4 : 2;
             trespass(h, sim);
             end(h);
           }
@@ -938,6 +1037,52 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
         // Music: a note over the head, and everyone close by cheers up a little
         think(h, 'note', 1.5, sim);
         for (const o of sim.near(h.x, h.y, 5, (a) => a.kind === 'human' && a !== h)) (o as Human).social = Math.min(100, (o as Human).social + 4);
+      }
+      if (task.work <= 0) end(h);
+      return;
+    }
+
+    case 'douse': {
+      // Water on the flames (Update 3): close enough, then it goes out bit by bit
+      if (!sim.fires.has(task.target ?? -1)) return end(h);
+      if (Math.hypot(task.tx + 0.5 - h.x, task.ty + 0.5 - h.y) > 1.6) {
+        if (walk(h, w, dt, speed * 1.2)) task.arrived = true;
+        if (task.arrived && Math.hypot(task.tx + 0.5 - h.x, task.ty + 0.5 - h.y) > 1.6) return end(h);
+        return;
+      }
+      h.moving = false;
+      if (sim.rand() < dt * 2) sim.puff(task.tx + 0.5, task.ty + 0.2, 1, ['#d5ecff']);
+      if (douse(sim, h, task.target!, dt)) end(h);
+      return;
+    }
+
+    case 'perform':
+    case 'visit': {
+      if (!task.arrived) {
+        if (walk(h, w, dt, speed)) task.arrived = true;
+        return;
+      }
+      h.moving = false;
+      task.work -= dt;
+      if (task.kind === 'perform') perform(sim, h, dt);
+      else visitGain(h, dt);
+      if (task.work <= 0) end(h);
+      return;
+    }
+
+    case 'preach':
+    case 'pilgrim': {
+      if (!task.arrived) {
+        if (walk(h, w, dt, speed)) task.arrived = true;
+        return;
+      }
+      h.moving = false;
+      task.work -= dt;
+      if (task.kind === 'preach') preach(sim, h, dt);
+      else {
+        // At the holy place: devotion fills up, a light over the head
+        h.devotion = 100;
+        if (sim.rand() < dt) think(h, 'light', 1.5, sim);
       }
       if (task.work <= 0) end(h);
       return;
@@ -1069,7 +1214,7 @@ function actWork(h: Human, sim: Sim, task: Task, dt: number, speed: number) {
       if (i >= 0) {
         w.fish[i]--;
         // With boats they row out and catch one more
-        n = (PERKS[h.people].fish > 1 ? 3 : 2) + (knows(sim, h.people, 'boats') ? 1 : 0) + (knows(sim, h.people, 'navigation') ? 1 : 0);
+        n = (PERKS[h.people].fish > 1 ? 3 : 2) + (knows(sim, h.people, 'boats') ? 1 : 0) + (knows(sim, h.people, 'navigation') ? 1 : 0) + (believes(sim, h, 'sea') ? 1 : 0);
       }
     } else if (task.res === 'wood') {
       n = 2;

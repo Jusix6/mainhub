@@ -29,7 +29,7 @@ export const SKINS = ['#f3d2b3', '#e2b48c', '#c68b5e', '#8d5a3b', '#5e3b26'];
 export const HAIRS = ['#2b1d14', '#5a3b22', '#a8662c', '#e3c06b', '#1a1a1a', '#7a2e1b'];
 export const GREY_HAIR = '#d9d9d9';
 
-export type AnimalKind = 'sheep' | 'chicken' | 'wolf' | 'horse';
+export type AnimalKind = 'sheep' | 'chicken' | 'wolf' | 'horse' | 'cow';
 
 /**
  * Character traits, two per person born on the island (own characters may
@@ -92,7 +92,7 @@ export type Stat = (typeof STATS)[number];
 export type Stats = Record<Stat, number>;
 
 /** Special powers, only for own characters (characters.ts). */
-export const POWERS = ['immortal', 'invincible', 'eternalYouth', 'giantStrength', 'genius', 'magnetic', 'fertile', 'wolfWhisperer', 'lucky'] as const;
+export const POWERS = ['immortal', 'invincible', 'eternalYouth', 'giantStrength', 'genius', 'magnetic', 'fertile', 'wolfWhisperer', 'lucky', 'prophet'] as const;
 export type Power = (typeof POWERS)[number];
 
 /** Looks of own characters, drawn over the normal sprite. */
@@ -151,7 +151,7 @@ export function pickTraits(rand: Rand, inherited: Trait[] = []): Trait[] {
 }
 
 /** Little pictures over the head: what someone wants or feels. */
-export type Thought = 'heart' | 'sword' | 'tear' | 'food' | 'note';
+export type Thought = 'heart' | 'sword' | 'tear' | 'food' | 'note' | 'light' | 'happy' | 'sad';
 
 /** One line in a person's life story; `other` is a name, kept as text. */
 export interface StoryEntry {
@@ -178,7 +178,13 @@ export type TaskKind =
   | 'craft'
   | 'art'
   | 'patrol'
-  | 'festival';
+  | 'festival'
+  | 'herd'
+  | 'preach'
+  | 'pilgrim'
+  | 'perform'
+  | 'visit'
+  | 'douse';
 
 /** What a village stores and people carry back to it. */
 export type Resource = 'food' | 'wood' | 'stone' | 'ore';
@@ -239,6 +245,17 @@ interface Base {
 
 export interface Human extends Base {
   kind: 'human';
+  /** Update 3, phase D: faith (a religion id), devotion 0…100, the religion they are the prophet of, next pilgrimage (game time). */
+  faith?: number;
+  devotion?: number;
+  prophet?: number;
+  pilgrimAt?: number;
+  /** Update 3, phase E: the need for culture (0…100), the mood of all needs together, a culture role. */
+  culture?: number;
+  mood?: number;
+  role?: 'philosopher' | 'musician' | 'fool' | 'actor';
+  /** Update 3, phase F: fires put out (5: the Firebreaker). */
+  saves?: number;
   name: string;
   people: People;
   female: boolean;
@@ -312,6 +329,8 @@ export interface Human extends Base {
 export interface Animal extends Base {
   kind: AnimalKind;
   hunger: number;
+  /** Update 3: lives in a pen (the tile index of its middle, pens.ts). */
+  pen?: number;
 }
 
 export type Agent = Human | Animal;
@@ -353,7 +372,7 @@ export interface Puff {
 
 export const FOOD_VALUE = 34;
 
-export const SPEED: Record<Agent['kind'], number> = { human: 1.5, sheep: 1, chicken: 1.2, wolf: 2.1, horse: 1.9 };
+export const SPEED: Record<Agent['kind'], number> = { human: 1.5, sheep: 1, chicken: 1.2, wolf: 2.1, horse: 1.9, cow: 0.8 };
 
 /** What each people is good at (Phase 4). */
 export const PERKS: Record<People, { fish: number; wood: number; stone: number; speed: number; fight: number; hp: number }> = {
@@ -363,9 +382,9 @@ export const PERKS: Record<People, { fish: number; wood: number; stone: number; 
   steppe: { fish: 1, wood: 1, stone: 1, speed: 1.2, fight: 1.4, hp: 100 },
   islanders: { fish: 2, wood: 1.2, stone: 1, speed: 1.1, fight: 1, hp: 95 },
 };
-export const MAX_HP: Record<Agent['kind'], number> = { human: 100, sheep: 22, chicken: 9, wolf: 40, horse: 50 };
+export const MAX_HP: Record<Agent['kind'], number> = { human: 100, sheep: 22, chicken: 9, wolf: 40, horse: 50, cow: 45 };
 /** Typical life in years, a little randomness on top. */
-const LIFE: Record<Agent['kind'], [number, number]> = { human: [70, 22], sheep: [12, 4], chicken: [8, 3], wolf: [14, 4], horse: [20, 5] };
+const LIFE: Record<Agent['kind'], [number, number]> = { human: [70, 22], sheep: [12, 4], chicken: [8, 3], wolf: [14, 4], horse: [20, 5], cow: [16, 4] };
 
 export const YEAR = 30;
 

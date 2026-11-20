@@ -19,6 +19,12 @@ import type { Legend, Work } from './culture';
 import { H, W, type Island, type World } from './world';
 import type { Ship, Wreck } from './ships';
 import type { Wonder } from './wonders';
+import type { Claim } from './territory';
+import { layAllStreets, restoreTrains, type Highway } from './roads';
+import type { Religion } from './religion';
+import type { Book } from './society';
+import type { Volcano } from './disasters';
+import { BALANCE } from './balance';
 
 const KEY = 'jxsi_tiny_island_v1';
 
@@ -26,10 +32,12 @@ type SavedHuman = Omit<Human, 'rel' | 'path' | 'task'> & { rel: [number, number]
 type SavedAnimal = Omit<Animal, 'path' | 'task'>;
 
 /** Format version; `migrate` brings older saves up to it. */
-const VERSION = 5;
+const VERSION = 8;
 
 interface SaveData {
   v: number;
+  /** Set by the migration to v6: clear away surplus bushes and trees once (not saved). */
+  trim?: boolean;
   savedAt: number;
   seed: string;
   time: number;
@@ -88,6 +96,35 @@ interface SaveData {
   ships?: Ship[];
   nextShipId?: number;
   wrecks?: Wreck[];
+  /** Update 3, phase B: who owns each tile (Int32 per tile), claims and land grabs. */
+  owner?: string;
+  claims?: Claim[];
+  nextClaimId?: number;
+  /** Update 3, phase C: roads and rails (a byte per tile), highways and railways. */
+  road?: string;
+  rail?: string;
+  highways?: Highway[];
+  railways?: Highway[];
+  /** Update 3, phase D: religions (faiths of people and places are saved with them). */
+  religions?: Religion[];
+  nextReligionId?: number;
+  prophetYear?: number;
+  /** Update 3, phase F: warming, volcanoes about to erupt, a heatwave, cooled lava, rich soil, the movement. */
+  temperature?: number;
+  tempHistory?: [number, number][];
+  volcanoes?: Volcano[];
+  heat?: { until: number; name: string };
+  lavaRock?: [number, number][];
+  fertile?: string;
+  movementUntil?: number;
+  disasterYear?: number;
+  seaYear?: number;
+  /** Update 3, phase E: books and the peoples a book made tolerant. */
+  books?: Book[];
+  nextBookId?: number;
+  tolerance?: [People, number][];
+  /** Set by the migration to v8: lay the streets of every place once (not saved). */
+  streets?: boolean;
   /** World wonders (phase H). */
   wonders?: Wonder[];
   nextWonderId?: number;
@@ -161,6 +198,28 @@ export function save(sim: Sim, world: World): boolean {
     wrecks: sim.wrecks,
     wonders: sim.wonders,
     nextWonderId: sim.nextWonderId,
+    owner: toB64(new Uint8Array(world.owner.buffer)),
+    claims: sim.claims,
+    nextClaimId: sim.nextClaimId,
+    road: toB64(world.road),
+    rail: toB64(world.rail),
+    highways: sim.highways,
+    railways: sim.railways,
+    religions: sim.religions,
+    nextReligionId: sim.nextReligionId,
+    prophetYear: sim.prophetYear,
+    books: sim.books,
+    nextBookId: sim.nextBookId,
+    temperature: sim.temperature,
+    tempHistory: sim.tempHistory,
+    volcanoes: sim.volcanoes.map((v) => ({ x: v.x, y: v.y, name: v.name, erupts: v.erupts })),
+    heat: sim.heat,
+    lavaRock: [...sim.lavaRock],
+    fertile: toB64(world.fertile),
+    movementUntil: sim.movementUntil,
+    disasterYear: sim.disasterYear,
+    seaYear: sim.seaYear,
+    tolerance: [...sim.tolerance],
   };
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
@@ -186,6 +245,9 @@ function read(): SaveData | null {
  *  - v2 → v3 (phase B): abilities for everyone
  *  - v3 → v4 (phase C): family names (royal blood comes back with the next tick)
  *  - v4 → v5 (phase G): the old 160 × 100 island stays as it is, no fog, no ships
+ *  - v5 → v6 (Update 3, phase A): surplus bushes and trees are cleared on loading
+ *  - v6 → v7 (Update 3, phase B): no land yet; the places claim it in the first second
+ *  - v7 → v8 (Update 3, phase C): every place lays the streets to its houses once
  */
 function migrate(d: SaveData): SaveData {
   if (d.v < 2) {
@@ -215,6 +277,15 @@ function migrate(d: SaveData): SaveData {
     d.w = W;
     d.h = H;
     d.v = 5;
+  }
+  if (d.v < 6) {
+    d.trim = true;
+    d.v = 6;
+  }
+  if (d.v < 7) d.v = 7;
+  if (d.v < 8) {
+    d.streets = true;
+    d.v = 8;
   }
   return d;
 }
@@ -258,6 +329,15 @@ export function load(sim: Sim, world: World): boolean {
   if (d.fog) fromB64(d.fog, world.fog);
   world.deposit.fill(0);
   if (d.deposit) fromB64(d.deposit, world.deposit);
+  world.bushEnd.fill(0);
+  if (d.trim) world.trimNature(randFor(d.seed, 'trim'));
+  world.owner.fill(-1);
+  if (d.owner) fromB64(d.owner, new Uint8Array(world.owner.buffer));
+  world.ownerVersion++;
+  world.road.fill(0);
+  if (d.road) fromB64(d.road, world.road);
+  world.rail.fill(0);
+  if (d.rail) fromB64(d.rail, world.rail);
   world.islands = d.islands ?? [];
   world.fogVersion++;
   world.version++;
@@ -322,6 +402,30 @@ export function load(sim: Sim, world: World): boolean {
   sim.wrecks = d.wrecks ?? [];
   sim.wonders = d.wonders ?? [];
   sim.nextWonderId = d.nextWonderId ?? 1;
+  sim.claims = d.claims ?? [];
+  sim.nextClaimId = d.nextClaimId ?? 1;
+  sim.claimsVersion++;
+  sim.highways = d.highways ?? [];
+  sim.railways = d.railways ?? [];
+  sim.religions = d.religions ?? [];
+  sim.nextReligionId = d.nextReligionId ?? 1;
+  sim.prophetYear = d.prophetYear ?? 0;
+  sim.books = d.books ?? [];
+  sim.nextBookId = d.nextBookId ?? 1;
+  sim.temperature = d.temperature ?? 0;
+  sim.tempHistory = d.tempHistory ?? [];
+  sim.volcanoes = d.volcanoes ?? [];
+  sim.heat = d.heat;
+  for (const [i, y] of d.lavaRock ?? []) sim.lavaRock.set(i, y);
+  world.fertile.fill(0);
+  if (d.fertile) fromB64(d.fertile, world.fertile);
+  world.melted = sim.temperature >= BALANCE.disasters.meltAt;
+  sim.movementUntil = d.movementUntil ?? 0;
+  sim.disasterYear = d.disasterYear ?? -99;
+  sim.seaYear = d.seaYear ?? 0;
+  for (const [p, y] of d.tolerance ?? []) sim.tolerance.set(p, y);
+  restoreTrains(sim);
+  if (d.streets) for (const v of sim.villages) if (!v.ruin && !v.merged) layAllStreets(sim, v);
   // Ships plan their course again from where they are
   sim.ships = (d.ships ?? []).map((s) => ({ ...s, path: null }));
   if (d.tech) for (const [p, t] of d.tech) sim.tech.set(p, { known: [...t.known], progress: t.progress });

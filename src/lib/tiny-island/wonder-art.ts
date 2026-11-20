@@ -15,7 +15,8 @@ export interface WonderLook {
   /** 0 … 1 built; 1 = done. */
   progress: number;
   ruin: boolean;
-  night: number;
+  /** The lighthouse sends out its beam now and then. */
+  beam: boolean;
   /** The colossus: the hero in bronze. */
   hero?: { female: boolean };
 }
@@ -153,8 +154,8 @@ const ART: Record<WonderKind, (r: Rect, l: WonderLook) => void> = {
     r(14, 38, 4, 3, flick ? '#ffd23f' : '#ff8a1e');
     r(15, 41, 2, 2 + (flick ? 1 : 0), '#fff3a0');
     r(15, 43, 2, 1, l.dark);
-    if (l.night > 0.2) {
-      // A beam over the water at night
+    if (l.beam) {
+      // A beam over the water
       for (let k = 0; k < 12; k++) r(19 + k * 2, 39 - (k >> 2), 2, 1, `rgba(255, 236, 140, ${(0.6 - k * 0.045).toFixed(2)})`);
     }
   },

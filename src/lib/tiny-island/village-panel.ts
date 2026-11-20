@@ -11,6 +11,8 @@ import { festiveAt, worksIn, type Work } from './culture';
 import { COSTS, nextInvention, techOf } from './inventions';
 import { kingOf, loyaltyOf } from './kingdoms';
 import type { Sim } from './sim';
+import { SYMBOL_ICON } from './religion';
+import { LEVELS } from './society';
 import type { Village } from './villages';
 import { feudKey, pairKey, sideOf, wallMax } from './war';
 
@@ -40,6 +42,11 @@ export interface VillageStrings {
   noJobs: string;
   noBuildings: string;
   wall: string;
+  /** Update 3: "Faith: {r} ({n} %)", "{s} {l} · culture {n}", the museum. */
+  faith?: string;
+  culture?: string;
+  museum?: string;
+  levels?: Record<string, string>;
   peace: string;
   warWith: string;
   feudWith: string;
@@ -169,6 +176,25 @@ export function villageHtml(c: VillageCtx, v: Village): string {
   const buildings = v.buildings.length ? v.buildings.map((b) => esc(c.buildings[b.kind] ?? b.kind)).join(', ') : esc(S.noBuildings);
   const full = wallMax(sim, v);
   const wall = v.buildings.some((b) => b.kind === 'wall') ? `<p class="ti-v__line">🧱 ${esc(S.wall.replace('{n}', String(pct(((v.wallHp ?? full) / full) * 100))))}</p>` : '';
+  // The faith of the place (Update 3)
+  const rel = v.faith !== undefined ? sim.religions.find((r) => r.id === v.faith) : undefined;
+  const share = rel && members.length ? members.filter((h) => h.faith === rel.id).length / members.length : 0;
+  const faith =
+    rel && S.faith
+      ? `<p class="ti-v__line">✨ ${esc(S.faith)
+          .replace('{r}', `<b class="ti-faith" style="--faith:${rel.color}">${SYMBOL_ICON[rel.symbol]} ${esc(rel.name)}</b>`)
+          .replace('{n}', String(pct(share * 100)))}</p>`
+      : '';
+  // Culture (Update 3): stars, level and points, and what the museum shows
+  const lv = v.culture ?? 0;
+  const cultureLine =
+    S.culture && S.levels && !v.ruin
+      ? `<p class="ti-v__line">${'★'.repeat(lv + 1)} ${esc(S.culture.replace('{l}', S.levels[LEVELS[lv]] ?? '').replace('{n}', String(v.culturePoints ?? 0)))}</p>`
+      : '';
+  const museum =
+    S.museum && v.buildings.some((b) => b.kind === 'museum')
+      ? `<p class="ti-v__line">🏛️ ${esc(S.museum.replace('{w}', String(worksIn(sim, v).length)).replace('{t}', String(v.trophies ?? 0)))}</p>`
+      : '';
 
   // Phase G: the island it lies on, the colony and its loyalty
   const isle = sim.world.islandAt(v.x, v.y);
@@ -209,7 +235,7 @@ export function villageHtml(c: VillageCtx, v: Village): string {
 
     <h3 class="ti-p__h">${esc(S.sections.buildings)}</h3>
     <p class="ti-v__line">${buildings}</p>
-    ${wall}
+    ${wall}${faith}${cultureLine}${museum}
 
     <h3 class="ti-p__h">${esc(S.sections.war)}</h3>
     ${war(c, v)}

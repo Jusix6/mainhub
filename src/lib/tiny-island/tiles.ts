@@ -47,6 +47,18 @@ export const COLORS = {
   glint: '#ffffff',
   spice: '#e0461f',
   spiceLeaf: '#2d7a2f',
+  // Update 3, phase C: roads, bridges, rails
+  path: '#cfae76',
+  pathDark: '#b8955c',
+  gravel: '#b3ada2',
+  gravelDark: '#8f8a80',
+  gravelLight: '#d0cbc0',
+  paving: '#a39a90',
+  pavingDark: '#7c736a',
+  plank: '#a0703c',
+  plankDark: '#6e4a24',
+  rail: '#5b5f69',
+  sleeper: '#7a5230',
 };
 
 const C = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, rgb(v)])) as Record<keyof typeof COLORS, number>;
@@ -138,6 +150,8 @@ export function paintTile(world: World, buf: Uint32Array, x: number, y: number) 
   function grass(x: number, y: number, flowers = true) {
     fill(x, y, C.grass);
     speckle(x, y, C.grassDark, 3, 5);
+    // Old lava, now rich soil (Update 3): a deeper green
+    if (world.fertile[y * world.w + x]) speckle(x, y, C.leafDark, 4, 12);
     speckle(x, y, C.grassLight, 1, 6);
     if (flowers && tileHash(x, y, 8) < 0.05) {
       speckle(x, y, tileHash(x, y, 9) < 0.5 ? C.flowerPink : C.flowerYellow, 1, 10);
@@ -162,17 +176,93 @@ export function paintTile(world: World, buf: Uint32Array, x: number, y: number) 
     }
   }
 
-  /** Ploughed soil in furrows; the crop grows from sprouts to golden ears. */
+  /** Ploughed soil in furrows; the crop grows from sprouts to golden ears. A fence where the field ends (Update 3). */
   function field(x: number, y: number) {
     fill(x, y, C.soil);
     for (let py = 1; py < TILE; py += 2) for (let px = 0; px < TILE; px++) dot(x, y, px, py, C.soilDark);
     const c = world.crop[y * world.w + x];
-    if (!c) return;
-    const color = c >= 4 ? C.wheat : c === 3 ? C.wheatGreen : C.sprout;
-    const tall = c >= 3 ? 3 : c;
-    for (let px = 1; px < TILE; px += 2) {
-      for (let h = 0; h < tall; h++) dot(x, y, px, 6 - h, color);
-      if (c >= 4) dot(x, y, px, 6 - tall, C.wheatTop);
+    if (c) {
+      const color = c >= 4 ? C.wheat : c === 3 ? C.wheatGreen : C.sprout;
+      const tall = c >= 3 ? 3 : c;
+      for (let px = 1; px < TILE; px += 2) {
+        for (let h = 0; h < tall; h++) dot(x, y, px, 6 - h, color);
+        if (c >= 4) dot(x, y, px, 6 - tall, C.wheatTop);
+      }
+    }
+    const edge = (dx: number, dy: number) => world.get(x + dx, y + dy) !== T.FIELD;
+    for (let k = 0; k < TILE; k++) {
+      const post = k % 3 === 0;
+      if (edge(0, -1)) dot(x, y, k, 0, post ? C.plankDark : C.plank);
+      if (edge(0, 1)) dot(x, y, k, 7, post ? C.plankDark : C.plank);
+      if (edge(-1, 0)) dot(x, y, 0, k, post ? C.plankDark : C.plank);
+      if (edge(1, 0)) dot(x, y, 7, k, post ? C.plankDark : C.plank);
+    }
+  }
+
+  /** Which of the four neighbours carry a road (or rails): left, right, up, down. */
+  function links(x: number, y: number, layer: Uint8Array) {
+    const w = world;
+    const at = (dx: number, dy: number) => w.inside(x + dx, y + dy) && layer[(y + dy) * w.w + x + dx] > 0;
+    return { l: at(-1, 0), r: at(1, 0), u: at(0, -1), d: at(0, 1) };
+  }
+
+  /** A road 4 px wide, reaching out to the neighbours it joins; paths, gravel, paving, or planks on the water. */
+  function road(x: number, y: number, level: number) {
+    const n = links(x, y, world.road);
+    const bridge = world.get(x, y) === T.SHALLOW;
+    const base = bridge ? C.plank : level >= 3 ? C.paving : level === 2 ? C.gravel : C.path;
+    const dark = bridge ? C.plankDark : level >= 3 ? C.pavingDark : level === 2 ? C.gravelDark : C.pathDark;
+    const lone = !n.l && !n.r && !n.u && !n.d;
+    const x0 = n.l ? 0 : 2;
+    const x1 = n.r ? 7 : 5;
+    const y0 = n.u ? 0 : 2;
+    const y1 = n.d ? 7 : 5;
+    const put = (px: number, py: number) => {
+      let c = base;
+      if (bridge) c = (n.l || n.r ? px : py) % 2 ? dark : base;
+      else if (level >= 3) c = (px + py * 3) % 4 === 0 ? dark : base;
+      else if (tileHash(x * 8 + px, y * 8 + py, 33) < (level === 2 ? 0.3 : 0.18)) c = dark;
+      else if (level === 2 && tileHash(x * 8 + px, y * 8 + py, 34) < 0.15) c = C.gravelLight;
+      dot(x, y, px, py, c);
+    };
+    for (let py = 2; py <= 5; py++) for (let px = x0; px <= x1; px++) put(px, py);
+    for (let py = y0; py <= y1; py++) for (let px = 2; px <= 5; px++) put(px, py);
+    if (lone) return;
+    // Railings on a bridge
+    if (bridge) {
+      if (n.l || n.r) for (let px = x0; px <= x1; px += 2) {
+        dot(x, y, px, 1, C.plankDark);
+        dot(x, y, px, 6, C.plankDark);
+      }
+      if (n.u || n.d) for (let py = y0; py <= y1; py += 2) {
+        dot(x, y, 1, py, C.plankDark);
+        dot(x, y, 6, py, C.plankDark);
+      }
+    }
+  }
+
+  /** Two rails on wooden sleepers, along the line. */
+  function rails(x: number, y: number) {
+    const n = links(x, y, world.rail);
+    const across = n.l || n.r || (!n.u && !n.d);
+    const along = n.u || n.d;
+    if (across) {
+      const x0 = n.l || !along ? 0 : 2;
+      const x1 = n.r || !along ? 7 : 5;
+      for (let px = x0; px <= x1; px += 2) for (let py = 2; py <= 5; py++) dot(x, y, px, py, C.sleeper);
+      for (let px = x0; px <= x1; px++) {
+        dot(x, y, px, 3, C.rail);
+        dot(x, y, px, 5, C.rail);
+      }
+    }
+    if (along) {
+      const y0 = n.u || !across ? 0 : 2;
+      const y1 = n.d || !across ? 7 : 5;
+      for (let py = y0; py <= y1; py += 2) for (let px = 2; px <= 5; px++) dot(x, y, px, py, C.sleeper);
+      for (let py = y0; py <= y1; py++) {
+        dot(x, y, 2, py, C.rail);
+        dot(x, y, 4, py, C.rail);
+      }
     }
   }
 
@@ -183,12 +273,16 @@ export function paintTile(world: World, buf: Uint32Array, x: number, y: number) 
     sprite(x, y, PEAK);
     let inner = true;
     for (let dy = -1; dy <= 1 && inner; dy++) for (let dx = -1; dx <= 1; dx++) if (w.get(x + dx, y + dy) !== T.MOUNTAIN) inner = false;
-    if (inner) {
+    if (inner && !w.melted) {
       for (let py = 0; py < 3; py++) for (let px = 0; px < TILE; px++) if (PEAK[py][px] !== '.') dot(x, y, px, py, C.snow);
     }
   }
 
   tile(x, y);
+  // Update 3, phase C: a road (a bridge on shallow water) and rails on top
+  const i = y * world.w + x;
+  if (world.road[i]) road(x, y, world.road[i]);
+  if (world.rail[i]) rails(x, y);
   // Phase G: gold glitters, spice plants grow red
   const dep = world.deposit[y * world.w + x];
   if (dep === DEPOSIT.GOLD) {

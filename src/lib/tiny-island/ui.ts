@@ -16,8 +16,6 @@ import { TERRAIN_BY_KEY, TILE, type TerrainKey, type World } from './world';
 
 export interface Strings {
   year: string;
-  day: string;
-  night: string;
   age: string;
   peoples: Record<People, string>;
   life: Record<'human' | AnimalKind, string>;
@@ -37,8 +35,12 @@ function armsText(arms: { club: number; bronze: number; iron: number; musket?: n
   const weapons = arms.club + arms.bronze + arms.iron + (arms.musket ?? 0);
   return `${weapons ? ` · ⚔️ ${weapons}` : ''}${arms.armor ? ` · 🛡️ ${arms.armor}` : ''}`;
 }
-type Tool = 'move' | TerrainKey | LifeTool | 'character';
-const LIFE_TOOLS: readonly string[] = ['human', 'sheep', 'chicken', 'wolf', 'horse'];
+type Tool = 'move' | TerrainKey | LifeTool | 'character' | DisasterTool;
+/** Update 3, phase F: the tools of the Disasters window (a click on the map). */
+export type DisasterTool = 'lightning' | 'volcano' | 'hurricane' | 'rain';
+const DISASTER_TOOLS: readonly string[] = ['lightning', 'volcano', 'hurricane', 'rain'];
+const isDisaster = (t: Tool): t is DisasterTool => DISASTER_TOOLS.includes(t);
+const LIFE_TOOLS: readonly string[] = ['human', 'sheep', 'chicken', 'wolf', 'horse', 'cow'];
 const isLife = (t: Tool): t is LifeTool => LIFE_TOOLS.includes(t);
 const SIZES = { s: 0, m: 2, l: 4 } as const;
 type Size = keyof typeof SIZES;
@@ -56,6 +58,13 @@ export interface UiHooks {
   onPlaced: (id: number) => void;
   /** A window of the bar opened on a phone (the side panels make room). */
   onWindow?: () => void;
+  /** Update 3: the Borders button or key G (normal → strong → off). */
+  onBorders?: () => void;
+  /** Update 3, phase F: a disaster tool clicked on the map (tile), and the heatwave button. */
+  onDisaster?: (tool: DisasterTool, x: number, y: number) => void;
+  onHeatwave?: () => void;
+  /** Update 3, phase G: the Cinema button or key K. */
+  onCinema?: () => void;
 }
 
 export class Controls {
@@ -114,12 +123,21 @@ export class Controls {
       const key = slider.dataset.rule as keyof Sim['rules'];
       this.on(slider, 'input', () => {
         this.sim.rules[key] = Number(slider.value);
+        // A slider in steps shows its word (Update 3: disasters Off … Chaos)
+        const out = root.querySelector(`[data-rule-out="${key}"]`);
+        if (out && slider.dataset.words) out.textContent = (JSON.parse(slider.dataset.words) as string[])[Number(slider.value)] ?? '';
       });
     });
     this.on(root, 'click', (e) => {
-      const el = (e.target as Element).closest<HTMLElement>('[data-tool], [data-size], [data-speed], [data-tab], [data-random], [data-people], [data-win-open], [data-win-close], [data-drop-tool]');
+      const el = (e.target as Element).closest<HTMLElement>('[data-tool], [data-size], [data-speed], [data-tab], [data-random], [data-people], [data-win-open], [data-win-close], [data-drop-tool], [data-borders], [data-heatwave], [data-cinema]');
       if (!el) return;
-      if (el.dataset.winOpen) {
+      if (el.hasAttribute('data-cinema')) {
+        this.hooks.onCinema?.();
+      } else if (el.hasAttribute('data-heatwave')) {
+        this.hooks.onHeatwave?.();
+      } else if (el.hasAttribute('data-borders')) {
+        this.hooks.onBorders?.();
+      } else if (el.dataset.winOpen) {
         this.toggleWindow(el.dataset.winOpen);
       } else if (el.hasAttribute('data-win-close')) {
         this.toggleWindow(null);
@@ -211,17 +229,12 @@ export class Controls {
     this.root.querySelectorAll<HTMLElement>('[data-speed]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === this.sim.speed)));
   }
 
-  /** Year and sun/moon, only touched when the text changes. */
+  /** The year, only touched when it changes. */
   renderClock() {
-    const night = this.sim.isNight;
-    const text = `${this.S.year.replace('{n}', String(this.sim.year))}|${night}`;
+    const text = this.S.year.replace('{n}', String(this.sim.year));
     if (text === this.clockText) return;
     this.clockText = text;
-    this.root.querySelector('[data-year]')!.textContent = this.S.year.replace('{n}', String(this.sim.year));
-    const dn = this.root.querySelector<HTMLElement>('[data-daynight]')!;
-    dn.dataset.night = String(night);
-    dn.setAttribute('aria-label', night ? this.S.night : this.S.day);
-    dn.title = night ? this.S.night : this.S.day;
+    this.root.querySelector('[data-year]')!.textContent = text;
   }
 
   /** Brush outline for the renderer, while a terrain brush or a creature is picked. */
@@ -246,7 +259,7 @@ export class Controls {
 
   brush() {
     if (this.tool === 'move' || !this.hover || this.mode === 'pan' || this.mode === 'pinch') return null;
-    return { ...this.hover, r: isLife(this.tool) || this.tool === 'character' ? 0 : SIZES[this.size] };
+    return { ...this.hover, r: isLife(this.tool) || this.tool === 'character' || isDisaster(this.tool) ? 0 : SIZES[this.size] };
   }
 
   /** Population counters, only touched when a number changes. */
@@ -257,6 +270,7 @@ export class Controls {
       chicken: this.sim.count('chicken'),
       wolf: this.sim.count('wolf'),
       horse: this.sim.count('horse'),
+      cow: this.sim.count('cow'),
       villages: this.sim.villages.filter((v) => !v.ruin).length,
     };
     for (const [k, v] of Object.entries(counts)) {
@@ -328,7 +342,7 @@ export class Controls {
 
   /** Paints every tile on the line from the last tile, so fast strokes have no gaps. */
   private paintTo(tile: { x: number; y: number }) {
-    if (this.tool === 'move' || this.tool === 'character' || isLife(this.tool)) return;
+    if (this.tool === 'move' || this.tool === 'character' || isLife(this.tool) || isDisaster(this.tool)) return;
     const t = TERRAIN_BY_KEY[this.tool];
     const r = SIZES[this.size];
     const from = this.lastTile ?? tile;
@@ -370,6 +384,10 @@ export class Controls {
       this.root.classList.toggle('is-panning', pan);
       if (!pan && this.tool === 'character') {
         this.placeCharacter(p.x, p.y);
+        this.mode = 'none';
+      } else if (!pan && isDisaster(this.tool)) {
+        const t = this.tileAt(p.x, p.y);
+        this.hooks.onDisaster?.(this.tool, t.x, t.y);
         this.mode = 'none';
       } else if (!pan && isLife(this.tool)) {
         const t = this.tileAt(p.x, p.y);
@@ -466,8 +484,12 @@ export class Controls {
         // The character editor closes first (editor.ts marks the key as used)
         if (e.defaultPrevented || this.root.querySelector('[data-editor]:not([hidden])')) return;
         this.toggleWindow(null);
-      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && ['b', 'r', 'w'].includes(e.key.toLowerCase())) {
-        this.toggleWindow({ b: 'build', r: 'rules', w: 'world' }[e.key.toLowerCase()]!);
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && ['b', 'r', 'w', 'd'].includes(e.key.toLowerCase())) {
+        this.toggleWindow({ b: 'build', r: 'rules', w: 'world', d: 'disasters' }[e.key.toLowerCase()]!);
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        this.hooks.onCinema?.();
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'g') {
+        this.hooks.onBorders?.();
       } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'c') {
         this.root.querySelector<HTMLElement>('.ti__bar [data-chron-toggle]')?.click();
       } else if (e.key === '+' || e.key === '=') {

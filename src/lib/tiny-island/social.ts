@@ -13,10 +13,12 @@ import { brawlFactor } from './wonders';
 import { stat, hasPower, ageOf, dist, has, pickTraits, stage, tileOf, type Human, type StoryEntry, type Thought, type Trait } from './agents';
 import type { Ref } from './chronicle';
 import type { Sim } from './sim';
+import { believes } from './religion';
+import { BALANCE } from './balance';
 import { shiftMood, shiftVillageMood } from './war';
 
 /** Actions the AI can score (ai.ts). */
-export type Choice = 'eat' | 'gather' | 'sleep' | 'chat' | 'wander' | 'court' | 'work' | 'build' | 'raid' | 'art' | 'patrol' | 'festival';
+export type Choice = 'eat' | 'gather' | 'sleep' | 'chat' | 'wander' | 'court' | 'work' | 'build' | 'raid' | 'art' | 'patrol' | 'festival' | 'preach' | 'pilgrim' | 'perform' | 'visit' | 'douse';
 
 /** Extra points per trait and action. Tune here. */
 export const TRAIT_MODS: Record<Trait, Partial<Record<Choice, number>>> = {
@@ -228,7 +230,9 @@ export function tryBirth(h: Human, sim: Sim) {
     room = Math.max(0, 1 - (sim.landPop.get(land) ?? 0) / Math.max(8, w.landSize(land) * 0.06));
   }
   // About two children every three years while the conditions hold
-  if (sim.rand() > 0.012 * room * sim.rules.birth * (fertile ? 4 : 1)) return;
+  // A faith that teaches fertility: more children (Update 3)
+  const faithful = believes(sim, h, 'fertility') ? BALANCE.religion.fertility : 1;
+  if (sim.rand() > 0.012 * room * sim.rules.birth * (fertile ? 4 : 1) * faithful) return;
 
   h.lastBirth = sim.time;
   const t = tileOf(h);
@@ -240,6 +244,11 @@ export function tryBirth(h: Human, sim: Sim) {
   const baby = sim.addHuman(t.x, t.y, people, sim.rand() < 0.5, 0, { parents: [h, p], traits: pickTraits(sim.rand, inherited) });
   baby.hunger = 100;
   baby.food = 0;
+  // Children grow up in their mother's faith (Update 3)
+  if (h.faith !== undefined) {
+    baby.faith = h.faith;
+    baby.devotion = 40;
+  }
   story(h, sim, 'child', baby.name);
   story(p, sim, 'child', baby.name);
   if (sim.favorites.has(h.id) || sim.favorites.has(p.id)) {
@@ -283,6 +292,10 @@ export function wantsBrawl(h: Human, sim: Sim): Human | null {
   if (sim.villages.some((v) => v.id === h.village && v.buildings?.some((b) => b.kind === 'temple'))) chance *= 0.5;
   // The games of a colosseum (phase H) too
   chance *= brawlFactor(sim, h.people);
+  // A faith of poverty: less greed, less strife (Update 3)
+  if (believes(sim, h, 'poverty')) chance *= 0.5;
+  // Places of some culture fight less
+  if ((sim.villages.find((v) => v.id === h.village)?.culture ?? 0) >= 1) chance *= BALANCE.culture.simpleBrawl;
   if (sim.rand() > chance) return null;
   return sim.nearest(h.x, h.y, 4, (o) => o.kind === 'human' && o !== h && relOf(h, o as Human) <= RIVAL && !(o as Human).asleep) as Human | null;
 }

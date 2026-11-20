@@ -114,7 +114,35 @@ export interface ChronicleEntry {
     | 'wonderBegun'
     | 'wonderBuilt'
     | 'wonderLost'
-    | 'wonderTaken';
+    | 'wonderTaken'
+    | 'claim'
+    | 'claimDropped'
+    | 'landWon'
+    | 'landGrab'
+    | 'withdrew'
+    | 'railway'
+    | 'prophet'
+    | 'prophetDied'
+    | 'schism'
+    | 'stateFaith'
+    | 'converted'
+    | 'book'
+    | 'fool'
+    | 'foolDied'
+    | 'jester'
+    | 'play'
+    | 'discontent'
+    | 'cultureLevel'
+    | 'fire'
+    | 'firebreaker'
+    | 'struck'
+    | 'volcanoWakes'
+    | 'eruption'
+    | 'hurricane'
+    | 'heatwave'
+    | 'godRain'
+    | 'movement'
+    | 'seaRises';
   a: Ref;
   b?: Ref;
   c?: Ref;
@@ -139,6 +167,41 @@ export interface ChronicleEntry {
 }
 
 export const CHRONICLE_MAX = 200;
+
+/**
+ * How exciting an entry is, 0–100 (Update 3): the cinema mode (phase G) shows
+ * the most exciting scene going on. Every new kind of entry gets one here.
+ */
+export const TENSION: Partial<Record<ChronicleEntry['kind'], number>> = {
+  claim: 55,
+  claimDropped: 30,
+  landWon: 65,
+  landGrab: 60,
+  withdrew: 35,
+  railway: 45,
+  prophet: 75,
+  prophetDied: 70,
+  schism: 60,
+  stateFaith: 45,
+  converted: 40,
+  book: 30,
+  fool: 40,
+  foolDied: 45,
+  jester: 35,
+  play: 30,
+  discontent: 50,
+  cultureLevel: 35,
+  fire: 80,
+  firebreaker: 55,
+  struck: 50,
+  volcanoWakes: 60,
+  eruption: 95,
+  hurricane: 95,
+  heatwave: 60,
+  godRain: 30,
+  movement: 40,
+  seaRises: 65,
+};
 
 export class Chronicle {
   entries: ChronicleEntry[] = [];

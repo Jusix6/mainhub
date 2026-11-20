@@ -2,8 +2,8 @@
  * Draws the island. The map lives in an offscreen canvas (one pixel buffer of
  * 1280 × 800); only dirty tiles are redrawn into it. Every frame the visible
  * part is copied to the screen with nearest-neighbour scaling (pixel look),
- * then people, animals, graves and puffs, the brush outline and the night
- * darkening go on top. Figures are tiny pixel sprites drawn from strings.
+ * then people, animals, graves and puffs, the brush outline and the glow of
+ * windows and fires go on top (no nights since Update 3). Figures are tiny pixel sprites drawn from strings.
  */
 import { GREY_HAIR, hasPower, PEOPLE_COLORS, stage, type Agent, type Human, type Look, type People, type Power, type Thought } from './agents';
 import type { Camera } from './camera';
@@ -12,15 +12,22 @@ import type { Sim } from './sim';
 import { atWar, isWarrior, wallMax } from './war';
 import { kingIds } from './kingdoms';
 import { CONFETTI, festiveAt } from './culture';
-import { knows } from './inventions';
+import { ageIndex, knows } from './inventions';
 import { SHOT_TIME, UNIT, type Unit } from './armies';
 import { T, TILE, type Terrain, type World } from './world';
 import { tileHash } from './rng';
 import { dockOf, type Ship, type ShipKind } from './ships';
 import { drawWonder } from './wonder-art';
 import { progressOf } from './wonders';
+import { claimTiles } from './territory';
+import { livingRadius } from './roads';
+import { SYMBOL_ICON } from './religion';
+import { BALANCE } from './balance';
+import type { Village } from './villages';
 
 export { COLORS };
+/** Radius of a hurricane in tiles (balance.ts), for its spiral. */
+const BALANCE_HURRICANE = BALANCE.disasters.hurricaneRadius;
 
 // People, 5 px wide (children 3 px), facing right. h hair, s skin, e eye,
 // c clothes in the colour of their people, p darker clothes, d shoes.
@@ -42,6 +49,11 @@ const WOLF_COLORS = { g: '#8b909c', k: '#1f1f1f', d: '#5d616b' };
 const HORSE = ['......h.', '.....hhk', 'mhhhhhh.', '.hhhhhh.', '.h.h.h.h', '.d.d.d.d'];
 const HORSE_RUN = ['......h.', '.....hhk', 'mhhhhhh.', '.hhhhhh.', 'h..hh..h', 'd..dd..d'];
 const HORSE_COLORS = { h: '#9a6a3e', m: '#3a2a20', k: '#3a2a20', d: '#3a2a20' };
+/** Cows (Update 3): white with black patches. */
+const COW = ['.......hh', 'wwkwwwwwk', 'wkkwwkwww', 'wwwwkkww.', '.w.w..w.w', '.k.k..k.k'];
+const COW_COLORS = { w: '#f4f1e8', k: '#2b2b2b', h: '#d8c8a0' };
+/** Sheds in the pens: a coop, a shelter, a stable. */
+const SHED = ['.rrrrrr.', 'rrrrrrrr', '.wwwwww.', '.wDwwyw.', '.WDWWWW.'];
 /** Ships and wrecks (phase G), bow to the right. f flag and c sails in the colour of the people. */
 const SHIPS: Record<ShipKind, string[]> = {
   explorer: ['....f.....', '....ms....', '....mss...', '....msss..', '....mssss.', 'hhhhhhhhhh', '.HHHHHHHH.'],
@@ -74,7 +86,43 @@ const BARRACKS = ['........cc', '........kc', '........k.', '.RRRRRRRk.', 'RRRRR
 /** A harbor (phase G): a boat shed with a crane; the pier is drawn on the water next to it. */
 const HARBOR = ['.......kkk', '.......k.y', '..RRRR.k..', '.RRRRRRk..', 'RRRRRRRRk.', '.wwwwwww..', '.wDwwyww..', 'WWDWWWWWW.'];
 const FACTORY = ['........k.', '........k.', 'nnnnnnn.k.', 'nNnnNnnnkn', 'nnnnnnnnnn', 'nyynyynyyn', 'nnnnnnnnnn', 'nyynDDnyyn', 'NNNNDDNNNN'];
+/** Update 3, phase C: buildings of every age, market stalls, yurts of the steppe. */
+const TOTEM = ['.c...c.', 'cc.k.cc', '.ckkkc.', '..kfk..', '..kkk..', '..ckc..', '..kkk..', '..kfk..', '..kkk..', '..kck..', '..kkk..', '.mmmmm.'];
+const SMOKEHOUSE = ['.......k.', '..hhhhhk.', '.hhhhhhhh', 'hhhhhhhhh', '.wwwwwww.', '.wWwwwWw.', '.wwwDwww.', '.wwwDwww.', '.WWWDWWW.'];
+const WELL = ['.kkkkk.', '.k...k.', '.k.q.k.', '.k.q.k.', 'ggggggg', 'GuuuuuG', 'ggggggg', 'GGGGGGG'];
+const ALTAR = ['...y.y...', '...oyo...', '.ggggggg.', '..g...g..', '..g...g..', '.GGGGGGG.'];
+const WAREHOUSE = ['..RRRRRRRR..', '.RRRRRRRRRR.', 'RRRRRRRRRRRR', '.wwwwwwwwww.', '.wywwwwwwyw.', '.wwwWWWWwww.', '.wwwWmmWwww.', '.wwwWmmWwww.', '.WWWWmmWWWW.'];
+const TAVERN = ['....rr.....', '...rrrr....', '..rrrrrr...', '.rrrrrrrr..', 'RRRRRRRRRR.', '.wwwwwwww.k', '.wywwwwyw.k', '.wwwwwwww.f', '.wwwDDwww.f', '.wwwDDwww..', '.WWWDDWWW..'];
+const CATHEDRAL = ['..G.......G..', '.ggg.....ggg.', '.ggg.....ggg.', '.gyg..r..gyg.', '.ggg.rrr.ggg.', '.ggrrrrrrrgg.', '.grrrrrrrrrg.', 'ggggggggggggg', 'gGgggcfcgggGg', 'gGggcfcfcggGg', 'gGgggcfcgggGg', 'ggggggggggggg', 'gyggggDggggyg', 'gggggDDDggggg', 'GGGGGDDDGGGGG'];
+const PALACE = ['.......b.......', '......rrr......', '.r...rrrrr...r.', 'rrr.rrrrrrr.rrr', 'TTTTTTTTTTTTTTT', 'TyTpTyTpTyTpTyT', 'TTTTTTTTTTTTTTT', 'TyTpTyTpTyTpTyT', 'TTTTTTDDDTTTTTT', 'TTTTTTDDDTTTTTT'];
+const UNIVERSITY = ['......b......', '.....rrr.....', '.....ryr.....', '..rrrrrrrrr..', '.rrrrrrrrrrr.', 'TTTTTTTTTTTTT', 'TyyTyyTyyTyyT', 'TTTTTTTTTTTTT', 'TyyTyyDDTyyTT', 'TTTTTTDDTTTTT'];
+const THEATER = ['.....fff.....', '...rrrrrrr...', '.rrrrrrrrrrr.', 'TTTTTTTTTTTTT', 'TpcccccccccpT', 'TpcfcccccfcpT', 'TpcccccccccpT', 'TpccccDccccpT', 'TTTTTDDDTTTTT'];
+const MUSEUM = ['......f......', '.....TTT.....', '...TTTTTTT...', '.TTTTTTTTTTT.', 'TTTTTTTTTTTTT', '.p.p.p.p.p.p.', '.p.p.p.p.p.p.', '.p.p.pDp.p.p.', 'TTTTTDDDTTTTT'];
+const OBSERVATORY = ['.......q.', '...ggg.q.', '..ggggqq.', '.gggggqg.', '.ggggggg.', 'ggggggggg', 'gyggggyGg', 'gggDDgggg', 'GGGDDGGGG'];
+const STATION = ['......f......', '.....kfk.....', '.nnnnnnnnnnn.', 'nnnnnnnnnnnnn', 'nyynyynyynyyn', 'nnnnnnnnnnnnn', 'nyynnDDDnnyyn', 'NNNNNDDDNNNNN'];
+const LIGHTHOUSE = ['..qqq..', '.qfffq.', '..qqq..', '..ccc..', '..zzz..', '..ccc..', '.zzzzz.', '.ccccc.', '.zzzzz.', '.ccccc.', '.zzzzz.', '.ccccc.', 'ggggggg'];
+const PARK = ['.LL.....LL.', 'LLLL...LLLL', '.LL..f..LL.', '..k.fef.k..', '..k..e..k..', '.mmm...mmm.'];
+const FARM = ['....rrr....', '...rrrrr...', '..rrrrrrr..', '.rrrrrrrrr.', 'nnnnnnnnnnn', 'nNnnnnnnnNn', 'nnnnWWWnnnn', 'nnnnWzWnnnn', 'NNNNWWWNNNN'];
+const STALLS = ['cfcfc.rwrwr.ufufu', 'cfcfc.rwrwr.ufufu', '.k.k...k.k...k.k.', '.kyk...kck...kfk.', '.k.k...k.k...k.k.'];
+const YURT_SMALL = ['...rrr...', '..rrrrr..', '.rRrRrRr.', 'rrrrrrrrr', 'hhhhhhhhh', 'hhhhDhhhh', 'hhhhDhhhh'];
+const YURT_BIG = ['....rrr....', '..rrrrrrr..', '.rrRrRrRrr.', 'rrrrrrrrrrr', 'hhhhhhhhhhh', 'hRhhhhhhhRh', 'hhhhhDhhhhh', 'hhhhhDhhhhh'];
 const BUILDING_SPRITES: Record<string, string[]> = {
+  totem: TOTEM,
+  smokehouse: SMOKEHOUSE,
+  well: WELL,
+  altar: ALTAR,
+  warehouse: WAREHOUSE,
+  tavern: TAVERN,
+  cathedral: CATHEDRAL,
+  palace: PALACE,
+  university: UNIVERSITY,
+  theater: THEATER,
+  museum: MUSEUM,
+  observatory: OBSERVATORY,
+  station: STATION,
+  lighthouse: LIGHTHOUSE,
+  park: PARK,
+  farm: FARM,
   granary: GRANARY,
   smithy: SMITHY,
   market: MARKET,
@@ -103,7 +151,18 @@ const BUILDING_COLORS = {
   p: '#f4f1e8',
   n: '#a0442c',
   N: '#7a3020',
+  // Update 3
+  h: '#d8b46a',
+  m: '#6e4a24',
+  q: '#3a3a42',
+  u: '#4c9ae6',
+  z: '#f4f1e8',
+  e: '#e8344a',
+  L: '#3a8f42',
 };
+/** Felt of the yurts (steppe), moss on the roofs (forest), slate (mountain). */
+const FELT = { h: '#e9dcc0' };
+const MOSS = { r: '#6b8f3a', R: '#4f6e2a' };
 /** A little variety: three wood tones and three stone tones for houses. */
 const WOOD_TONES = ['#b07a45', '#a06a3a', '#c08a50'];
 const STONE_TONES = ['#b4b9c2', '#c3c6cc', '#a6abb6'];
@@ -126,7 +185,13 @@ const THOUGHTS: Record<Thought, string[]> = {
   tear: ['..u..', '.uu..', '.uuu.', 'uuuuu', '.uuu.'],
   food: ['..l..', '.rrr.', 'rrrrr', 'rrrrr', '.rrr.'],
   note: ['..kk.', '..k.k', '..k..', 'kkk..', 'kkk..'],
+  light: ['..y..', 'y.y.y', '.yyy.', 'yyyyy', '.yyy.'],
+  happy: ['.....', '.k.k.', '.....', 'k...k', '.kkk.'],
+  sad: ['.....', '.k.k.', '.....', '.kkk.', 'k...k'],
 };
+/** A holy place (Update 3): a small shrine of stone with a light. */
+const SHRINE = ['..y..', '.yfy.', '..g..', '.ggg.', 'gGgGg', 'GGGGG'];
+const SHRINE_COLORS = { y: '#ffe066', f: '#ffffff', g: '#c3c6cc', G: '#8d929c' };
 /** A tiny tool in the hand for each job: [x, y, colour] pixels, relative to the hand. */
 const TOOLS: Record<string, [number, number, string][]> = {
   farmer: [[0, -3, '#8a5a2b'], [0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [-1, -3, '#b4b9c2']],
@@ -138,8 +203,11 @@ const TOOLS: Record<string, [number, number, string][]> = {
   builder: [[0, -1, '#8a5a2b'], [0, 0, '#8a5a2b'], [-1, -2, '#c08a4a'], [0, -2, '#c08a4a']],
   artist: [[0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, -3, '#ff5da2']],
   soldier: [[0, -4, '#b4b9c2'], [0, -3, '#8a5a2b'], [0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b']],
+  shepherd: [[1, -5, '#8a5a2b'], [0, -5, '#8a5a2b'], [0, -4, '#8a5a2b'], [0, -3, '#8a5a2b'], [0, -2, '#8a5a2b'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b']],
+  priest: [[0, -4, '#ffe066'], [-1, -3, '#ffe066'], [0, -3, '#ffe066'], [1, -3, '#ffe066'], [0, -2, '#ffe066'], [0, -1, '#8a5a2b'], [0, 0, '#8a5a2b']],
+  missionary: [[0, -3, '#f4f1e8'], [1, -3, '#e8344a'], [0, -2, '#f4f1e8'], [1, -2, '#e8344a'], [0, -1, '#8a5a2b']],
 };
-const THOUGHT_COLORS: Record<string, string> = { r: '#e8344a', g: '#8b93a3', b: '#8a5a2b', u: '#4d8dff', l: '#3aa64b', k: '#111111' };
+const THOUGHT_COLORS: Record<string, string> = { r: '#e8344a', g: '#8b93a3', b: '#8a5a2b', u: '#4d8dff', l: '#3aa64b', k: '#111111', y: '#f2b02a' };
 /** Blades: a flint knife without a weapon from the smith, then bronze and iron swords. */
 const BLADE = { flint: '#a89a84', bronze: '#d08a3a', iron: '#d7dbe3' };
 /** Units that carry something else than a sword or club (phase F). */
@@ -254,13 +322,17 @@ export class Renderer {
   private mapCtx: CanvasRenderingContext2D;
   private image: ImageData;
   private px: Uint32Array;
-  /** The fog (phase G): one pixel per tile, drawn scaled up and soft. */
-  private readonly fogCanvas: HTMLCanvasElement;
-  private fogShown = -1;
-  private fogged = false;
   private dpr = 1;
   private selected: number | null = null;
-  /** Window and fire spots (world px) that glow at night. */
+  /** Update 3, phase D: the places tinted in the colour of their faith (Religions tab). */
+  faithView = false;
+  /** Update 3, phase B: how the land is shown (key G): tinted with borders, stronger, or not at all. */
+  borders: 'normal' | 'strong' | 'off' = 'normal';
+  /** The tint of the land, one pixel per tile, and the borders, stones and hatching, rebuilt when land changes hands. */
+  private readonly landCanvas: HTMLCanvasElement;
+  private landKey = '';
+  private landLines: { thin: Map<People, Path2D>; thick: Path2D; hatch: { people: People; path: Path2D }[]; stones: [number, number][] } | null = null;
+  /** Window and fire spots (world px) that glow softly. */
   private readonly lights: [number, number][] = [];
   /** Text after a village name when it lies in ruins. */
   ruinsLabel = 'ruins';
@@ -284,7 +356,7 @@ export class Renderer {
     this.mapCtx = this.map.getContext('2d')!;
     this.image = this.mapCtx.createImageData(1, 1);
     this.px = new Uint32Array(this.image.data.buffer);
-    this.fogCanvas = document.createElement('canvas');
+    this.landCanvas = document.createElement('canvas');
     this.sizeMap();
   }
 
@@ -298,35 +370,135 @@ export class Renderer {
     this.mapCtx = this.map.getContext('2d')!;
     this.image = this.mapCtx.createImageData(w, h);
     this.px = new Uint32Array(this.image.data.buffer);
-    this.fogCanvas.width = this.world.w;
-    this.fogCanvas.height = this.world.h;
-    this.fogShown = -1;
     this.world.all = true;
   }
 
-  /** The fog image, rebuilt when some of it lifted: misty grey-blue, a little cloudy. */
-  private refreshFog() {
+  /**
+   * Land and borders (Update 3, phase B): the land of each people tinted in
+   * its colour, a thin line where it meets free land, a thicker dark one
+   * between two peoples, little border stones along them, and claimed land
+   * hatched in the colour of whoever claims it. Rebuilt only when land
+   * changes hands, a place changes people or the claims change.
+   */
+  private drawLand(cam: Camera, sim: Sim) {
     const world = this.world;
-    if (this.fogShown === world.fogVersion && this.fogCanvas.width === world.w) return;
-    this.fogShown = world.fogVersion;
-    const fctx = this.fogCanvas.getContext('2d')!;
-    const img = fctx.createImageData(world.w, world.h);
-    const d = img.data;
-    let any = false;
-    for (let i = 0; i < world.w * world.h; i++) {
-      if (!world.fog[i]) continue;
-      any = true;
-      const x = i % world.w;
-      const y = (i / world.w) | 0;
-      // Big soft patches, a little finer grain on top: clouds rather than noise
-      const t = tileHash(Math.floor(x / 6), Math.floor(y / 5), 77) * 0.6 + tileHash(Math.floor(x / 2), Math.floor(y / 2), 78) * 0.3 + tileHash(x, y, 79) * 0.1;
-      d[i * 4] = 176 + t * 40;
-      d[i * 4 + 1] = 188 + t * 36;
-      d[i * 4 + 2] = 204 + t * 30;
-      d[i * 4 + 3] = 255;
+    const strong = this.borders === 'strong';
+    const key = `${world.uid}|${world.ownerVersion}|${sim.claimsVersion}|${this.borders}|${sim.villages.map((v) => v.people[0]).join('')}`;
+    if (key !== this.landKey || !this.landLines) {
+      this.landKey = key;
+      this.buildLand(sim, strong);
     }
-    fctx.putImageData(img, 0, 0);
-    this.fogged = any;
+    const { ctx } = this;
+    const lines = this.landLines!;
+    ctx.drawImage(this.landCanvas, 0, 0, world.w, world.h, 0, 0, world.w * TILE, world.h * TILE);
+    ctx.lineCap = 'square';
+    ctx.globalAlpha = strong ? 0.75 : 0.5;
+    ctx.lineWidth = 1;
+    for (const h of lines.hatch) {
+      ctx.strokeStyle = PEOPLE_COLORS[h.people].dark;
+      ctx.stroke(h.path);
+    }
+    // The border in the people's colour on a dark edge, so it shows on grass and forest alike
+    ctx.globalAlpha = strong ? 1 : 0.85;
+    for (const [p, path] of lines.thin) {
+      ctx.lineWidth = strong ? 2.2 : 1.6;
+      ctx.strokeStyle = PEOPLE_COLORS[p].dark;
+      ctx.stroke(path);
+      ctx.lineWidth = strong ? 1.1 : 0.7;
+      ctx.strokeStyle = PEOPLE_COLORS[p].cloth;
+      ctx.stroke(path);
+    }
+    ctx.lineWidth = strong ? 3 : 2;
+    ctx.strokeStyle = '#3a2412';
+    ctx.stroke(lines.thick);
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+    // Border stones, once there is room to see them
+    if (cam.zoom >= 1.6) {
+      for (const [x, y] of lines.stones) {
+        ctx.fillStyle = '#5a5248';
+        ctx.fillRect(x - 1, y - 0.5, 2, 2);
+        ctx.fillStyle = '#b9b2a6';
+        ctx.fillRect(x - 1, y - 1, 2, 1.5);
+      }
+    }
+  }
+
+  private buildLand(sim: Sim, strong: boolean) {
+    const world = this.world;
+    const { w, h } = world;
+    if (this.landCanvas.width !== w || this.landCanvas.height !== h) {
+      this.landCanvas.width = w;
+      this.landCanvas.height = h;
+    }
+    const peopleOf = new Map(sim.villages.map((v) => [v.id, v.people]));
+    const at = (i: number) => (world.owner[i] >= 0 ? (peopleOf.get(world.owner[i]) ?? null) : null);
+    const lctx = this.landCanvas.getContext('2d')!;
+    const img = lctx.createImageData(w, h);
+    const d = img.data;
+    const rgb = new Map<People, [number, number, number]>();
+    const alpha = strong ? 110 : 56;
+    const thin = new Map<People, Path2D>();
+    const thick = new Path2D();
+    const stones: [number, number][] = [];
+    const edge = (x0: number, y0: number, x1: number, y1: number, a: People | null, b: People | null, tx: number, ty: number) => {
+      if (a && b) {
+        thick.moveTo(x0, y0);
+        thick.lineTo(x1, y1);
+        if (tileHash(tx, ty, 91) < 0.16) stones.push([(x0 + x1) / 2, (y0 + y1) / 2]);
+        return;
+      }
+      const p = (a ?? b)!;
+      let path = thin.get(p);
+      if (!path) thin.set(p, (path = new Path2D()));
+      path.moveTo(x0, y0);
+      path.lineTo(x1, y1);
+      if (tileHash(tx, ty, 92) < 0.07) stones.push([(x0 + x1) / 2, (y0 + y1) / 2]);
+    };
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        const p = at(i);
+        if (p) {
+          let c = rgb.get(p);
+          if (!c) {
+            const hex = PEOPLE_COLORS[p].cloth;
+            c = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+            rgb.set(p, c);
+          }
+          d[i * 4] = c[0];
+          d[i * 4 + 1] = c[1];
+          d[i * 4 + 2] = c[2];
+          d[i * 4 + 3] = alpha;
+        }
+        // Edges to the right and below; none along the coast
+        if (x + 1 < w) {
+          const q = at(i + 1);
+          if (p !== q && (p ? q || world.landTile(i + 1) : world.landTile(i))) edge((x + 1) * TILE, y * TILE, (x + 1) * TILE, (y + 1) * TILE, p, q, x, y);
+        }
+        if (y + 1 < h) {
+          const q = at(i + w);
+          if (p !== q && (p ? q || world.landTile(i + w) : world.landTile(i))) edge(x * TILE, (y + 1) * TILE, (x + 1) * TILE, (y + 1) * TILE, p, q, x + 1000, y);
+        }
+      }
+    }
+    lctx.putImageData(img, 0, 0);
+    // Claimed land: stripes in the colour of the claimant
+    const hatch = sim.claims.map((c) => {
+      const path = new Path2D();
+      for (const i of claimTiles(sim, c)) {
+        const x = (i % w) * TILE;
+        const y = ((i / w) | 0) * TILE;
+        path.moveTo(x, y + TILE);
+        path.lineTo(x + TILE, y);
+        path.moveTo(x, y + TILE / 2);
+        path.lineTo(x + TILE / 2, y);
+        path.moveTo(x + TILE / 2, y + TILE);
+        path.lineTo(x + TILE, y + TILE / 2);
+      }
+      return { people: c.by, path };
+    });
+    this.landLines = { thin, thick, hatch, stones };
   }
 
   resize(cssW: number, cssH: number) {
@@ -370,9 +542,8 @@ export class Renderer {
 
   /* ---- screen ---------------------------------------------------------------- */
 
-  /** One frame: map, life, brush outline, night. */
+  /** One frame: map, life, brush outline, glow. */
   draw(cam: Camera, sim: Sim, brush: { x: number; y: number; r: number } | null, selected: number | null = null) {
-    const darkness = sim.darkness;
     this.selected = selected;
     const { ctx, dpr } = this;
     const s = cam.zoom * dpr;
@@ -389,14 +560,12 @@ export class Renderer {
     const vx1 = Math.min(this.map.width, Math.ceil(cam.x + cam.vw / 2 / cam.zoom) + 1);
     const vy1 = Math.min(this.map.height, Math.ceil(cam.y + cam.vh / 2 / cam.zoom) + 1);
     if (vx1 > vx0 && vy1 > vy0) ctx.drawImage(this.map, vx0, vy0, vx1 - vx0, vy1 - vy0, vx0, vy0, vx1 - vx0, vy1 - vy0);
+    if (this.borders !== 'off') this.drawLand(cam, sim);
+    this.drawScars(sim);
     this.drawLife(cam, sim);
-    // The fog over what nobody has seen yet (phase G), soft at the edges
-    this.refreshFog();
-    if (this.fogged) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(this.fogCanvas, 0, 0, this.world.w * TILE, this.world.h * TILE);
-      ctx.imageSmoothingEnabled = false;
-    }
+    this.drawDisasters(sim);
+    // No fog on the screen any more (Update 3): the player always sees the whole world;
+    // what the peoples know (world.fog) only steers explorers and discoveries
 
     if (brush) {
       ctx.strokeStyle = 'rgba(255,255,255,0.9)';
@@ -407,21 +576,13 @@ export class Renderer {
           if (dx * dx + dy * dy <= r2) ctx.strokeRect((brush.x + dx) * TILE + 0.5 / cam.zoom, (brush.y + dy) * TILE + 0.5 / cam.zoom, TILE - 1 / cam.zoom, TILE - 1 / cam.zoom);
     }
 
-    if (darkness > 0) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = `rgba(10, 18, 52, ${(darkness * 0.55).toFixed(3)})`;
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      // Lit windows and fires shine through the dark
-      ctx.setTransform(s, 0, 0, s, ox, oy);
-      ctx.globalAlpha = darkness;
-      for (const [lx, ly] of this.lights) {
-        ctx.fillStyle = 'rgba(255, 196, 90, 0.25)';
-        ctx.fillRect(lx - 2, ly - 2, 5, 5);
-        ctx.fillStyle = '#ffd36b';
-        ctx.fillRect(lx, ly, 1, 1);
-      }
-      ctx.globalAlpha = 1;
+    // Lit windows and fires: a small warm flicker, each at its own pace (always day since Update 3)
+    ctx.fillStyle = '#ffd36b';
+    for (const [lx, ly] of this.lights) {
+      ctx.globalAlpha = 0.2 + 0.35 * (0.5 + 0.5 * Math.sin(sim.time * 3 + lx * 0.7 + ly * 1.3));
+      ctx.fillRect(lx, ly, 1, 1);
     }
+    ctx.globalAlpha = 1;
     this.drawLabels(cam, sim, this.ruinsLabel);
   }
 
@@ -431,7 +592,8 @@ export class Renderer {
   private drawVillages(sim: Sim, visible: (a: { x: number; y: number }) => boolean) {
     const ctx = this.ctx;
     this.lights.length = 0;
-    this.rails(sim);
+    this.trains(sim);
+    this.holyPlaces(sim, visible);
     for (const v of sim.villages) {
       if (v.merged) continue;
       if (!visible({ x: v.x + 0.5, y: v.y + 0.5 }) && !v.houses.some((h) => visible({ x: h.x + 0.5, y: h.y + 0.5 }))) continue;
@@ -447,24 +609,33 @@ export class Renderer {
       ctx.fillRect(cx - 9 - grow, cy - 5 - grow, 18 + grow * 2, 11 + grow * 2);
       ctx.fillRect(cx - 7 - grow, cy - 7 - grow, 14 + grow * 2, 15 + grow * 2);
 
-      // Paths from the square to every house and building
-      if (!v.ruin) {
-        ctx.fillStyle = 'rgba(204, 174, 124, 0.55)';
-        for (const p of [...v.houses, ...v.buildings]) this.path(cx, cy, p.x * TILE + 4, p.y * TILE + 6);
-      }
-
-      // City wall: a ring of stone with four gates
+      // The wall around the houses: a palisade, stone with towers, a castle wall (Update 3)
       if (!v.ruin && v.buildings.some((b) => b.kind === 'wall')) {
         const full = wallMax(sim, v);
-        this.wall(sim, cx, cy, 11 * TILE, 1 - (v.wallHp ?? full) / full, knows(sim, v.people, 'castle'));
+        this.wall(sim, v, cx, cy, 1 - (v.wallHp ?? full) / full);
       }
 
       for (const b of v.buildings) {
-        const rows = BUILDING_SPRITES[b.kind];
-        if (!rows) continue;
         const px = b.x * TILE + 4;
         const py = b.y * TILE + 8;
+        // Castles and pens are drawn in their own way (Update 3)
+        if (b.kind === 'castle') {
+          this.castle(px, b.y * TILE + 4, cloth, v.ruin, sim.time);
+          continue;
+        }
+        if (b.kind === 'pen') {
+          this.pen(b, roof, v.ruin);
+          continue;
+        }
+        // Middle Ages: the market gets stalls in all colours
+        const rows = b.kind === 'market' && ageIndex(sim, v.people) >= 3 ? STALLS : BUILDING_SPRITES[b.kind];
+        if (!rows) continue;
         this.figure(rows, { ...BUILDING_COLORS, r: v.ruin ? '#8d8a84' : b.kind === 'market' ? cloth.cloth : roof.r, R: v.ruin ? '#6d6a64' : roof.R }, px, py, false);
+        if (v.ruin) continue;
+        if (b.kind === 'tavern' || b.kind === 'palace' || b.kind === 'university' || b.kind === 'station') this.lights.push([px - 2, py - 4]);
+        if (b.kind === 'altar') this.lights.push([px, py - 5]);
+        if (b.kind === 'lighthouse') this.lights.push([px, py - 12]);
+        if (b.kind === 'smokehouse') this.smoke(px + 3, py - 9, sim.time, b.x * 5 + b.y, '#cfcfcf');
         if (b.kind === 'townhall' || b.kind === 'temple') this.lights.push([px - 3, py - 4]);
         if (b.kind === 'smithy') this.lights.push([px - 3, py - 3]);
         if (b.kind === 'windmill' && !v.ruin) this.sails(px, py - 6, sim.time);
@@ -487,9 +658,22 @@ export class Renderer {
           this.figure(RUIN, RUIN_COLORS, px, py, false);
           continue;
         }
-        const rows = h.level === 0 ? TENT : h.level === 1 ? HOUSE : h.level === 2 ? STONE_HOUSE : TOWNHOUSE;
+        // Every people builds its own way (Update 3): yurts in the steppe, moss roofs and wood in
+        // the forest, stone in the mountains, houses on stilts by the water on the coast
+        const p = v.people;
+        const yurt = p === 'steppe' && h.level <= 1;
+        const rows = yurt ? (h.level === 0 ? YURT_SMALL : YURT_BIG) : h.level === 0 ? TENT : h.level === 1 ? HOUSE : h.level === 2 ? STONE_HOUSE : TOWNHOUSE;
         const tone = (h.x * 3 + h.y * 7) % 3;
-        this.figure(rows, { ...HOUSE_COLORS, w: WOOD_TONES[tone], g: STONE_TONES[tone], ...roof }, px, py, false);
+        const wood = p === 'mountain' ? STONE_TONES[tone] : WOOD_TONES[tone];
+        const stone = p === 'forest' ? WOOD_TONES[tone] : STONE_TONES[tone];
+        const stilts = p === 'coast' && h.level >= 1 && this.byWater(sim, h.x, h.y);
+        const lift = stilts ? 2 : 0;
+        if (stilts) {
+          ctx.fillStyle = '#6e4a24';
+          ctx.fillRect(px - 3, py - 2, 1, 3);
+          ctx.fillRect(px + 2, py - 2, 1, 3);
+        }
+        this.figure(rows, { ...HOUSE_COLORS, ...FELT, w: wood, W: p === 'mountain' ? '#8d929c' : HOUSE_COLORS.W, g: stone, ...roof, ...(p === 'forest' ? MOSS : {}) }, px, py - lift, false);
         if (h.level === 3) this.lights.push([px - 3, py - 7]);
         if (h.level > 0) {
           this.lights.push([px - 3, py - 4]);
@@ -575,15 +759,6 @@ export class Renderer {
     }
   }
 
-  /** A trodden path of 2 x 2 pixel steps from (x0, y0) to (x1, y1). */
-  private path(x0: number, y0: number, x1: number, y1: number) {
-    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / Math.max(1, steps);
-      this.ctx.fillRect(Math.round(x0 + (x1 - x0) * t) - 1, Math.round(y0 + (y1 - y0) * t) - 1, 2, 2);
-    }
-  }
-
   /** A round wall of stone blocks with gates north, east, south and west; only on land. Damage (0…1) knocks out blocks. */
   /** Windmill sails, slowly turning around their hub. */
   private sails(x: number, y: number, time: number) {
@@ -612,63 +787,291 @@ export class Renderer {
   }
 
   /** Railways: a track from every town of a railway people to its nearest town (phase E). */
-  private rails(sim: Sim) {
+  /** Holy places of the living faiths (Update 3): shrines with a light; the faith map tints whole places. */
+  private holyPlaces(sim: Sim, visible: (a: { x: number; y: number }) => boolean) {
+    const ctx = this.ctx;
+    for (const r of sim.religions) {
+      if (r.gone) continue;
+      for (const p of r.holy) {
+        if (!visible({ x: p.x + 0.5, y: p.y + 0.5 })) continue;
+        const px = p.x * TILE + 4;
+        const py = p.y * TILE + 7;
+        ctx.fillStyle = r.color;
+        ctx.fillRect(px - 3, py, 7, 1);
+        this.figure(SHRINE, SHRINE_COLORS, px, py, false);
+        this.lights.push([px, py - 5]);
+      }
+    }
+    if (!this.faithView) return;
+    for (const v of sim.villages) {
+      if (v.ruin || v.merged || v.faith === undefined) continue;
+      const r = sim.religions.find((x) => x.id === v.faith);
+      if (!r) continue;
+      const rad = (livingRadius(v) + 2) * TILE;
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = r.color;
+      ctx.beginPath();
+      ctx.arc(v.x * TILE + 4, v.y * TILE + 4, rad, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = r.color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** Burn scars (Update 3): dark patches where a fire was, for a few years. */
+  private drawScars(sim: Sim) {
+    if (!sim.scorched.size) return;
     const ctx = this.ctx;
     const w = sim.world;
-    const towns = sim.villages.filter((v) => !v.ruin && !v.merged && (v.tier === 'town' || v.tier === 'city') && knows(sim, v.people, 'railway'));
-    const done = new Set<string>();
-    for (const a of towns) {
-      let best: (typeof towns)[number] | null = null;
-      let bestD = 60;
-      for (const b of towns) {
-        if (b === a || b.people !== a.people) continue;
-        const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (d < bestD) {
-          bestD = d;
-          best = b;
+    for (const i of sim.scorched.keys()) {
+      const x = (i % w.w) * TILE;
+      const y = Math.floor(i / w.w) * TILE;
+      ctx.fillStyle = 'rgba(45, 35, 25, 0.35)';
+      ctx.fillRect(x, y, TILE, TILE);
+      ctx.fillStyle = 'rgba(30, 25, 20, 0.5)';
+      ctx.fillRect(x + ((i * 3) % 5), y + ((i * 7) % 5), 2, 2);
+    }
+  }
+
+  /**
+   * Disasters on top of everything (Update 3): flames and smoke, lava, the
+   * smoking mountain, the hurricane's spiral, lightning, rain, the glare of a
+   * heatwave.
+   */
+  private drawDisasters(sim: Sim) {
+    const ctx = this.ctx;
+    const w = sim.world;
+    const t = sim.time;
+    // Lava: glowing orange, darker as it cools
+    for (const [i, until] of sim.lava) {
+      const x = (i % w.w) * TILE;
+      const y = Math.floor(i / w.w) * TILE;
+      const cool = until - t < 8;
+      ctx.fillStyle = cool ? '#8a2a12' : '#ff5a1e';
+      ctx.fillRect(x, y, TILE, TILE);
+      ctx.fillStyle = cool ? '#5a2010' : (i + Math.floor(t * 4)) % 3 ? '#ffb000' : '#ffe066';
+      ctx.fillRect(x + ((i * 5) % 6), y + ((i * 3) % 6), 2, 2);
+      if (!cool) this.lights.push([x + 4, y + 4]);
+    }
+    // Fires: three flickering flames per tile and a wisp of smoke
+    for (const i of sim.fires.keys()) {
+      const x = (i % w.w) * TILE;
+      const y = Math.floor(i / w.w) * TILE;
+      for (let k = 0; k < 3; k++) {
+        const fl = (Math.floor(t * 8) + k + i) % 3;
+        const fx = x + 1 + k * 2.5;
+        ctx.fillStyle = '#ff5a1e';
+        ctx.fillRect(fx, y + 3 + fl, 2, 5 - fl);
+        ctx.fillStyle = '#ffe066';
+        ctx.fillRect(fx, y + 5 + fl, 1, 2);
+      }
+      const s = (t * 0.7 + (i % 7) / 7) % 1;
+      ctx.globalAlpha = 0.6 * (1 - s);
+      ctx.fillStyle = '#6a6a6a';
+      ctx.fillRect(x + 3 + Math.sin(s * 6) * 2, y - s * 14, 3, 3);
+      ctx.globalAlpha = 1;
+      this.lights.push([x + 4, y + 4]);
+    }
+    // Volcanoes: smoke rising from the crater (red glow and sparks when it erupts)
+    for (const v of sim.volcanoes) {
+      const cx = v.x * TILE + 4;
+      const cy = v.y * TILE + 2;
+      const erupting = t >= v.erupts;
+      for (let k = 0; k < 6; k++) {
+        const s = (t * 0.25 + k / 6) % 1;
+        ctx.globalAlpha = 0.65 * (1 - s);
+        ctx.fillStyle = erupting && k % 2 ? '#3a3030' : '#8a8a8a';
+        const r = 2 + s * 6;
+        ctx.fillRect(cx - r / 2 + Math.sin(s * 5 + k) * 3, cy - s * 40 - r / 2, r, r);
+      }
+      ctx.globalAlpha = 1;
+      if (erupting) {
+        ctx.fillStyle = '#ff5a1e';
+        ctx.fillRect(cx - 3, cy - 1, 6, 3);
+        for (let k = 0; k < 5; k++) {
+          const s = (t * 1.3 + k / 5) % 1;
+          ctx.fillStyle = k % 2 ? '#ffe066' : '#ff8a1e';
+          ctx.fillRect(cx + Math.cos(k * 1.7) * s * 10, cy - Math.sin(s * Math.PI) * 14, 1, 1);
         }
       }
-      if (!best) continue;
-      const key = a.id < best.id ? `${a.id}|${best.id}` : `${best.id}|${a.id}`;
-      if (done.has(key)) continue;
-      done.add(key);
-      const x0 = a.x * TILE + 4;
-      const y0 = a.y * TILE + 4;
-      const x1 = best.x * TILE + 4;
-      const y1 = best.y * TILE + 4;
-      const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
-      for (let i = 0; i <= steps; i++) {
-        const x = Math.round(x0 + ((x1 - x0) * i) / steps);
-        const y = Math.round(y0 + ((y1 - y0) * i) / steps);
-        if (!w.isLand(w.get(Math.floor(x / TILE), Math.floor(y / TILE)))) continue;
-        ctx.fillStyle = i % 4 === 0 ? '#8a5a2b' : '#4a4e57';
-        ctx.fillRect(x - (i % 4 === 0 ? 1 : 0), y, i % 4 === 0 ? 3 : 1, 1);
+    }
+    // The hurricane: a dark disc and three turning arms of cloud and rain
+    const hu = sim.hurricane;
+    if (hu) {
+      const cx = hu.x * TILE;
+      const cy = hu.y * TILE;
+      const R = BALANCE_HURRICANE * TILE;
+      ctx.globalAlpha = 0.32;
+      ctx.fillStyle = '#2a3440';
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2);
+      ctx.fill();
+      // Rain under the clouds
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#9cc4ff';
+      for (let k = 0; k < 50; k++) {
+        const a = (k * 2.39996) % (Math.PI * 2);
+        const d = ((k * 37) % 100) / 100;
+        ctx.fillRect(cx + Math.cos(a) * d * R, cy + Math.sin(a) * d * R + ((t * 90 + k * 7) % 10) - 5, 1, 4);
+      }
+      ctx.globalAlpha = 0.85;
+      for (let arm = 0; arm < 4; arm++) {
+        for (let k = 0; k < 40; k++) {
+          const f = k / 40;
+          const a = t * 2.2 + arm * (Math.PI / 2) + f * 4.5;
+          ctx.fillStyle = k % 3 ? '#f2f5f8' : '#aeb8c2';
+          const s = 4 - f * 2.5;
+          ctx.fillRect(cx + Math.cos(a) * f * R * 1.15, cy + Math.sin(a) * f * R, s, s * 0.7);
+        }
+      }
+      // The calm eye
+      ctx.fillStyle = '#2a3440';
+      ctx.fillRect(cx - 2, cy - 2, 4, 4);
+      ctx.globalAlpha = 1;
+    }
+    // Rain from the gods
+    for (const r of sim.rains) {
+      ctx.fillStyle = 'rgba(120, 170, 255, 0.7)';
+      for (let k = 0; k < 60; k++) {
+        const px = r.x * TILE + (((k * 37) % 160) - 80);
+        const py = r.y * TILE + ((((k * 53) % 120) + t * 160) % 120) - 60;
+        ctx.fillRect(px, py, 1, 4);
+      }
+    }
+    // Lightning: a white zigzag for a moment
+    for (const b of sim.bolts) {
+      const age = t - b.t;
+      if (age > 0.4) continue;
+      ctx.globalAlpha = 1 - age / 0.4;
+      ctx.fillStyle = '#ffffff';
+      let x = b.x * TILE + 4;
+      for (let y = b.y * TILE - 60; y < b.y * TILE + 4; y += 4) {
+        x += ((y * 13) % 5) - 2;
+        ctx.fillRect(x, y, 2, 5);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // A heatwave: the land glares
+    if (sim.heat) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(255, 170, 40, 0.08)';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.restore();
+    }
+  }
+
+  /** Is there water right next to this tile (houses on stilts)? */
+  private byWater(sim: Sim, x: number, y: number) {
+    const w = sim.world;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      const t = w.get(x + dx, y + dy);
+      if (t === T.SHALLOW || t === T.DEEP) return true;
+    }
+    return false;
+  }
+
+  /** Trains (Update 3): an engine in the colour of its people and two wagons, with a puff of smoke. */
+  private trains(sim: Sim) {
+    const ctx = this.ctx;
+    const w = sim.world;
+    for (const t of sim.trains) {
+      const at = (pos: number) => {
+        const p = Math.max(0, Math.min(t.route.length - 1, pos));
+        const k = Math.floor(p);
+        const f = p - k;
+        const a = t.route[k];
+        const b = t.route[Math.min(t.route.length - 1, k + 1)];
+        const ax = (a % w.w) * TILE + 4;
+        const ay = Math.floor(a / w.w) * TILE + 4;
+        const bx = (b % w.w) * TILE + 4;
+        const by = Math.floor(b / w.w) * TILE + 4;
+        return { x: ax + (bx - ax) * f, y: ay + (by - ay) * f };
+      };
+      const c = PEOPLE_COLORS[t.people];
+      for (let k = 2; k >= 0; k--) {
+        const p = at(t.pos - t.dir * k * 1.1);
+        const x = Math.round(p.x);
+        const y = Math.round(p.y);
+        if (k === 0) {
+          ctx.fillStyle = '#2b2b33';
+          ctx.fillRect(x - 3, y - 3, 6, 4);
+          ctx.fillStyle = c.cloth;
+          ctx.fillRect(x - 3, y - 2, 6, 1);
+          ctx.fillStyle = '#2b2b33';
+          ctx.fillRect(x + (t.dir > 0 ? 1 : -2), y - 5, 1, 2);
+          if (t.wait <= 0) {
+            const puff = (sim.time * 3) % 1;
+            ctx.globalAlpha = 0.7 * (1 - puff);
+            ctx.fillStyle = '#e4e4e4';
+            ctx.fillRect(x + (t.dir > 0 ? 1 : -2) - Math.round(puff * 3 * t.dir), y - 7 - Math.round(puff * 3), 2, 2);
+            ctx.globalAlpha = 1;
+          }
+        } else {
+          ctx.fillStyle = '#8a5a2b';
+          ctx.fillRect(x - 3, y - 3, 5, 4);
+          ctx.fillStyle = '#5a3a1e';
+          ctx.fillRect(x - 3, y, 5, 1);
+        }
       }
     }
   }
 
-  private wall(sim: Sim, cx: number, cy: number, r: number, damage = 0, towers = false) {
+  /**
+   * The wall around the houses of a place, just outside the living ring, with
+   * gates where the four main streets leave: a wooden palisade (the steppe
+   * keeps those), from the iron age stone with four towers, once castles are
+   * known a castle wall with battlements and gatehouses. Damage (0…1) knocks
+   * out pieces; only on land.
+   */
+  private wall(sim: Sim, v: Village, cx: number, cy: number, damage = 0) {
     const ctx = this.ctx;
-    const n = Math.round((2 * Math.PI * r) / 4);
+    const r = (livingRadius(v) + 1) * TILE;
+    const castle = knows(sim, v.people, 'castle');
+    const style = castle ? 'castle' : v.people === 'steppe' || ageIndex(sim, v.people) < 2 ? 'palisade' : 'stone';
+    const land = (x: number, y: number) => sim.world.isLand(sim.world.get(Math.floor(x / TILE), Math.floor(y / TILE)));
+    const n = Math.round((2 * Math.PI * r) / (style === 'palisade' ? 3 : 4));
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
-      const gate = Math.abs(((a + Math.PI / 4) % (Math.PI / 2)) - Math.PI / 4) < 0.18;
+      const gate = Math.abs(((a + Math.PI / 4) % (Math.PI / 2)) - Math.PI / 4) < 0.1;
       if (gate || ((i * 37) % 100) / 100 < damage) continue;
       const x = Math.round(cx + Math.cos(a) * r);
-      const y = Math.round(cy + Math.sin(a) * r * 0.8);
-      if (!sim.world.isLand(sim.world.get(Math.floor(x / TILE), Math.floor(y / TILE)))) continue;
+      const y = Math.round(cy + Math.sin(a) * r);
+      if (!land(x, y)) continue;
+      if (style === 'palisade') {
+        ctx.fillStyle = '#7a5230';
+        ctx.fillRect(x - 1, y - 4, 2, 5);
+        ctx.fillStyle = '#b07a45';
+        ctx.fillRect(x - 1, y - 5, 1, 1);
+        continue;
+      }
+      // A thick wall: a dark foot, grey stone, a light crown (so it does not look like a street)
+      ctx.fillStyle = '#5f6573';
+      ctx.fillRect(x - 3, y + 1, 6, 2);
       ctx.fillStyle = '#8d929c';
-      ctx.fillRect(x - 2, y - 2, 4, 4);
-      ctx.fillStyle = '#b4b9c2';
-      ctx.fillRect(x - 2, y - 3, 4, 2);
+      ctx.fillRect(x - 3, y - 3, 6, 4);
+      ctx.fillStyle = '#d0d3d9';
+      ctx.fillRect(x - 3, y - 4, 6, 1);
+      if (style === 'castle' && i % 2 === 0) {
+        ctx.fillStyle = '#d0d3d9';
+        ctx.fillRect(x - 2, y - 6, 2, 2);
+      }
     }
-    // Castles: four towers between the gates
-    if (!towers) return;
+    if (style === 'palisade') return;
+    // Four towers between the gates
     for (let k = 0; k < 4; k++) {
       const a = Math.PI / 4 + (k * Math.PI) / 2;
       const x = Math.round(cx + Math.cos(a) * r);
-      const y = Math.round(cy + Math.sin(a) * r * 0.8);
-      if (!sim.world.isLand(sim.world.get(Math.floor(x / TILE), Math.floor(y / TILE)))) continue;
+      const y = Math.round(cy + Math.sin(a) * r);
+      if (!land(x, y)) continue;
       ctx.fillStyle = '#8d929c';
       ctx.fillRect(x - 3, y - 7, 6, 9);
       ctx.fillStyle = '#b4b9c2';
@@ -677,6 +1080,119 @@ export class Renderer {
       ctx.fillStyle = '#3a4a6a';
       ctx.fillRect(x, y - 4, 1, 2);
     }
+    if (style !== 'castle') return;
+    // Gatehouses: a tower on each side of every gate
+    for (let k = 0; k < 4; k++) {
+      const a = (k * Math.PI) / 2;
+      for (const side of [-0.13, 0.13]) {
+        const x = Math.round(cx + Math.cos(a + side) * r);
+        const y = Math.round(cy + Math.sin(a + side) * r);
+        if (!land(x, y)) continue;
+        ctx.fillStyle = '#9aa0aa';
+        ctx.fillRect(x - 2, y - 8, 4, 10);
+        ctx.fillStyle = '#c3c6cc';
+        ctx.fillRect(x - 2, y - 9, 1, 1);
+        ctx.fillRect(x + 1, y - 9, 1, 1);
+      }
+    }
+  }
+
+  /** A castle of 5 × 5 tiles (Update 3): curtain walls, four corner towers, a keep with the people's flag. */
+  private castle(cx: number, cy: number, cloth: { cloth: string; dark: string }, ruin: boolean, time: number) {
+    const ctx = this.ctx;
+    const stone = ruin ? '#8d8a84' : '#b4b9c2';
+    const dark = ruin ? '#6d6a64' : '#8d929c';
+    const roofC = ruin ? '#6d6a64' : cloth.cloth;
+    // Courtyard and curtain walls
+    ctx.fillStyle = '#c9b48a';
+    ctx.fillRect(cx - 15, cy - 12, 30, 24);
+    ctx.fillStyle = stone;
+    ctx.fillRect(cx - 16, cy - 15, 32, 4);
+    ctx.fillRect(cx - 16, cy - 15, 3, 30);
+    ctx.fillRect(cx + 13, cy - 15, 3, 30);
+    ctx.fillStyle = dark;
+    ctx.fillRect(cx - 16, cy + 10, 32, 6);
+    for (let x = cx - 16; x < cx + 16; x += 3) ctx.fillRect(x, cy - 16, 2, 1);
+    // Gate
+    ctx.fillStyle = '#3a2a20';
+    ctx.fillRect(cx - 3, cy + 11, 6, 5);
+    // Corner towers with roofs
+    for (const [tx, ty] of [
+      [cx - 18, cy - 18],
+      [cx + 12, cy - 18],
+      [cx - 18, cy + 6],
+      [cx + 12, cy + 6],
+    ]) {
+      ctx.fillStyle = stone;
+      ctx.fillRect(tx, ty + 3, 7, 11);
+      ctx.fillStyle = dark;
+      ctx.fillRect(tx, ty + 12, 7, 2);
+      ctx.fillStyle = roofC;
+      ctx.fillRect(tx + 1, ty + 1, 5, 2);
+      ctx.fillRect(tx + 2, ty, 3, 1);
+      ctx.fillStyle = '#3a4a6a';
+      ctx.fillRect(tx + 3, ty + 6, 1, 2);
+    }
+    // The keep
+    ctx.fillStyle = '#c3c6cc';
+    ctx.fillRect(cx - 5, cy - 14, 10, 18);
+    ctx.fillStyle = dark;
+    ctx.fillRect(cx - 5, cy + 2, 10, 2);
+    ctx.fillStyle = '#3a4a6a';
+    ctx.fillRect(cx - 3, cy - 10, 2, 3);
+    ctx.fillRect(cx + 1, cy - 10, 2, 3);
+    ctx.fillStyle = roofC;
+    ctx.fillRect(cx - 6, cy - 17, 12, 3);
+    ctx.fillRect(cx - 4, cy - 19, 8, 2);
+    if (ruin) return;
+    this.lights.push([cx - 2, cy - 9]);
+    // The flag on top
+    ctx.fillStyle = '#5a3a1e';
+    ctx.fillRect(cx, cy - 26, 1, 7);
+    ctx.fillStyle = cloth.cloth;
+    const wave = Math.floor(time * 3) % 2;
+    ctx.fillRect(cx + 1, cy - 26, 5, 3);
+    ctx.fillRect(cx + 6, cy - 26 + wave, 1, 2);
+  }
+
+  /** A pen of 5 × 5 tiles (Update 3): a fence (or a stone wall) with a gate and a shed in one corner. */
+  private pen(b: { x: number; y: number; stone?: boolean; animal?: string }, roof: { r: string; R: string }, ruin: boolean) {
+    const ctx = this.ctx;
+    const x0 = (b.x - 2) * TILE + 1;
+    const y0 = (b.y - 2) * TILE + 2;
+    const size = 5 * TILE - 2;
+    const gate = (x: number) => Math.abs(x - (x0 + size / 2)) < 4;
+    if (b.stone) {
+      for (let k = 0; k <= size; k += 3) {
+        for (const [x, y] of [
+          [x0 + k, y0],
+          [x0 + k, y0 + size],
+          [x0, y0 + k],
+          [x0 + size, y0 + k],
+        ]) {
+          if (y === y0 + size && gate(x)) continue;
+          ctx.fillStyle = '#8d929c';
+          ctx.fillRect(x - 1, y - 1, 3, 2);
+          ctx.fillStyle = '#b4b9c2';
+          ctx.fillRect(x - 1, y - 2, 3, 1);
+        }
+      }
+    } else {
+      ctx.fillStyle = ruin ? '#8d8a84' : '#a0703c';
+      ctx.fillRect(x0, y0 - 1, size, 1);
+      ctx.fillRect(x0, y0 + size - 1, size / 2 - 4, 1);
+      ctx.fillRect(x0 + size / 2 + 4, y0 + size - 1, size / 2 - 4, 1);
+      ctx.fillRect(x0, y0, 1, size);
+      ctx.fillRect(x0 + size - 1, y0, 1, size);
+      ctx.fillStyle = ruin ? '#6d6a64' : '#6e4a24';
+      for (let k = 0; k <= size; k += 4) {
+        ctx.fillRect(x0 + k, y0 - 2, 1, 3);
+        if (!gate(x0 + k)) ctx.fillRect(x0 + k, y0 + size - 2, 1, 3);
+        ctx.fillRect(x0 - 1, y0 + k, 3, 1);
+        ctx.fillRect(x0 + size - 2, y0 + k, 3, 1);
+      }
+    }
+    if (!ruin) this.figure(SHED, { ...HOUSE_COLORS, ...roof }, x0 + 6, y0 + 9, false);
   }
 
   /** Village names over the squares, in screen pixels so they stay readable. */
@@ -690,14 +1206,19 @@ export class Renderer {
     ctx.textBaseline = 'middle';
     for (const v of sim.villages) {
       // Ruins pile up over the centuries: their signs only show up close; merged places are gone
-      if (v.merged || (v.ruin && cam.zoom < 3) || !this.world.seen(v.x, v.y)) continue;
+      if (v.merged || (v.ruin && cam.zoom < 3)) continue;
       const sx = ((v.x + 0.5) * TILE - cam.x) * cam.zoom * dpr + (cam.vw / 2) * dpr;
       const sy = ((v.y + 0.5) * TILE - 14 - cam.y) * cam.zoom * dpr + (cam.vh / 2) * dpr - 10 * dpr;
       if (sx < -100 || sy < -30 || sx > this.canvas.width + 100 || sy > this.canvas.height + 30) continue;
       const tier = v.tier ?? 'village';
       // Capitals get a crown sign in front of the name
       const name = !v.ruin && [...sim.kingdoms.values()].some((k) => k.capital === v.id) ? `♛ ${v.name}` : v.name;
-      const text = v.ruin ? `${v.name} · ${ruinsLabel}` : tier === 'village' ? name : `${name} · ${this.tierLabels[tier] ?? tier}`;
+      // The symbol of its faith after the name (Update 3)
+      const faith = !v.ruin && v.faith !== undefined ? sim.religions.find((r) => r.id === v.faith) : undefined;
+      // …and stars for its culture (Update 3, from the second level on)
+      const stars = !v.ruin && (v.culture ?? 0) >= 1 ? ` ${'★'.repeat((v.culture ?? 0) + 1)}` : '';
+      const mark = `${faith ? ` ${SYMBOL_ICON[faith.symbol]}` : ''}${stars}`;
+      const text = v.ruin ? `${v.name} · ${ruinsLabel}` : tier === 'village' ? `${name}${mark}` : `${name} · ${this.tierLabels[tier] ?? tier}${mark}`;
       // A little wooden sign with a parchment plate and a dot in the colour of the people
       ctx.font = `600 ${Math.round((tier === 'city' ? 14 : tier === 'town' ? 13 : 12) * dpr)}px "Pixelify Sans Variable", system-ui, sans-serif`;
       const dot = 9 * dpr;
@@ -761,8 +1282,7 @@ export class Renderer {
     const x1 = cam.x / TILE + cam.vw / 2 / cam.zoom / TILE + 2;
     const y0 = cam.y / TILE - cam.vh / 2 / cam.zoom / TILE - 2;
     const y1 = cam.y / TILE + cam.vh / 2 / cam.zoom / TILE + 2;
-    const world = this.world;
-    const visible = (a: { x: number; y: number }) => a.x > x0 && a.x < x1 && a.y > y0 && a.y < y1 && world.seen(Math.floor(a.x), Math.floor(a.y));
+    const visible = (a: { x: number; y: number }) => a.x > x0 && a.x < x1 && a.y > y0 && a.y < y1;
 
     // Footprints in the sand, fading
     ctx.fillStyle = '#c4a258';
@@ -787,7 +1307,7 @@ export class Renderer {
     for (const w of sim.wonders) {
       if (!visible({ x: w.x + 2, y: w.y + 2 })) continue;
       const c = PEOPLE_COLORS[w.people];
-      drawWonder(ctx, w.kind, w.x * TILE, w.y * TILE, { t: sim.time, cloth: c.cloth, dark: c.dark, progress: progressOf(w), ruin: !!w.ruin, night: sim.darkness, hero: w.hero });
+      drawWonder(ctx, w.kind, w.x * TILE, w.y * TILE, { t: sim.time, cloth: c.cloth, dark: c.dark, progress: progressOf(w), ruin: !!w.ruin, beam: Math.sin(sim.time * 0.8 + w.x) > 0.6, hero: w.hero });
       if (w.finished !== undefined && !w.ruin && (w.kind === 'lighthouse' || w.kind === 'cathedral' || w.kind === 'library')) {
         this.lights.push([w.x * TILE + 16, w.y * TILE + (w.kind === 'lighthouse' ? -7 : 18)]);
       }
@@ -808,6 +1328,7 @@ export class Renderer {
       else if (a.kind === 'sheep') this.figure(SHEEP, SHEEP_COLORS, px, py, flip);
       else if (a.kind === 'chicken') this.figure(CHICKEN, CHICKEN_COLORS, px, py, flip);
       else if (a.kind === 'horse') this.figure(a.moving && step ? HORSE_RUN : HORSE, HORSE_COLORS, px, py, flip);
+      else if (a.kind === 'cow') this.figure(COW, COW_COLORS, px, py, flip);
       else this.figure(a.moving && step ? WOLF_RUN : WOLF, WOLF_COLORS, px, py, flip);
     }
 
@@ -1158,13 +1679,35 @@ export class Renderer {
       ctx.fillRect(x - 1, y, 3, 1);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(x, y, 1, 1);
+    } else if (h.prophet !== undefined) {
+      // A prophet: a golden halo (Update 3)
+      const x = Math.round(px);
+      const y = top - (h.look?.hat && h.look.hat !== 'none' ? 5 : 3);
+      ctx.fillStyle = '#ffe066';
+      ctx.fillRect(x - 2, y, 5, 1);
+      ctx.fillRect(x - 2, y - 2, 1, 2);
+      ctx.fillRect(x + 2, y - 2, 1, 2);
+      ctx.fillRect(x - 1, y - 2, 3, 1);
+    } else if (h.role === 'fool') {
+      // The fool's cap: two points, red and yellow (Update 3)
+      const x = Math.round(px);
+      const y = top - (h.look?.hat && h.look.hat !== 'none' ? 4 : 2);
+      ctx.fillStyle = '#e8344a';
+      ctx.fillRect(x - 2, y - 1, 2, 1);
+      ctx.fillRect(x - 2, y - 2, 1, 1);
+      ctx.fillStyle = '#ffd23f';
+      ctx.fillRect(x, y - 1, 2, 1);
+      ctx.fillRect(x + 1, y - 2, 1, 1);
     } else if (sim.favorites.has(h.id)) {
       ctx.fillStyle = '#ffd23f';
       ctx.fillRect(Math.round(px), top - 4, 1, 3);
       ctx.fillRect(Math.round(px) - 1, top - 3, 3, 1);
     }
     if (h.chatUntil <= sim.time) {
-      const icon = h.bubbleUntil > sim.time ? h.bubble : h.grief > sim.time && sim.time % 3 < 1.6 ? 'tear' : h.hunger < 25 && sim.time % 2 < 1.2 ? 'food' : null;
+      // A face over the head when the mood is very good or very bad (Update 3)
+      const mood = h.mood ?? 60;
+      const face = mood >= 90 && (sim.time + h.id * 7) % 20 < 1.2 ? 'happy' : mood <= 25 && (sim.time + h.id * 7) % 8 < 1.4 ? 'sad' : null;
+      const icon = h.bubbleUntil > sim.time ? h.bubble : h.grief > sim.time && sim.time % 3 < 1.6 ? 'tear' : h.hunger < 25 && sim.time % 2 < 1.2 ? 'food' : face;
       if (icon) this.thought(icon, px, top);
     }
     if (h.chatUntil > sim.time) {

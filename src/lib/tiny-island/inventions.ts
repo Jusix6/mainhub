@@ -20,6 +20,8 @@ import { researchBonus } from './wonders';
 import { celebrate } from './culture';
 import { has, hasPower, PEOPLES, stage, stat, type Human, type People } from './agents';
 import type { Sim } from './sim';
+import { peopleBelieves } from './religion';
+import { cultureResearch } from './society';
 import { refOf, story } from './social';
 
 export const INVENTIONS = [
@@ -137,8 +139,11 @@ export function researchRate(sim: Sim, p: People): number {
     if (v.buildings.some((b) => b.kind === 'smithy')) rate += 0.4;
     if (v.buildings.some((b) => b.kind === 'townhall')) rate += 0.3;
     if (v.tier === 'city') rate += 0.5;
-    // Printing: every library adds a lot
-    if (v.buildings.some((b) => b.kind === 'library')) rate += 1.5;
+    // Libraries (from writing, Update 3); with printing they add a lot
+    if (v.buildings.some((b) => b.kind === 'library')) rate += knows(sim, p, 'printing') ? 1.5 : 0.6;
+    // Update 3: universities and observatories
+    if (v.buildings.some((b) => b.kind === 'university')) rate += 2;
+    if (v.buildings.some((b) => b.kind === 'observatory')) rate += 1;
   }
   for (const h of sim.humans) {
     if (h.people !== p || h.village === undefined || stage(h, sim.time) === 'child') continue;
@@ -147,7 +152,11 @@ export function researchRate(sim: Sim, p: People): number {
   }
   // A living genius makes the whole people research three times as fast
   const genius = sim.humans.some((h) => h.people === p && hasPower(h, 'genius'));
-  return rate * (knows(sim, p, 'writing') ? 1.5 : 1) * (genius ? 3 : 1) * researchBonus(sim, p);
+  // A faith of knowledge: a quarter faster (Update 3)
+  const learned = peopleBelieves(sim, p, 'knowledge') ? 1.25 : 1;
+  // Educated places and books (society.ts)
+  rate += cultureResearch(sim, p);
+  return rate * (knows(sim, p, 'writing') ? 1.5 : 1) * (genius ? 3 : 1) * researchBonus(sim, p) * learned;
 }
 
 /** Once a second: research moves on, and inventions are made. */

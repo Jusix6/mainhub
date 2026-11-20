@@ -7,7 +7,8 @@
  *
  * Knows the terrain of every tile, builds a random world from a seed, lets
  * the player paint terrain and lets nature grow back: forests spread, berry
- * bushes on grass refill, fish in the water recover. Every change marks
+ * bushes refill (Update 3: few of them, only at forest edges, each lives
+ * 10–20 years), fish in the water recover. Every change marks
  * the tile (and its neighbours, whose look depends on it) as dirty, so the
  * renderer only redraws what changed.
  */
@@ -98,6 +99,20 @@ export class World {
   crop = new Uint8Array(W * H);
   /** Year a tree falls (0 = not set yet; set on the next nature check). */
   treeEnd = new Uint16Array(W * H);
+  /** Year a berry bush dies (0 = not set yet; set on the next nature check). Not saved. */
+  bushEnd = new Uint16Array(W * H);
+  /** Share of the grass with a bush, counted each second. */
+  bushShare = 0;
+  /** Update 3, phase B: the place (village id) each tile belongs to, −1 = nobody (territory.ts). */
+  owner = new Int32Array(W * H).fill(-1);
+  /** Goes up whenever land changes hands (the map redraws the borders). */
+  ownerVersion = 0;
+  /** Update 3, phase C: roads (0 none, 1 path, 2 gravel, 3 paving; on shallow water a bridge) and railways (roads.ts). */
+  road = new Uint8Array(W * H);
+  rail = new Uint8Array(W * H);
+  /** Update 3, phase F: rich soil where lava once flowed; no snow on the peaks when the world is warm. */
+  fertile = new Uint8Array(W * H);
+  melted = false;
   /** Tiles where no new tree may grow (around squares, houses, sites); filled by the sim each second. */
   noTree = new Uint8Array(W * H);
   /** Phase G: 1 = still under the fog; `fogVersion` goes up when some of it lifts. */
@@ -127,6 +142,11 @@ export class World {
     this.fish = new Uint8Array(n);
     this.crop = new Uint8Array(n);
     this.treeEnd = new Uint16Array(n);
+    this.bushEnd = new Uint16Array(n);
+    this.owner = new Int32Array(n).fill(-1);
+    this.road = new Uint8Array(n);
+    this.rail = new Uint8Array(n);
+    this.fertile = new Uint8Array(n);
     this.noTree = new Uint8Array(n);
     this.fog = new Uint8Array(n);
     this.deposit = new Uint8Array(n);
@@ -156,6 +176,11 @@ export class World {
     this.tiles[i] = t;
     this.version++;
     if (t !== T.GRASS) this.bush[i] = -1;
+    // Roads only on land (and as bridges on shallow water)
+    if (t === T.DEEP || t === T.MOUNTAIN || t === T.FIELD) {
+      this.road[i] = 0;
+      this.rail[i] = 0;
+    }
     this.crop[i] = 0;
     this.treeEnd[i] = 0;
     this.fish[i] = this.isLand(t) ? 0 : 2;
@@ -169,9 +194,44 @@ export class World {
     return t !== T.DEEP && t !== T.SHALLOW;
   }
 
-  /** Walking cost of a tile, Infinity where nobody can walk. */
+  /** Is the tile at index i land? */
+  landTile(i: number) {
+    const t = this.tiles[i];
+    return t !== T.DEEP && t !== T.SHALLOW;
+  }
+
+  /** Walking cost of a tile, Infinity where nobody can walk; roads are faster, a bridge is like land (Update 3). */
   cost(x: number, y: number) {
-    return this.inside(x, y) ? COST[this.tiles[y * this.w + x]] : Infinity;
+    if (!this.inside(x, y)) return Infinity;
+    const i = y * this.w + x;
+    const t = this.tiles[i];
+    const r = this.road[i];
+    if (!r) return COST[t];
+    return (t === T.SHALLOW ? 1 : COST[t]) / BALANCE.roads.speed[r];
+  }
+
+  /** Lays (or improves) a road; redraws the tile and its neighbours, paths are worked out again. */
+  setRoad(i: number, level: number) {
+    if (this.road[i] === level) return;
+    this.road[i] = level;
+    this.version++;
+    this.touchAround(i);
+  }
+
+  setRail(i: number, on: number) {
+    if (this.rail[i] === on) return;
+    this.rail[i] = on;
+    this.touchAround(i);
+  }
+
+  private touchAround(i: number) {
+    const x = i % this.w;
+    const y = (i / this.w) | 0;
+    for (const [dx, dy] of [
+      [0, 0],
+      ...N4,
+    ])
+      if (this.inside(x + dx, y + dy)) this.dirty.add((y + dy) * this.w + x + dx);
   }
 
   /** Only this tile needs a redraw (berries changed). */
@@ -327,7 +387,8 @@ export class World {
         if (x < 2 || y < 2 || x >= w - 2 || y >= h - 2) t = T.DEEP;
         const i = y * w + x;
         this.tiles[i] = t;
-        this.bush[i] = t === T.GRASS && rand() < 0.08 ? MAX_BERRIES : -1;
+        this.bush[i] = t === T.GRASS && rand() < BALANCE.bushes.start ? MAX_BERRIES : -1;
+        this.bushEnd[i] = 0;
         this.fish[i] = this.isLand(t) ? 0 : MAX_FISH;
         this.crop[i] = 0;
         this.deposit[i] = 0;
@@ -364,6 +425,12 @@ export class World {
         placed++;
       }
     }
+    this.owner.fill(-1);
+    this.ownerVersion++;
+    this.road.fill(0);
+    this.rail.fill(0);
+    this.fertile.fill(0);
+    this.melted = false;
     this.version++;
     this.fogVersion++;
     this.all = true;
@@ -383,6 +450,7 @@ export class World {
         const t = d < 6 ? T.GRASS : d < 9 ? T.SAND : d < 13 ? T.SHALLOW : T.DEEP;
         this.tiles[i] = t;
         this.bush[i] = t === T.GRASS && (x + y) % 5 === 0 ? MAX_BERRIES : -1;
+        this.bushEnd[i] = 0;
         this.fish[i] = this.isLand(t) ? 0 : MAX_FISH;
         this.crop[i] = 0;
         this.treeEnd[i] = 0;
@@ -390,6 +458,12 @@ export class World {
       }
     }
     this.fog.fill(0);
+    this.owner.fill(-1);
+    this.ownerVersion++;
+    this.road.fill(0);
+    this.rail.fill(0);
+    this.fertile.fill(0);
+    this.melted = false;
     this.version++;
     this.fogVersion++;
     this.all = true;
@@ -418,8 +492,10 @@ export class World {
 
   /**
    * Once per game second: berries grow back on bushes, fish recover, now and
-   * then a new bush sprouts on open grass, and old trees fall (each lives
-   * 60–120 years). Also counts how much of the land is forest.
+   * then a new bush sprouts at a forest edge (never near squares, houses or
+   * sites, and only while bushes cover less than 3 % of the grass), old
+   * bushes die (10–20 years) and old trees fall (60–120 years). Also counts
+   * how much of the land is forest and of the grass has bushes.
    */
   growNature(rand: Rand, dt: number, food = 1, year = 1) {
     this.natureClock += dt;
@@ -428,8 +504,12 @@ export class World {
     const w = this.w;
     const n = w * this.h;
     const life = BALANCE.trees;
+    const B = BALANCE.bushes;
+    const sprout = this.bushShare < B.maxShare;
     let land = 0;
     let forest = 0;
+    let grass = 0;
+    let bushes = 0;
     for (let i = 0; i < n; i++) {
       const t = this.tiles[i];
       if (t !== T.DEEP && t !== T.SHALLOW) land++;
@@ -439,21 +519,30 @@ export class World {
         else if (year >= this.treeEnd[i]) this.set(i % w, (i / w) | 0, T.GRASS);
         continue;
       }
+      if (t === T.GRASS) grass++;
       const b = this.bush[i];
       if (b >= 0) {
-        if (b < MAX_BERRIES && rand() < 0.12 * food) {
+        bushes++;
+        // The bushes of a new island (or a loaded one) are of every age
+        if (!this.bushEnd[i]) this.bushEnd[i] = year + 1 + Math.floor(rand() * B.lifeMax);
+        else if (year >= this.bushEnd[i]) {
+          this.bush[i] = -1;
+          this.bushEnd[i] = 0;
+          this.touch(i);
+        } else if (b < MAX_BERRIES && rand() < 0.12 * food) {
           this.bush[i] = b + 1;
           this.touch(i);
         }
       } else if (t === T.FIELD) {
         const c = this.crop[i];
-        if (c >= 1 && c < 4 && rand() < 0.14 * food) {
+        if (c >= 1 && c < 4 && rand() < 0.14 * food * (this.fertile[i] ? 1.6 : 1)) {
           this.crop[i] = c + 1;
           this.touch(i);
         }
       } else if (t === T.GRASS) {
-        if (rand() < 0.00008 * food) {
+        if (sprout && !this.noTree[i] && rand() < B.sprout * food && this.touchesIndex(i, T.FOREST)) {
           this.bush[i] = 0;
+          this.bushEnd[i] = year + B.lifeMin + Math.floor(rand() * (B.lifeMax - B.lifeMin));
           this.touch(i);
         }
       } else if (this.fish[i] < MAX_FISH && t === T.SHALLOW && rand() < 0.03 * food) {
@@ -463,6 +552,54 @@ export class World {
       }
     }
     this.forestShare = land ? forest / land : 0;
+    this.bushShare = grass ? bushes / grass : 0;
+  }
+
+  /** Does the tile at index i have a neighbour (4 sides) of this terrain? */
+  private touchesIndex(i: number, t: Terrain) {
+    const w = this.w;
+    return this.touches(i % w, (i / w) | 0, t);
+  }
+
+  /**
+   * Old saves (before Update 3): bushes above 3 % of the grass and forest
+   * above 30 % of the land are cleared away, bushes away from forest edges
+   * first, the rest at random.
+   */
+  trimNature(rand: Rand) {
+    const n = this.w * this.h;
+    const grass: number[] = [];
+    const bushes: number[] = [];
+    const forest: number[] = [];
+    let land = 0;
+    for (let i = 0; i < n; i++) {
+      const t = this.tiles[i];
+      if (t !== T.DEEP && t !== T.SHALLOW) land++;
+      if (t === T.GRASS) grass.push(i);
+      if (t === T.FOREST) forest.push(i);
+      if (this.bush[i] >= 0) bushes.push(i);
+    }
+    const shuffle = (a: number[]) => {
+      for (let k = a.length - 1; k > 0; k--) {
+        const j = Math.floor(rand() * (k + 1));
+        [a[k], a[j]] = [a[j], a[k]];
+      }
+      return a;
+    };
+    const keepBushes = Math.floor(grass.length * BALANCE.bushes.maxShare);
+    if (bushes.length > keepBushes) {
+      // Bushes at a forest edge are kept first
+      const order = shuffle(bushes).sort((a, b) => Number(this.touchesIndex(b, T.FOREST)) - Number(this.touchesIndex(a, T.FOREST)));
+      for (const i of order.slice(keepBushes)) {
+        this.bush[i] = -1;
+        this.bushEnd[i] = 0;
+      }
+    }
+    const keepForest = Math.floor(land * BALANCE.trees.maxForestShare);
+    if (forest.length > keepForest) {
+      for (const i of shuffle(forest).slice(keepForest)) this.set(i % this.w, (i / this.w) | 0, T.GRASS);
+    }
+    this.all = true;
   }
 
   /**

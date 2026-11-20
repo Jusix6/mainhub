@@ -30,6 +30,23 @@
  * separation, mentors, forbidden love, royal weddings and claims (drama.ts).
  * Phase D: leagues and fusion (leagues.ts), plots (plots.ts), god gifts Peace and Ally.
  * Phase E: six ages, nine new inventions, endless progress (inventions.ts).
+ * Update 3, phase G: cinema mode (cinema.ts, key K): the interface goes, a
+ * director shows the most exciting scenes with bars, a vignette, subtitles,
+ * chapter cards and music made in the browser (music.ts).
+ * Update 3, phase F: disasters (disasters.ts): lightning, fire, volcanoes,
+ * hurricanes, heatwaves, warming and the rising sea; a Disasters window
+ * (key D) with the god power Rain, a Rules slider Off/Rare/Normal/Chaos.
+ * Update 3, phase E: the need for culture and the mood (society.ts),
+ * philosophers, musicians, fools and actors, books and plays, culture levels
+ * (stars on the signs).
+ * Update 3, phase D: prophets and religions (religion.ts), priests and
+ * missionaries, pilgrims, splits, state religions, holy wars; a Religions
+ * tab with a faith map.
+ * Update 3, phase B: every tile belongs to a place (territory.ts), tinted
+ * land with borders (key G), claims and land grabs, wars for land; the
+ * World window has a Territory tab.
+ * Update 3, phase A: no nights (short naps instead of sleep), berry bushes
+ * only at forest edges, at most 3 % of the grass, each living 10–20 years.
  * UI update: a bar at the bottom like in sandbox games (Build, Rules, World,
  * Chronicle). Each opens its own window: Build (Shape, Life, Characters) and
  * Rules (sliders only) sit over the bar, World (peoples, kingdoms, leagues,
@@ -51,8 +68,6 @@ const ogImage = new URL(og.src, SITE.fun.url).href;
 const T = UI.fun.tinyIsland;
 const strings = {
   year: T.year,
-  day: T.day,
-  night: T.night,
   age: T.age,
   peoples: T.peoples,
   life: T.life,
@@ -82,6 +97,11 @@ const strings = {
   stats: T.stats,
   powers: T.powers,
   editor: T.editor,
+  territory: T.territory,
+  religion: T.religion,
+  disasters: T.disasters,
+  cinema: T.cinema,
+  borders: T.bar.borderModes,
 };
 const E = T.editor;
 const hairColors = [...HAIRS, GREY_HAIR, '#f4f1e8', '#e86fa3'];
@@ -91,12 +111,14 @@ const rules = [
   { key: 'birth', name: T.rules.birth, low: T.rules.birthLow, high: T.rules.birthHigh, min: 0.3, max: 2 },
   { key: 'lifespan', name: T.rules.lifespan, low: T.rules.lifespanLow, high: T.rules.lifespanHigh, min: 0.6, max: 1.4 },
   { key: 'food', name: T.rules.food, low: T.rules.foodLow, high: T.rules.foodHigh, min: 0.4, max: 2 },
-];
+  { key: 'disasters', name: T.rules.disasters, low: T.rules.disasterWords[0], high: T.rules.disasterWords[3], min: 0, max: 3, step: 1, value: 2, words: T.rules.disasterWords },
+] as { key: string; name: string; low: string; high: string; min: number; max: number; step?: number; value?: number; words?: readonly string[] }[];
 const lifeTools = [
   { key: 'sheep', icon: '🐑' },
   { key: 'chicken', icon: '🐔' },
   { key: 'wolf', icon: '🐺' },
   { key: 'horse', icon: '🐎' },
+  { key: 'cow', icon: '🐄' },
 ] as const;
 const swatch: Record<(typeof TERRAIN_KEYS)[number], string> = {
   deep: COLORS.deep,
@@ -108,14 +130,22 @@ const swatch: Record<(typeof TERRAIN_KEYS)[number], string> = {
 };
 const worldTabs = [
   { key: 'peoples', icon: '🤝', name: T.rules.relations },
+  { key: 'territory', icon: '🚩', name: T.territory.title },
   { key: 'kingdoms', icon: '👑', name: T.kingdoms.title },
   { key: 'leagues', icon: '🛡️', name: T.leagues.title },
   { key: 'wonders', icon: '🏛️', name: T.bar.wonders },
   { key: 'inventions', icon: '💡', name: T.rules.inventions },
   { key: 'culture', icon: '🎨', name: T.culture.title },
+  { key: 'religions', icon: '✨', name: T.religion.title },
   { key: 'population', icon: '📊', name: T.statsTitle },
 ] as const;
 const B = T.bar;
+const disasterTools = [
+  { key: 'lightning', icon: '⚡' },
+  { key: 'volcano', icon: '🌋' },
+  { key: 'hurricane', icon: '🌀' },
+  { key: 'rain', icon: '🌧️' },
+] as const;
 const speeds = [
   { value: 0, label: '❚❚', aria: T.pause },
   { value: 1, label: '1×', aria: '1×' },
@@ -135,11 +165,10 @@ const speeds = [
       <button type="button" class="ti__btn ti__share" data-share>🔗 {T.start.share}</button>
       <span class="ti__saved" data-saved aria-live="polite"></span>
       <div class="ti__clock">
-        <span class="ti__daynight" data-daynight data-night="false" role="img" aria-label={T.day}>
-          <svg class="ti__sun" viewBox="0 0 24 24" aria-hidden="true"
+        <span class="ti__daynight" aria-hidden="true">
+          <svg class="ti__sun" viewBox="0 0 24 24"
             ><circle cx="12" cy="12" r="5"></circle><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"></path></svg
           >
-          <svg class="ti__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3a9 9 0 1 0 6 13.5A7 7 0 0 1 15 3z"></path></svg>
         </span>
         <span class="ti__year" data-year>{T.year.replace('{n}', '1')}</span>
       </div>
@@ -149,6 +178,7 @@ const speeds = [
         <span title={T.life.chicken}>🐔 <b data-pop="chicken">0</b></span>
         <span title={T.life.wolf}>🐺 <b data-pop="wolf">0</b></span>
         <span title={T.life.horse}>🐎 <b data-pop="horse">0</b></span>
+        <span title={T.life.cow}>🐄 <b data-pop="cow">0</b></span>
         <span title={T.villages}>🏘️ <b data-pop="villages">0</b></span>
       </p>
       <div class="ti__speed" role="group" aria-label={T.speedLabel}>
@@ -249,14 +279,53 @@ const speeds = [
         {
           rules.map((r) => (
             <label class="ti__rule">
-              <span class="ti__rule-name">{r.name}</span>
+              <span class="ti__rule-name">
+                {r.name}
+                {r.words && (
+                  <output class="ti__rule-out" data-rule-out={r.key}>
+                    {r.words[r.value ?? 0]}
+                  </output>
+                )}
+              </span>
               <span class="ti__rule-end">{r.low}</span>
-              <input type="range" min={r.min} max={r.max} step="0.1" value="1" data-rule={r.key} />
+              <input type="range" min={r.min} max={r.max} step={r.step ?? 0.1} value={r.value ?? 1} data-rule={r.key} data-words={r.words ? JSON.stringify(r.words) : undefined} />
               <span class="ti__rule-end">{r.high}</span>
             </label>
           ))
         }
         <p class="ti__note">{T.rules.aggressionHint}</p>
+        <p class="ti__rule-name ti__rule-head">🎬 {T.cinema.settings}</p>
+        <label class="ti__check"><input type="checkbox" data-music /> {T.cinema.music}</label>
+        <label class="ti__rule ti__rule--volume">
+          <span class="ti__rule-name">{T.cinema.volume}</span>
+          <span class="ti__rule-end">–</span>
+          <input type="range" min="0" max="1" step="0.05" value="0.5" data-volume />
+          <span class="ti__rule-end">+</span>
+        </label>
+        <label class="ti__check"><input type="checkbox" data-cine-clean /> {T.cinema.clean}</label>
+      </section>
+
+      <section class="ti__win ti__win--rules" id="ti-win-disasters" data-win="disasters" aria-labelledby="ti-dis-title" hidden>
+        <header class="ti__win-head">
+          <h2 class="ti__win-title" id="ti-dis-title">🌋 {B.disasters}</h2>
+          <button type="button" class="ti__win-close" data-win-close aria-label={B.close} title={B.close}>×</button>
+        </header>
+        <p class="ti__note">{T.disasters.note}</p>
+        <div class="ti__tools" role="group" aria-label={B.disasters}>
+          {
+            disasterTools.map((d) => (
+              <button type="button" class="ti__tool" data-tool={d.key} aria-pressed="false" title={T.disasters.tools[d.key]}>
+                <span class="ti__emoji" aria-hidden="true">{d.icon}</span>
+                <span>{T.disasters.tools[d.key]}</span>
+              </button>
+            ))
+          }
+          <button type="button" class="ti__tool" data-heatwave title={T.disasters.heatwaveTitle}>
+            <span class="ti__emoji" aria-hidden="true">🔥</span>
+            <span>{T.disasters.heatwave}</span>
+          </button>
+        </div>
+        <p class="ti__note ti__dis-hint" data-disaster-hint aria-live="polite"></p>
       </section>
 
       <nav class="ti__bar" aria-label={B.label}>
@@ -269,9 +338,18 @@ const speeds = [
         <button type="button" class="ti__bar-btn" data-win-open="world" aria-expanded="false" aria-controls="ti-win-world" title={`${B.worldHint} (W)`}>
           <span class="ti__bar-icon" aria-hidden="true">🌍</span><span class="ti__bar-name">{B.world}</span>
         </button>
+        <button type="button" class="ti__bar-btn" data-win-open="disasters" aria-expanded="false" aria-controls="ti-win-disasters" title={`${B.disastersHint} (D)`}>
+          <span class="ti__bar-icon" aria-hidden="true">🌋</span><span class="ti__bar-name">{B.disasters}</span>
+        </button>
         <span class="ti__bar-sep" aria-hidden="true"></span>
         <button type="button" class="ti__bar-btn" data-chron-toggle aria-expanded="false" aria-controls="ti-chronicle" title={`${T.chronicle.toggle} (C)`}>
           <span class="ti__bar-icon" aria-hidden="true">📜</span><span class="ti__bar-name">{T.chronicle.title}</span>
+        </button>
+        <button type="button" class="ti__bar-btn" data-cinema title={`${B.cinemaHint} (K)`}>
+          <span class="ti__bar-icon" aria-hidden="true">🎬</span><span class="ti__bar-name">{B.cinema}</span>
+        </button>
+        <button type="button" class="ti__bar-btn ti__bar-btn--small" data-borders aria-pressed="true" title={`${T.bar.borderModes.normal} (G)`}>
+          <span class="ti__bar-icon" aria-hidden="true">🚩</span><span class="ti__bar-name" data-borders-name>{T.bar.borderModes.normal}</span>
         </button>
         <button type="button" class="ti__current" data-drop-tool title={B.drop} hidden>
           <span class="ti__current-name" data-current></span><span aria-hidden="true">✕</span>
@@ -298,6 +376,10 @@ const speeds = [
           <p class="ti__note">{T.worldNotes.peoples}</p>
           <ul class="ti__rel-list" data-relations></ul>
         </div>
+        <div class="ti__wpanel" data-panel="territory" role="tabpanel" hidden>
+          <p class="ti__note">{T.worldNotes.territory}</p>
+          <ul class="ti__rel-list ti__terr-list" data-territory></ul>
+        </div>
         <div class="ti__wpanel" data-panel="kingdoms" role="tabpanel" hidden>
           <p class="ti__note">{T.worldNotes.kingdoms}</p>
           <ul class="ti__rel-list ti__king-list" data-kingdoms></ul>
@@ -317,6 +399,11 @@ const speeds = [
         <div class="ti__wpanel" data-panel="culture" role="tabpanel" hidden>
           <p class="ti__note">{T.worldNotes.culture}</p>
           <ul class="ti__rel-list ti__tech-list ti__culture-list" data-culture></ul>
+        </div>
+        <div class="ti__wpanel" data-panel="religions" role="tabpanel" hidden>
+          <p class="ti__note">{T.worldNotes.religions}</p>
+          <button type="button" class="ti__btn ti__faith-map" data-faith-map aria-pressed="false">🗺️ {T.religion.map}</button>
+          <ul class="ti__rel-list ti__faith-list" data-religions></ul>
         </div>
         <div class="ti__wpanel ti__wpanel--pop" data-panel="population" role="tabpanel" hidden>
           <div class="ti__pop-chart">
@@ -339,11 +426,19 @@ const speeds = [
           <div class="ti__pop-deaths">
             <h3 class="ti__chron-title">🪦 {T.deaths.title}</h3>
             <ul class="ti__deaths" data-deaths></ul>
+            <div class="ti__temp" data-temp></div>
           </div>
         </div>
       </div>
     </section>
 
+    <div class="ti__cinema" data-cinema-view hidden>
+      <div class="ti__cine-vignette"></div>
+      <div class="ti__cine-bar ti__cine-bar--top"></div>
+      <div class="ti__cine-bar ti__cine-bar--bottom"><p class="ti__cine-sub" data-cine-sub aria-live="polite"></p></div>
+      <p class="ti__cine-chapter" data-cine-chapter hidden></p>
+      <p class="ti__cine-exit">{T.cinema.exit}</p>
+    </div>
     <aside class="ti__profile" data-profile hidden aria-live="polite"></aside>
     <aside class="ti__chron" id="ti-chronicle" data-chron aria-labelledby="ti-chron-title" hidden>
       <header class="ti__win-head">
@@ -653,18 +748,6 @@ const speeds = [
     fill: var(--c-yellow);
   }
 
-  .ti__moon {
-    fill: #fff4c9;
-  }
-
-  .ti__moon,
-  [data-night='true'] .ti__sun {
-    display: none !important;
-  }
-
-  [data-night='true'] .ti__moon {
-    display: block !important;
-  }
 
   .ti__speed,
   .ti__sizes {
@@ -817,7 +900,7 @@ const speeds = [
     left: 50%;
     z-index: 3;
     grid-template-rows: auto auto minmax(0, 1fr);
-    width: min(calc(100% - 20px), 820px);
+    width: min(calc(100% - 20px), 920px);
     max-height: 560px;
     margin: auto 0;
     transform: translateX(-50%);
@@ -827,9 +910,13 @@ const speeds = [
     flex-wrap: wrap;
   }
 
+  .ti__wtabs {
+    gap: 3px;
+  }
+
   .ti__wtabs .ti__tab {
-    padding: 4px 8px;
-    font-size: 12px;
+    padding: 4px 6px;
+    font-size: 11px;
   }
 
   /* Rules: names, ends and sliders in straight columns */
@@ -877,6 +964,286 @@ const speeds = [
   @media (max-width: 700px) {
     .ti__wpanel--pop {
       grid-template-columns: 1fr;
+    }
+  }
+
+  /* The Borders button: three states (G) */
+  .ti__bar-btn--small {
+    min-width: 64px;
+  }
+
+  .ti__bar-btn[data-borders][data-mode='strong'] {
+    color: var(--ti-ink);
+    background: linear-gradient(180deg, var(--ti-gold-light), var(--ti-gold));
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.4);
+  }
+
+  .ti__bar-btn[data-borders][data-mode='off'] {
+    opacity: 0.6;
+  }
+
+  /* Narrow phones: the bar shows its icons only (the names stay as tooltips) */
+  @media (max-width: 420px) {
+    .ti__bar-name {
+      display: none;
+    }
+
+    .ti__bar-btn {
+      min-width: 40px;
+      padding: 6px 4px;
+    }
+
+    .ti__bar-icon {
+      font-size: 20px;
+    }
+  }
+
+  /* Cinema mode (Update 3): only the island, bars, a vignette, subtitles */
+  .ti.is-cinema .ti__top,
+  .ti.is-cinema .ti__dock,
+  .ti.is-cinema .ti__win--world,
+  .ti.is-cinema .ti__chron,
+  .ti.is-cinema .ti__profile,
+  .ti.is-cinema .ti__hint {
+    display: none !important;
+  }
+
+  .ti__cinema {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    cursor: pointer;
+  }
+
+  .ti__cinema[hidden] {
+    display: none;
+  }
+
+  .ti__cine-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.45) 100%);
+    pointer-events: none;
+  }
+
+  .ti__cine-bar {
+    position: absolute;
+    right: 0;
+    left: 0;
+    height: 11vh;
+    background: #000;
+  }
+
+  .ti__cine-bar--top {
+    top: 0;
+  }
+
+  .ti__cine-bar--bottom {
+    bottom: 0;
+    display: grid;
+    place-items: center;
+    padding: 0 6vw;
+  }
+
+  .ti__cine-sub {
+    margin: 0;
+    color: #f4efe2;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(14px, 2.2vw, 22px);
+    font-style: italic;
+    text-align: center;
+    text-shadow: 0 1px 2px #000;
+    animation: cine-in 900ms ease-out;
+  }
+
+  .ti__cine-chapter {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: 0;
+    padding: 14px 28px;
+    color: #f4efe2;
+    background: rgb(0 0 0 / 0.55);
+    font-family: var(--ti-pixel);
+    font-size: clamp(18px, 3.4vw, 34px);
+    letter-spacing: 0.06em;
+    transform: translate(-50%, -50%);
+    animation: cine-in 1200ms ease-out;
+  }
+
+  .ti__cine-chapter[hidden] {
+    display: none;
+  }
+
+  .ti__cine-exit {
+    position: absolute;
+    top: calc(11vh + 8px);
+    right: 12px;
+    margin: 0;
+    color: rgb(255 255 255 / 0.6);
+    font-size: 11px;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .ti__cinema.is-clean .ti__cine-bar,
+  .ti__cinema.is-clean .ti__cine-exit {
+    display: none;
+  }
+
+  @keyframes cine-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ti__cine-sub,
+    .ti__cine-chapter {
+      animation: none;
+    }
+  }
+
+  .ti__rule-head {
+    margin-top: 6px;
+  }
+
+  .ti__check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .ti__check input {
+    accent-color: var(--ti-wood);
+  }
+
+  /* Disasters (Update 3) */
+  .ti__rule-out {
+    margin-left: 6px;
+    font-family: var(--ti-pixel);
+    color: #c0392b;
+  }
+
+  .ti__dis-hint:empty {
+    display: none;
+  }
+
+  .ti__temp {
+    margin-top: 10px;
+    font-size: 12px;
+  }
+
+  .ti__temp :global(.ti-temp__line) {
+    margin: 0 0 2px;
+  }
+
+  .ti__temp :global(.ti-temp__svg) {
+    display: block;
+    width: 100%;
+    height: 44px;
+    margin-top: 4px;
+    background: rgb(232 52 74 / 0.06);
+    border: 1px solid var(--ti-wood);
+    border-radius: 2px;
+  }
+
+  /* Religions tab (Update 3) */
+  .ti__faith-map {
+    margin: 2px 0 6px;
+  }
+
+  .ti__faith-list :global(.ti-rl) {
+    display: grid;
+    gap: 2px;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgb(120 80 40 / 0.3);
+  }
+
+  .ti__faith-list :global(.ti-rl.is-gone) {
+    opacity: 0.55;
+  }
+
+  .ti__faith-list :global(.ti-rl__docs) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .ti__faith-list :global(.ti-rl__docs span) {
+    padding: 0 6px;
+    border: 1px solid var(--ti-wood);
+    border-radius: 999px;
+    font-size: 11px;
+  }
+
+  .ti__faith-list :global(.ti-rl__meta) {
+    font-size: 12px;
+    color: var(--ti-muted);
+  }
+
+  .ti :global(.ti-faith) {
+    color: color-mix(in srgb, var(--faith) 70%, #2a1a0a);
+  }
+
+  .ti__faith-list :global(.ti-link) {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ti-wood-dark);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  /* Territory tab: land per people as bars, then the claims */
+  .ti__terr-list :global(.ti-tr) {
+    display: grid;
+    grid-template-columns: minmax(110px, auto) minmax(80px, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__terr-list :global(.ti-tr--free),
+  .ti__terr-list :global(.ti-tr--claim) {
+    display: block;
+  }
+
+  .ti__terr-list :global(.ti-tr--free) {
+    color: var(--ti-muted);
+  }
+
+  .ti__terr-list :global(.ti-tr__bar) {
+    height: 8px;
+    overflow: hidden;
+    background: rgb(120 80 40 / 0.15);
+    border: 1px solid var(--ti-wood);
+    border-radius: 2px;
+  }
+
+  .ti__terr-list :global(.ti-tr__bar span) {
+    display: block;
+    height: 100%;
+  }
+
+  .ti__terr-list :global(.ti-link) {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ti-wood-dark);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  @media (max-width: 640px) {
+    .ti__terr-list :global(.ti-tr) {
+      grid-template-columns: 1fr;
+      gap: 2px;
     }
   }
 
@@ -2708,13 +3075,17 @@ const speeds = [
 
     /* The bar: icons with small names */
     .ti__bar {
-      gap: 4px;
+      gap: 3px;
       padding: 4px;
     }
 
     .ti__bar-btn {
-      min-width: 54px;
-      padding: 4px 4px 3px;
+      min-width: 46px;
+      padding: 4px 3px 3px;
+    }
+
+    .ti__bar-sep {
+      margin: 4px 0;
     }
 
     .ti__bar-icon {

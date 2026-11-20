@@ -27,7 +27,11 @@ import { knows } from './inventions';
 import type { Sim } from './sim';
 import { refOf, story } from './social';
 import { freeSpot, type Village } from './villages';
-import { BUILDINGS, nextBuilding, type BuildingKind } from './town';
+import { BUILDINGS, nextBuilding, SPECIAL, type BuildingKind } from './town';
+import { layStreet } from './roads';
+import { ageOf } from './agents';
+import { believes } from './religion';
+import { BALANCE } from './balance';
 
 export type WorkKind = 'song' | 'mural' | 'statue';
 
@@ -169,8 +173,26 @@ export function onHeroDeath(sim: Sim, h: Human) {
   const reign = k ? (sim.time - k.reignStart) / YEAR : 0;
   const inventions = h.story.filter((s) => s.kind === 'invented').length;
   const kills = h.kills ?? 0;
+  // Update 3: prophets, and the old of a faith that honours its ancestors
+  const revered = believes(sim, h, 'ancestors') && ageOf(h, sim.time) >= 70;
   const epithet =
-    reign >= 15 ? 'great' : kills >= 6 ? 'fearless' : kills >= 3 ? 'brave' : inventions >= 2 ? 'wise' : (h.wolves ?? 0) >= 2 ? 'wolfslayer' : null;
+    h.prophet !== undefined
+      ? 'prophet'
+      : reign >= 15
+        ? 'great'
+        : kills >= 6
+          ? 'fearless'
+          : kills >= 3
+            ? 'brave'
+            : inventions >= 2
+              ? 'wise'
+              : (h.wolves ?? 0) >= 2
+                ? 'wolfslayer'
+                : (h.saves ?? 0) >= BALANCE.disasters.heroSaves
+                  ? 'firebreaker'
+                  : revered
+                    ? 'revered'
+                    : null;
   // Names come back over the generations: one legend per name, epithet and people
   if (!epithet || sim.legends.some((l) => l.name === h.name && l.epithet === epithet && l.people === h.people)) return;
   sim.legends.push({ id: h.id, name: h.name, people: h.people, epithet, year: sim.year });
@@ -253,7 +275,12 @@ export function giftBuilding(sim: Sim, p: People) {
 export function giftBuildingAt(sim: Sim, v: Village) {
   const p = v.people;
   if (v.ruin) return;
-  let kind: BuildingKind | 'statue' | null = v.site?.kind ?? nextBuilding(v, sim) ?? BUILDINGS.find((b) => !v.buildings.some((x) => x.kind === b)) ?? null;
+  let kind: BuildingKind | 'statue' | null =
+    (v.site?.kind && !SPECIAL.has(v.site.kind) ? v.site.kind : null) ??
+    nextBuilding(v, sim) ??
+    BUILDINGS.find((b) => !SPECIAL.has(b) && !v.buildings.some((x) => x.kind === b)) ??
+    null;
+  if (kind && SPECIAL.has(kind as BuildingKind)) kind = 'statue';
   let spot: { x: number; y: number } | null = null;
   if (kind === 'wall') spot = { x: v.x, y: v.y };
   else if (kind && v.site?.kind === kind) spot = { x: v.site.x, y: v.site.y };
@@ -265,6 +292,7 @@ export function giftBuildingAt(sim: Sim, v: Village) {
     if (v.site?.kind === kind) v.site = null;
     v.buildings.push({ kind, x: spot.x, y: spot.y });
     if (kind === 'wall') v.wallHp = undefined;
+    else layStreet(sim, v, spot.x, spot.y);
   }
   sim.puff(v.x + 0.5, v.y - 0.5, 16, ['#ffe066', '#ffffff', '#4d8dff']);
   sim.chronicle.add({ year: sim.year, kind: 'gift', a: { id: 0, name: v.name, people: p }, v: v.name, w: kind ?? 'statue', x: v.x, y: v.y });

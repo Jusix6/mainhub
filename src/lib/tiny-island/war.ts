@@ -28,7 +28,7 @@
  * of its warriors or when one side is gone. Then a peace treaty holds for 15
  * years (the mood cannot sink below -40); a beaten side pays tribute.
  */
-import { knows } from './inventions';
+import { ageIndex, knows } from './inventions';
 import { armyTag, assignUnits, endBattles, findBattles, muster, releaseUnits, UNIT } from './armies';
 import { canShip, ferryHome, shipArmy } from './ships';
 import { independenceOver } from './colonies';
@@ -38,6 +38,10 @@ import { has, PEOPLES, stage, stat, type Human, type People } from './agents';
 import type { Sim } from './sim';
 import type { ChronicleEntry } from './chronicle';
 import { lostWar, onSubdued } from './kingdoms';
+import { claimWarOver } from './territory';
+import { BALANCE } from './balance';
+import { livingRadius } from './roads';
+import { faithMood, holyWarWon, peopleBelieves } from './religion';
 import { celebrate } from './culture';
 import { refOf, RIVAL, relOf, story } from './social';
 import type { Village } from './villages';
@@ -53,9 +57,11 @@ export interface War {
   warriors: Record<string, number>;
   lost: Record<string, number>;
   /** What the side that declared it wants (phase F): a place, tribute or revenge. Feuds have none. */
-  goal?: { kind: 'conquest' | 'tribute' | 'revenge'; village?: number };
+  goal?: { kind: 'conquest' | 'tribute' | 'revenge' | 'land' | 'expel' | 'faith'; village?: number };
   /** Battles won by each side. */
   wins?: { a: number; b: number };
+  /** Update 3: seconds the attackers have held the claimed land (a war for land). */
+  held?: number;
 }
 
 export interface Army {
@@ -213,7 +219,9 @@ const hasWall = (v: Village) => v.buildings.some((b) => b.kind === 'wall');
 export const wallIntact = (v: Village) => hasWall(v) && (v.wallHp ?? WALL_HP) > 0;
 
 /** A wall's full strength: castles (phase E) build it twice as strong. */
-export const wallMax = (sim: Sim, v: Village) => (knows(sim, v.people, 'castle') ? WALL_HP * 2 : WALL_HP);
+/** A palisade, a stone wall (iron age), a castle wall (Update 3); a castle in the place adds half. */
+export const wallMax = (sim: Sim, v: Village) =>
+  (knows(sim, v.people, 'castle') ? WALL_HP * 2 : ageIndex(sim, v.people) >= 2 ? WALL_HP : WALL_HP * 0.6) * (v.buildings.some((b) => b.kind === 'castle') ? 1.5 : 1);
 const villageById = (sim: Sim, id: number) => sim.villages.find((v) => v.id === id);
 
 /** Once a second: moods drift, alliances and wars start, armies move, places fall, wars end. */
@@ -237,6 +245,10 @@ export function warTick(sim: Sim) {
       shiftMood(sim, a, b, 0.04);
       const common = enemiesOf(sim, a).some((e) => enemiesOf(sim, b).includes(e));
       if (common) shiftMood(sim, a, b, 0.3);
+      // One faith brings peoples together, branches of one and other faiths drive them apart (Update 3)
+      shiftMood(sim, a, b, faithMood(sim, a, b));
+      // An enlightened place is admired by its neighbours (Update 3)
+      if (by.get(a)!.some((v) => (v.culture ?? 0) >= 4) || by.get(b)!.some((v) => (v.culture ?? 0) >= 4)) shiftMood(sim, a, b, BALANCE.culture.admiration);
       const m = moodOf(sim, a, b);
       const k = pairKey(a, b);
       if (!sim.alliances.has(k) && m >= ALLY_AT) {
@@ -246,7 +258,9 @@ export function warTick(sim: Sim) {
         sim.alliances.delete(k);
         sim.chronicle.add({ year: sim.year, kind: 'allianceEnd', a: { id: 0, name: '', people: a }, p: a, q: b, x: 0, y: 0 });
       }
-      if (m < WAR_AT) declare(sim, a, b, by);
+      // A faith of peace holds back longer
+      const calm = peopleBelieves(sim, a, 'peace') || peopleBelieves(sim, b, 'peace') ? 15 : 0;
+      if (m < WAR_AT - calm) declare(sim, a, b, by);
     }
   }
 
@@ -324,6 +338,28 @@ function goalReached(sim: Sim, war: War): Side | null {
       return wins.a >= 2 || lostB > 0.3 ? 'b' : null;
     case 'revenge':
       return wins.a >= 1 || lostB > 0.25 ? 'b' : null;
+    case 'land': {
+      if (wins.a >= 2 || lostB > 0.3) return 'b';
+      const v = war.goal.village !== undefined ? villageById(sim, war.goal.village) : undefined;
+      if (v && v.people === war.a) return 'b';
+      // Holding the claimed land (Update 3): warriors of the claimants there and none of the owners
+      const c = sim.claims.find((x) => x.war !== undefined && sim.wars.get(x.war) === war);
+      if (!c) return null;
+      const r = c.r + BALANCE.land.holdReach;
+      const there = (p: People) => sim.near(c.x + 0.5, c.y + 0.5, r, (o) => o.kind === 'human' && (o as Human).people === p && isWarrior(o as Human, sim)).length;
+      war.held = there(war.a) >= 3 && there(war.b) === 0 ? (war.held ?? 0) + 1 : Math.max(0, (war.held ?? 0) - 1);
+      return war.held >= BALANCE.land.holdSeconds ? 'b' : null;
+    }
+    case 'faith': {
+      // A holy war: the holy place taken, or the others beaten
+      const v = war.goal.village !== undefined ? villageById(sim, war.goal.village) : undefined;
+      if (v && v.people === war.a) return 'b';
+      return wins.a >= 2 || lostB > 0.3 ? 'b' : null;
+    }
+    case 'expel': {
+      const v = war.goal.village !== undefined ? villageById(sim, war.goal.village) : undefined;
+      return !v || v.ruin || v.people === war.a ? 'b' : null;
+    }
   }
 }
 
@@ -373,7 +409,7 @@ function warriorLike(h: Human, sim: Sim) {
   return has(h, 'brave') || has(h, 'warlike') || h.job === 'soldier' || sim.villages.some((v) => v.leader === h.id);
 }
 
-function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, ally = false) {
+function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, ally = false, goal?: War['goal']) {
   if (warBetween(sim, a, b)) return;
   // Peoples sitting together in a league never go to war with each other
   if (sharedLeague(sim, a, b)) {
@@ -409,9 +445,12 @@ function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, all
   const war: War = { a, b, started: sim.time, warriors: { [a]: count(a), [b]: count(b) }, lost: { [a]: 0, [b]: 0 }, wins: { a: 0, b: 0 } };
   // The war goal: revenge after an old war, a place when much stronger, else tribute
   const size = (p: People) => (by.get(p) ?? []).reduce((n, x) => n + x.members, 0);
-  const prize = v ? [...(by.get(b) ?? [])].sort((x, y) => Math.hypot(x.x - v.x, x.y - v.y) - Math.hypot(y.x - v.x, y.y - v.y))[0] : undefined;
+  // The nearest place of the other side; a castle counts as much closer (Update 3: it is worth taking)
+  const castled = (x: Village) => (x.buildings.some((o) => o.kind === 'castle') ? 25 : 0);
+  const prize = v ? [...(by.get(b) ?? [])].sort((x, y) => Math.hypot(x.x - v.x, x.y - v.y) - castled(x) - (Math.hypot(y.x - v.x, y.y - v.y) - castled(y)))[0] : undefined;
   if (!ally) {
-    if (sim.grudges.get(pairKey(a, b)) === a) war.goal = { kind: 'revenge' };
+    if (goal) war.goal = goal;
+    else if (sim.grudges.get(pairKey(a, b)) === a) war.goal = { kind: 'revenge' };
     else if (prize && size(a) > size(b) * 1.2) war.goal = { kind: 'conquest', village: prize.id };
     else war.goal = { kind: 'tribute' };
   }
@@ -428,7 +467,7 @@ function declare(sim: Sim, a: People, b: People, by: Map<People, Village[]>, all
     v: v?.name,
     p: b,
     cause: war.goal?.kind,
-    w: war.goal?.kind === 'conquest' ? prize?.name : undefined,
+    w: war.goal?.village !== undefined ? villageById(sim, war.goal.village)?.name : undefined,
     x: v ? v.x : 0,
     y: v ? v.y : 0,
   });
@@ -454,6 +493,16 @@ export function makePeace(sim: Sim, a: People, b: People) {
   if (w) endWar(sim, k, w, null);
 }
 
+/**
+ * Update 3, phase B: a war over land (territory.ts), for a claimed area or to
+ * drive settlers off. False if it did not start (already at war, a league said no).
+ */
+export function declareLandWar(sim: Sim, a: People, b: People, goal: NonNullable<War['goal']>): boolean {
+  if (warBetween(sim, a, b)) return false;
+  declare(sim, a, b, villagesBy(sim), false, goal);
+  return warBetween(sim, a, b)?.goal?.kind === goal.kind;
+}
+
 /** A war declared for a reason of its own (a war of succession). */
 export function declareWar(sim: Sim, a: People, b: People) {
   declare(sim, a, b, villagesBy(sim));
@@ -462,6 +511,10 @@ export function declareWar(sim: Sim, a: People, b: People) {
 /** Peace: a treaty for 15 years; a beaten side pays a fifth of its stores to the winners. */
 function endWar(sim: Sim, k: string, war: War, loser: Side | null, gone = false) {
   sim.wars.delete(k);
+  // Wars over land (Update 3): the land changes hands if the claimants won
+  if (war.goal?.kind === 'land') claimWarOver(sim, k, loser === 'b');
+  else if (war.goal?.kind === 'expel') claimWarOver(sim, k, loser === 'a');
+  else if (war.goal?.kind === 'faith' && loser === 'b') holyWarWon(sim, war.a, war.b);
   for (const a of sim.armies) {
     if (a.war !== k) continue;
     if (a.landed) ferryHome(sim, a);
@@ -488,8 +541,9 @@ function endWar(sim: Sim, k: string, war: War, loser: Side | null, gone = false)
   if (loser) {
     const winners = sim.villages.filter((v) => !v.ruin && sideOf(war, partyOf(v)) === other(loser)).sort((x, y) => y.members - x.members);
     const capital = winners[0];
-    // The winners celebrate
+    // The winners celebrate; a trophy for their museum (Update 3)
     celebrate(sim, capital, 'victory');
+    if (capital) capital.trophies = (capital.trophies ?? 0) + 1;
     if (capital) {
       for (const v of sim.villages) {
         if (v.ruin || sideOf(war, partyOf(v)) !== loser) continue;
@@ -566,7 +620,7 @@ function armyTick(sim: Sim) {
       return !!h && isWarrior(h, sim) && h.hp > h.maxHp * 0.35;
     });
     // Losses cost morale, the general's death much more
-    morale(army, before.length, generalDied);
+    morale(army, before.length, generalDied, sim);
     for (const id of before) {
       if (army.members.includes(id)) continue;
       const h = sim.byId(id) as Human | undefined;
@@ -630,12 +684,14 @@ function armyTick(sim: Sim) {
       for (const id of army.members) {
         const h = sim.byId(id) as Human;
         const d = Math.hypot(h.x - target.x, h.y - target.y);
-        if (d > 7 && d < 14) at += h.unit ? UNIT[h.unit].siege : 1;
+        const ring = livingRadius(target) + 1;
+        if (d > ring - 4 && d < ring + 3) at += h.unit ? UNIT[h.unit].siege : 1;
       }
       target.wallHp = (target.wallHp ?? wallMax(sim, target)) - at * 0.4;
       if (at) {
         const ang = sim.rand() * Math.PI * 2;
-        sim.puff(target.x + 0.5 + Math.cos(ang) * 11, target.y + 0.5 + Math.sin(ang) * 8.8, 4, ['#b4b9c2', '#8d929c', '#ffffff']);
+        const ring = livingRadius(target) + 1;
+        sim.puff(target.x + 0.5 + Math.cos(ang) * ring, target.y + 0.5 + Math.sin(ang) * ring, 4, ['#b4b9c2', '#8d929c', '#ffffff']);
       }
       if (target.wallHp <= 0) {
         target.buildings = target.buildings.filter((b) => b.kind !== 'wall');
@@ -675,10 +731,12 @@ function armyTick(sim: Sim) {
 }
 
 /** Morale: a loss costs in proportion to the army's size, the general's death 30 points; it comes back slowly. */
-function morale(army: Army, before: number, generalDied: boolean) {
+function morale(army: Army, before: number, generalDied: boolean, sim?: Sim) {
   const lost = before - army.members.length;
   let m = army.morale ?? 100;
-  if (lost > 0) m -= (lost / Math.max(4, army.size0 ?? before)) * 150;
+  // Holy warriors hold out longer (Update 3)
+  const zeal = sim && peopleBelieves(sim, army.people, 'holyWar') ? 0.6 : 1;
+  if (lost > 0) m -= (lost / Math.max(4, army.size0 ?? before)) * 150 * zeal;
   if (generalDied) m -= 30;
   if (!army.battle) m += 0.5;
   army.morale = Math.max(0, Math.min(100, m));

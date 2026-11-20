@@ -21,6 +21,9 @@ import { chartSvg, indexAt, tipText, CHART_W } from './stats';
 import { COSTS, gift, INVENTIONS, nextInvention, researchRate, techOf, AGES, ageIndex, progressCost } from './inventions';
 import { PEOPLES } from './agents';
 import { TILE } from './world';
+import { landShares } from './territory';
+import { religionById, SYMBOL_ICON } from './religion';
+import { LEVELS } from './society';
 
 export interface PanelStrings {
   age: string;
@@ -106,7 +109,37 @@ export interface PanelStrings {
     godAlly: string;
     newAge: string;
     progress: string;
-    warGoal: Record<'conquest' | 'tribute' | 'revenge', string>;
+    warGoal: Record<'conquest' | 'tribute' | 'revenge' | 'land' | 'expel' | 'faith', string>;
+    claim: string;
+    claimDropped: string;
+    claimDroppedWhy: Record<string, string>;
+    fool: Record<string, string>;
+    cultureLevel: string;
+    foolDied: string;
+    jester: string;
+    book: string;
+    play: string;
+    discontent: string;
+    fire: string;
+    firebreaker: string;
+    struck: string;
+    volcanoWakes: string;
+    eruption: string;
+    hurricane: string;
+    heatwave: string;
+    godRain: string;
+    movement: string;
+    seaRises: string;
+    landWon: string;
+    landGrab: string;
+    withdrew: string;
+    drivenOut: string;
+    railway: string;
+    prophet: string;
+    prophetDied: string;
+    schism: string;
+    stateFaith: string;
+    converted: string;
     battle: string;
     battleWon: string;
     rout: string;
@@ -152,7 +185,7 @@ export interface PanelStrings {
     allKnown: string;
     gift: string;
     giftTitle: string;
-    goals: Record<'conquest' | 'tribute' | 'revenge', string>;
+    goals: Record<'conquest' | 'tribute' | 'revenge' | 'land' | 'expel' | 'faith', string>;
     seas: string;
   };
   profile: {
@@ -174,7 +207,9 @@ export interface PanelStrings {
     favorite: string;
     none: string;
     dead: string;
-    needs: Record<'hunger' | 'energy' | 'social', string>;
+    needs: Record<'hunger' | 'energy' | 'social' | 'culture' | 'mood', string>;
+    /** Update 3: culture roles (the fool of a capital is the court jester). */
+    roles: Record<'philosopher' | 'musician' | 'fool' | 'actor' | 'jester', string>;
     yours: string;
     memories: { title: string; none: string; kinds: Record<string, string>; kin: Record<string, string> };
     abilities: string;
@@ -226,6 +261,11 @@ export interface PanelStrings {
   stats: Record<string, string>;
   powers: Record<string, { name: string; does: string }>;
   culture: {
+    /** Update 3: culture levels, places and books in the Culture tab. */
+    levels: Record<string, string>;
+    places: string;
+    points: string;
+    books: string;
     none: string;
     works: Forms;
     legends: string;
@@ -240,6 +280,36 @@ export interface PanelStrings {
     adjectives: string[];
     nouns: Record<People, string[]>;
     icons: Record<'song' | 'mural' | 'statue', string>;
+  };
+  /** Update 3, phase F: the warming in the Population tab. */
+  disasters: { temperature: string; movement: string; melted: string };
+  /** Update 3, phase D: the Religions tab and faith lines. */
+  religion: {
+    none: string;
+    believers: Forms;
+    places: Forms;
+    branchOf: string;
+    founder: string;
+    prophet: string;
+    state: string;
+    holy: Forms;
+    forgotten: string;
+    faith: string;
+    prophetOf: string;
+    doctrines: Record<string, { name: string; does: string }>;
+  };
+  /** Update 3, phase B: the Territory tab. */
+  territory: {
+    share: string;
+    hunger: string;
+    free: string;
+    none: string;
+    claims: string;
+    claim: string;
+    claimWar: string;
+    grab: string;
+    grabWar: string;
+    noClaims: string;
   };
   kingdoms: {
     none: string;
@@ -604,6 +674,9 @@ export class Panels {
       this.renderCulture();
       this.renderStats(false);
       this.renderDeaths();
+      this.renderTerritory();
+      this.renderReligions();
+      this.renderTemperature();
     }
     const favKey = [...this.sim.favorites].join(',');
     if (this.sim.chronicle.version !== this.chronicleShown || favKey !== this.favShown) {
@@ -682,10 +755,12 @@ export class Panels {
       ${realm ? `<p class="ti-p__royal">👑 ${esc(K.kingOf.replace('{r}', h.female ? K.queen : K.king).replace('{p}', this.S.peoples[realm.people]))} · ${esc(K.house.replace('{d}', realm.dynasty))}</p>` : ''}
       ${h.custom ? `<p class="ti-p__own">✦ ${esc(P.yours)}</p>` : ''}
       ${this.soldierLine(h)}
+      ${this.faithLine(h)}
+      ${this.roleLine(h)}
       <p class="ti-p__traits">${h.traits.map((t) => `<span>${esc(this.S.traits[t] ?? t)}</span>`).join('')}</p>
       ${h.powers?.length ? `<p class="ti-p__traits ti-p__powers">${h.powers.map((p) => `<span title="${esc(this.S.powers[p]?.does ?? '')}">${esc(this.S.powers[p]?.name ?? p)}</span>`).join('')}</p>` : ''}
       <p class="ti-p__village">🏠 ${village ? `${this.villageLink(village)}${village.leader === h.id ? ` · 👑 ${esc(P.leader)}` : ''}` : esc(P.noVillage)}${h.job ? ` · 🛠️ ${esc(this.S.jobs[h.job])}` : ''}${h.weapon ? ` · ⚔️ ${esc(this.S.weapons[h.weapon])}` : ''}${h.armor ? ` · 🛡️ ${esc(this.S.armor)}` : ''}</p>
-      ${bar(P.needs.hunger, h.hunger)}${bar(P.needs.energy, h.energy)}${bar(P.needs.social, h.social)}
+      ${bar(P.needs.hunger, h.hunger)}${bar(P.needs.energy, h.energy)}${bar(P.needs.social, h.social)}${bar(P.needs.culture, h.culture ?? 60)}${bar(P.needs.mood, h.mood ?? 60)}
       <div class="ti-p__stats" aria-label="${esc(P.abilities)}">${STATS.map((s) => {
         const n = stat(h, s);
         return `<div class="ti-p__need ti-p__stat"><span>${esc(this.S.stats[s])}</span><span class="ti-p__bar"><span style="width:${Math.min(100, n * 10)}%"></span></span><b>${n}</b></div>`;
@@ -949,6 +1024,19 @@ export class Panels {
           `<button type="button" class="ti-t__gift" data-donate="${p}" title="${esc(C.donateTitle.replace('{v}', place))}">🏛️ ${esc(C.donate)}</button></span></li>`,
       );
     }
+    // Update 3: the places with the most culture, the latest books
+    const places = this.sim.villages.filter((v) => !v.ruin && !v.merged && (v.culture ?? 0) >= 1).sort((a, b) => (b.culturePoints ?? 0) - (a.culturePoints ?? 0)).slice(0, 8);
+    if (places.length) {
+      rows.push(`<li class="ti-cu__h">${esc(C.places)}</li>`);
+      for (const v of places) {
+        rows.push(`<li class="ti-cu__work">${'★'.repeat((v.culture ?? 0) + 1)} ${this.villageLink(v)} · ${esc(C.levels[LEVELS[v.culture ?? 0]] ?? '')} · ${esc(C.points.replace('{n}', String(v.culturePoints ?? 0)))}</li>`);
+      }
+    }
+    const books = this.sim.books.slice(-4).reverse();
+    if (books.length) {
+      rows.push(`<li class="ti-cu__h">${esc(C.books)}</li>`);
+      for (const b of books) rows.push(`<li class="ti-cu__work">📜 <b>“${esc(b.title)}”</b> · ${esc(b.author.name)} · ${esc(this.S.year.replace('{n}', String(b.year)))}</li>`);
+    }
     const latest = this.sim.works.slice(-4).reverse();
     if (latest.length) {
       rows.push(`<li class="ti-cu__h">${esc(C.latest)}</li>`);
@@ -1035,6 +1123,7 @@ export class Panels {
   /** {u} in a chronicle line: a league, an army, or a place (fusion). */
   private leagueOrPlace(u: string | undefined): string {
     if (!u) return '';
+    if (u.startsWith('faith:')) return this.faithName(Number(u.slice(6)));
     if (u.startsWith('army:')) return `<b>${esc(this.armyName(u))}</b>`;
     if (u.startsWith('wonder:')) return `<b>${esc(this.wonderName(u))}</b>`;
     if (u.startsWith('people:') || u.startsWith('city:')) return `<b>${esc(this.leagueName(u))}</b>`;
@@ -1091,6 +1180,133 @@ export class Panels {
     const html = rows.length ? rows.join('') : `<li class="ti-r__none">${esc(K.none)}</li>`;
     if (html !== this.kingdomsShown) {
       this.kingdomsShown = html;
+      box.innerHTML = html;
+    }
+  }
+
+  /* ---- warming (Population tab, Update 3) --------------------------------------------- */
+
+  private tempShown = '';
+
+  /** The temperature of the world as a little line over the years, and what is going on (heat, movement). */
+  private renderTemperature() {
+    const box = this.root.querySelector<HTMLElement>('[data-temp]');
+    if (!box || box.closest('[hidden]')) return;
+    const Dz = this.S.disasters;
+    const hist = this.sim.tempHistory;
+    const now = this.sim.temperature;
+    let svg = '';
+    if (hist.length >= 2) {
+      const max = Math.max(1, ...hist.map((p) => p[1]));
+      const W = 260;
+      const H = 44;
+      const pts = hist.map((p, k) => `${((k / (hist.length - 1)) * W).toFixed(1)},${(H - 2 - (p[1] / max) * (H - 6)).toFixed(1)}`).join(' ');
+      svg = `<svg class="ti-temp__svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="#e8344a" stroke-width="2" /></svg>`;
+    }
+    const lines = [`🌡️ ${esc(Dz.temperature.replace('{n}', now.toFixed(2)))}`];
+    if (this.sim.heat) lines.push(`🔥 ${esc(this.sim.heat.name)}`);
+    if (this.sim.movementUntil > this.sim.year) lines.push(`🌱 ${esc(Dz.movement)}`);
+    if (this.sim.world.melted) lines.push(`🏔️ ${esc(Dz.melted)}`);
+    const html = `${lines.map((l) => `<p class="ti-temp__line">${l}</p>`).join('')}${svg}`;
+    if (html !== this.tempShown) {
+      this.tempShown = html;
+      box.innerHTML = html;
+    }
+  }
+
+  /* ---- religions (World window and profiles, Update 3) ----------------------------- */
+
+  /** "🎭 Musician", "🃏 Court jester" … (Update 3). */
+  private roleLine(h: Human): string {
+    if (!h.role) return '';
+    const P = this.S.profile;
+    const capital = h.role === 'fool' && [...this.sim.kingdoms.values()].some((k) => k.capital === h.village);
+    const icon = h.role === 'fool' ? '🃏' : h.role === 'philosopher' ? '📜' : h.role === 'musician' ? '🎵' : '🎭';
+    return `<p class="ti-p__village">${icon} ${esc(capital ? P.roles.jester : P.roles[h.role])}</p>`;
+  }
+
+  /** "✨ Way of the Tide · devotion 64", or the prophet's title. */
+  private faithLine(h: Human): string {
+    const Rl = this.S.religion;
+    const r = religionById(this.sim, h.faith);
+    if (!r) return '';
+    const title = h.prophet !== undefined ? `<p class="ti-p__royal">✨ ${esc(Rl.prophetOf).replace('{r}', this.faithName(h.prophet))}</p>` : '';
+    return `${title}<p class="ti-p__village">✨ ${esc(Rl.faith).replace('{r}', this.faithName(r.id)).replace('{n}', String(Math.round(h.devotion ?? 0)))}</p>`;
+  }
+
+  private religionsShown = '';
+
+  /** Every faith: symbol, name, branch, doctrines, believers and places, founder, state religion, holy places. */
+  private renderReligions() {
+    const box = this.root.querySelector<HTMLElement>('[data-religions]');
+    if (!box || box.closest('[hidden]')) return;
+    const Rl = this.S.religion;
+    const count = new Map<number, number>();
+    for (const h of this.sim.humans) if (h.faith !== undefined && !h.dead) count.set(h.faith, (count.get(h.faith) ?? 0) + 1);
+    const list = [...this.sim.religions].sort((a, b) => Number(!!a.gone) - Number(!!b.gone) || (count.get(b.id) ?? 0) - (count.get(a.id) ?? 0));
+    const rows = list.map((r) => {
+      const places = this.sim.villages.filter((v) => !v.ruin && v.faith === r.id).length;
+      const states = [...this.sim.kingdoms.values()].filter((k) => k.stateFaith === r.id).map((k) => this.S.peoples[k.people]);
+      const prophet = r.prophet !== undefined ? this.person(r.prophet) : esc(r.founder.name);
+      const meta = [
+        r.gone ? esc(Rl.forgotten) : `${esc(plural(Rl.believers, count.get(r.id) ?? 0))} · ${esc(plural(Rl.places, places))}`,
+        esc(Rl.founder).replace('{a}', prophet).replace('{y}', String(r.founded)),
+        r.parent !== undefined ? esc(Rl.branchOf).replace('{r}', this.faithName(r.parent)) : '',
+        states.length ? esc(Rl.state.replace('{p}', states.join(', '))) : '',
+        esc(plural(Rl.holy, r.holy.length)),
+      ].filter(Boolean);
+      const doctrines = r.doctrines.map((d) => `<span title="${esc(Rl.doctrines[d]?.does ?? '')}">${esc(Rl.doctrines[d]?.name ?? d)}</span>`).join('');
+      return `<li class="ti-rl${r.gone ? ' is-gone' : ''}"><span class="ti-rl__name">${this.faithName(r.id)}</span><span class="ti-rl__docs">${doctrines}</span><span class="ti-rl__meta">${meta.join(' · ')}</span></li>`;
+    });
+    const html = rows.length ? rows.join('') : `<li class="ti-r__none">${esc(Rl.none)}</li>`;
+    if (html !== this.religionsShown) {
+      this.religionsShown = html;
+      box.innerHTML = html;
+    }
+  }
+
+  /* ---- territory (World window, Update 3) ---------------------------------------- */
+
+  private territoryShown = '';
+
+  /** Land per people (share, tiles, land hunger of kingdoms), free land, open claims and ultimatums. */
+  private renderTerritory() {
+    const box = this.root.querySelector<HTMLElement>('[data-territory]');
+    if (!box || box.closest('[hidden]')) return;
+    const Tt = this.S.territory;
+    const { by, free, land } = landShares(this.sim);
+    const pct = (n: number) => (land ? Math.round((n / land) * 100) : 0);
+    const rows = [...by.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([p, n]) => {
+        const k = this.sim.kingdoms.get(p);
+        const hunger = k ? ` · ${esc(Tt.hunger.replace('{n}', String(k.landHunger ?? 0)))}` : '';
+        return (
+          `<li class="ti-tr"><span class="ti-r__pair"><span class="ti-p__dot ti-dot--${p}"></span>${k ? '👑 ' : ''}${esc(this.S.peoples[p])}</span>` +
+          `<span class="ti-tr__bar"><span class="ti-dot--${p}" style="width:${pct(n)}%"></span></span>` +
+          `<span>${esc(Tt.share.replace('{n}', String(pct(n))).replace('{t}', String(n)))}${hunger}</span></li>`
+        );
+      });
+    rows.push(`<li class="ti-tr ti-tr--free"><span>${esc(Tt.free.replace('{n}', String(pct(free))))}</span></li>`);
+    const name = (id: number) => {
+      const v = this.sim.villages.find((x) => x.id === id);
+      return v ? this.villageLink(v) : '–';
+    };
+    const pp = (p: People) => `<b>${esc(this.S.peoples[p])}</b>`;
+    const claims = this.sim.claims.map((c) => {
+      const tpl = c.kind === 'claim' ? (c.war ? Tt.claimWar : Tt.claim) : c.war ? Tt.grabWar : Tt.grab;
+      return `<li class="ti-tr ti-tr--claim">${esc(tpl)
+        .replace('{p}', pp(c.by))
+        .replace('{q}', pp(c.from))
+        .replace('{w}', name(c.kind === 'claim' ? c.target : c.base))
+        .replace('{y}', String(c.due))}</li>`;
+    });
+    const html =
+      (by.size ? rows.join('') : `<li class="ti-r__none">${esc(Tt.none)}</li>`) +
+      `<li class="ti-lg__h">${esc(Tt.claims)}</li>` +
+      (claims.length ? claims.join('') : `<li class="ti-r__none">${esc(Tt.noClaims)}</li>`);
+    if (html !== this.territoryShown) {
+      this.territoryShown = html;
       box.innerHTML = html;
     }
   }
@@ -1195,6 +1411,14 @@ export class Panels {
                                 ? C.discoveredNoCaptain
                               : e.kind === 'war' && e.cause
                                 ? `${e.a.id ? C.war : C.warVillage}${C.warGoal[e.cause as 'conquest'] ?? ''}`
+                                : e.kind === 'fool'
+                                  ? (C.fool[e.cause ?? ''] ?? '')
+                                : e.kind === 'cultureLevel'
+                                  ? C.cultureLevel.replace('{l}', this.S.culture.levels[e.w ?? ''] ?? '')
+                                : e.kind === 'withdrew' && e.cause === 'war'
+                                  ? C.drivenOut
+                                : e.kind === 'claimDropped'
+                                  ? `${C.claimDropped}${C.claimDroppedWhy[e.cause ?? ''] ?? ''}`
                                 : C[e.kind];
     return esc(tpl)
       .replace('{a}', this.ref(e.a))
@@ -1221,8 +1445,15 @@ export class Panels {
     return C.peaceTribute.replace('{l}', this.S.peoples[e.loser as People] ?? '');
   }
 
+  /** A religion by id: its symbol and name in its colour (Update 3). */
+  private faithName(id: number | undefined): string {
+    const r = religionById(this.sim, id);
+    return r ? `<b class="ti-faith" style="--faith:${r.color}">${SYMBOL_ICON[r.symbol]} ${esc(r.name)}</b>` : '';
+  }
+
   /** A name in a chronicle line: clickable when it is a living place. */
   private placeName(name: string | undefined): string {
+    if (name?.startsWith('faith:')) return this.faithName(Number(name.slice(6)));
     if (name?.startsWith('army:')) return `<b>${esc(this.armyName(name))}</b>`;
     const v = name ? this.sim.villages.find((x) => x.name === name && !x.ruin) : undefined;
     return v ? this.villageLink(v, true) : `<b>${esc(name ?? '')}</b>`;
@@ -1234,10 +1465,6 @@ export class Panels {
       this.list.innerHTML = `<li class="ti-c__empty">${esc(this.S.chronicle.empty)}</li>`;
       return;
     }
-    const w = this.sim.world;
-    this.list.innerHTML = entries
-      .filter((e) => (!e.x && !e.y) || w.seen(Math.floor(e.x), Math.floor(e.y)))
-      .map((e) => this.entryHtml(e))
-      .join('');
+    this.list.innerHTML = entries.map((e) => this.entryHtml(e)).join('');
   }
 }

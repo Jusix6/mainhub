@@ -45,6 +45,13 @@ import { lifeBonus, WONDER_SIZE, wonderTick, wonderWork, type Wonder } from './w
 import { actHuman, thinkHuman } from './ai';
 import { researchTick, type Tech, knows } from './inventions';
 import { kingdomTick, type Kingdom } from './kingdoms';
+import { claimLand, territoryTick, type Claim } from './territory';
+import { comfortOf } from './town';
+import { penTick } from './pens';
+import { onProphetDeath, religionTick, type Religion } from './religion';
+import { moodTick, onFoolDeath, societyTick, type Book } from './society';
+import { disasterSecond, disasterYear, moveDisasters, type FireEvent, type Hurricane, type Volcano } from './disasters';
+import { moveTrains, roadTick, roadWork, type Highway, type Train } from './roads';
 import { countKill, cultureTick, onHeroDeath, type Legend, type Work } from './culture';
 import { BALANCE } from './balance';
 import { hungerTick } from './hunger';
@@ -65,7 +72,7 @@ const MAX_TICKS_PER_FRAME = 60;
 const CELL = 8;
 
 /** Upper limits so the island never fills up with animals. */
-export const CAPS: Record<AnimalKind, number> = { sheep: 50, chicken: 40, wolf: 8, horse: 20 };
+export const CAPS: Record<AnimalKind, number> = { sheep: 50, chicken: 40, wolf: 8, horse: 20, cow: 24 };
 /** Gravestones stay this long (2 years). */
 const GRAVE_TIME = 2 * YEAR;
 
@@ -118,7 +125,7 @@ export class Sim {
   /** What each people has invented so far (inventions.ts). */
   readonly tech = new Map<People, Tech>();
   /** Player rules (Rules tab), each a factor around 1. */
-  readonly rules = { aggression: 1, birth: 1, lifespan: 1, food: 1 };
+  readonly rules = { aggression: 1, birth: 1, lifespan: 1, food: 1, disasters: 2 };
   slashes: Slash[] = [];
   /** Arrows, bolts, stones and balls in the air (phase F), and the year the stables were last counted. */
   shots: Shot[] = [];
@@ -129,6 +136,47 @@ export class Sim {
   wrecks: Wreck[] = [];
   shipYear = 0;
   colonyYear = 0;
+  /** Update 3, phase B: claims on land and land grabs (territory.ts); the version goes up when they change. */
+  claims: Claim[] = [];
+  nextClaimId = 1;
+  claimsVersion = 0;
+  territoryYear = 0;
+  /** Update 3, phase C: highways and railways (built and under construction), the trains on them. */
+  highways: Highway[] = [];
+  railways: Highway[] = [];
+  trains: Train[] = [];
+  roadYear = 0;
+  penYear = 0;
+  /** Update 3, phase D: religions, the faith of most of each people (yearly), the year of the last prophet. */
+  religions: Religion[] = [];
+  nextReligionId = 1;
+  readonly peopleFaith = new Map<People, number>();
+  religionYear = 0;
+  prophetYear = 0;
+  /** Update 3, phase E: books of the philosophers, peoples made tolerant by a book (until year), the yearly clock. */
+  books: Book[] = [];
+  nextBookId = 1;
+  readonly tolerance = new Map<People, number>();
+  societyYear = 0;
+  /** Update 3, phase F: what is burning (tile → seconds left), storms, volcanoes, the hurricane, the heat, the warming. */
+  fires = new Map<number, number>();
+  fireEvent?: FireEvent;
+  storm?: { x: number; y: number; until: number };
+  volcanoes: Volcano[] = [];
+  hurricane?: Hurricane;
+  heat?: { until: number; name: string };
+  temperature = 0;
+  tempHistory: [number, number][] = [];
+  movementUntil = 0;
+  /** Lava (tile → game time it cools), cooled lava (tile → year it is soil), burn scars (tile → year), bolts and rain to draw. */
+  lava = new Map<number, number>();
+  lavaRock = new Map<number, number>();
+  scorched = new Map<number, number>();
+  bolts: { x: number; y: number; t: number }[] = [];
+  rains: { x: number; y: number; until: number }[] = [];
+  disasterYear = -99;
+  disasterTickYear = 0;
+  seaYear = 0;
   /** World wonders (phase H). */
   wonders: Wonder[] = [];
   nextWonderId = 1;
@@ -200,6 +248,41 @@ export class Sim {
     this.wonders = [];
     this.nextWonderId = 1;
     this.wonderYear = 0;
+    this.claims = [];
+    this.nextClaimId = 1;
+    this.claimsVersion++;
+    this.territoryYear = 0;
+    this.highways = [];
+    this.railways = [];
+    this.trains = [];
+    this.roadYear = 0;
+    this.penYear = 0;
+    this.religions = [];
+    this.nextReligionId = 1;
+    this.peopleFaith.clear();
+    this.religionYear = 0;
+    this.prophetYear = 0;
+    this.books = [];
+    this.nextBookId = 1;
+    this.tolerance.clear();
+    this.societyYear = 0;
+    this.fires.clear();
+    this.fireEvent = undefined;
+    this.storm = undefined;
+    this.volcanoes = [];
+    this.hurricane = undefined;
+    this.heat = undefined;
+    this.temperature = 0;
+    this.tempHistory = [];
+    this.movementUntil = 0;
+    this.lava.clear();
+    this.lavaRock.clear();
+    this.scorched.clear();
+    this.bolts = [];
+    this.rains = [];
+    this.disasterYear = -99;
+    this.disasterTickYear = 0;
+    this.seaYear = 0;
     this.footprints = [];
     this.history = [];
     this.historyYear = 0;
@@ -228,7 +311,8 @@ export class Sim {
   private tick() {
     this.time += DT;
     this.world.growTrees(this.rand);
-    this.world.growNature(this.rand, DT, this.rules.food, this.year);
+    // A heatwave halves what grows (Update 3)
+    this.world.growNature(this.rand, DT, this.rules.food * (this.heat ? 0.5 : 1), this.year);
     this.buildGrid();
     if (this.year !== this.historyYear) {
       this.historyYear = this.year;
@@ -241,6 +325,16 @@ export class Sim {
       this.villageClock -= 1;
       for (const v of this.villages) villageThink(v, this);
       this.markNoTree();
+      claimLand(this);
+      territoryTick(this);
+      roadTick(this);
+      roadWork(this);
+      penTick(this);
+      religionTick(this);
+      moodTick(this);
+      societyTick(this);
+      disasterSecond(this);
+      disasterYear(this);
       hungerTick(this);
       storyTick(this);
       dramaTick(this);
@@ -263,6 +357,10 @@ export class Sim {
     }
 
     moveShips(this, DT);
+    moveTrains(this, DT);
+    moveDisasters(this, DT);
+    if (this.bolts.length && this.time - this.bolts[0].t > 1) this.bolts.shift();
+    if (this.rains.length && this.time > this.rains[0].until) this.rains.shift();
     for (const h of this.humans) {
       if (h.dead) continue;
       // On a ship (phase G): riding along, fed from the ship's stores
@@ -316,10 +414,11 @@ export class Sim {
         h.hunger = Math.min(100, h.hunger + 34);
       }
     }
-    // Belonging to a place with a temple, people feel less lonely
-    const temple = h.village !== undefined && this.villages.some((v) => v.id === h.village && v.buildings?.some((b) => b.kind === 'temple'));
-    h.social = Math.max(0, h.social - (temple ? 0.8 : 1.2) * DT);
-    if (!h.asleep) h.energy = Math.max(0, h.energy - 3.6 * DT);
+    // Belonging to a place with a temple (Update 3: a totem, a tavern, a park …), people feel less lonely
+    const comfort = h.village !== undefined ? comfortOf(this.villages.find((v) => v.id === h.village)) : 0;
+    h.social = Math.max(0, h.social - 1.2 * (1 - comfort) * DT);
+    // No nights since Update 3: tiredness comes slowly, a short nap fixes it
+    if (!h.asleep) h.energy = Math.max(0, h.energy - BALANCE.sleep.drain * DT);
     if (h.hunger <= 0 && !hasPower(h, 'immortal') && !hasPower(h, 'invincible')) this.hurt(h, 3 * DT, 'hunger');
     else if (h.hunger > 30 && h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + 1.5 * DT);
     if (ageOf(h, this.time) > h.lifespan * this.rules.lifespan * lifeBonus(this, h.people)) this.kill(h, 'age');
@@ -327,28 +426,6 @@ export class Sim {
 
   get year() {
     return Math.floor(this.time / YEAR_SECONDS) + 1;
-  }
-
-  /** 0 … 1 through the day, starting in the morning. */
-  get dayPhase() {
-    return (this.time % DAY_SECONDS) / DAY_SECONDS;
-  }
-
-  /**
-   * How dark it is, 0 (bright day) to 1 (deep night). Day for the first 55 %,
-   * then dusk, night and dawn.
-   */
-  get darkness() {
-    const p = this.dayPhase;
-    const ramp = (a: number, b: number, v: number) => Math.min(1, Math.max(0, (v - a) / (b - a)));
-    if (p < 0.55) return 0;
-    if (p < 0.68) return ramp(0.55, 0.68, p);
-    if (p < 0.88) return 1;
-    return 1 - ramp(0.88, 1, p);
-  }
-
-  get isNight() {
-    return this.darkness > 0.5;
   }
 
   /* ---- who is where ------------------------------------------------------------- */
@@ -425,11 +502,11 @@ export class Sim {
   huntable(kind: AnimalKind) {
     if (this.countTime !== this.time) {
       this.countTime = this.time;
-      this.counts = { sheep: this.count('sheep'), chicken: this.count('chicken'), wolf: this.count('wolf'), horse: this.count('horse') };
+      this.counts = { sheep: this.count('sheep'), chicken: this.count('chicken'), wolf: this.count('wolf'), horse: this.count('horse'), cow: this.count('cow') };
     }
     return this.counts[kind] > 3;
   }
-  private counts: Record<AnimalKind, number> = { sheep: 0, chicken: 0, wolf: 0, horse: 0 };
+  private counts: Record<AnimalKind, number> = { sheep: 0, chicken: 0, wolf: 0, horse: 0, cow: 0 };
   private countTime = -1;
 
   /* ---- life and death -------------------------------------------------------------- */
@@ -548,6 +625,8 @@ export class Sim {
       onKilled(this, a, killer as Human);
     }
     if (a.kind === 'human') {
+      if (a.prophet !== undefined) onProphetDeath(this, a);
+      if (a.role === 'fool') onFoolDeath(this, a);
       onHeroDeath(this, a);
       this.countDeath(cause);
       this.graves.push({ x: a.x, y: a.y, until: this.time + GRAVE_TIME });
@@ -561,7 +640,7 @@ export class Sim {
 
   /** Causes of death for the statistics; the recent list keeps 50 years. */
   private countDeath(cause: string) {
-    const key = ['age', 'hunger', 'wolf', 'human', 'smite', 'sea'].includes(cause) ? cause : 'other';
+    const key = ['age', 'hunger', 'wolf', 'human', 'smite', 'sea', 'fire', 'lava', 'storm', 'lightning'].includes(cause) ? cause : 'other';
     this.deaths.total[key] = (this.deaths.total[key] ?? 0) + 1;
     this.deaths.recent.push([this.year, key]);
     while (this.deaths.recent.length && this.deaths.recent[0][0] < this.year - 50) this.deaths.recent.shift();
@@ -677,6 +756,7 @@ export class Sim {
     const forest = spots(T.FOREST, 60);
     place('wolf', forest.length ? forest : grass, 3);
     place('horse', grass, 6);
+    place('cow', grass, 6);
     // Far islands: wild horses on some, and sometimes a small people of their own, the islanders
     const far = all.filter((s) => !onMain(s));
     if (far.length) {

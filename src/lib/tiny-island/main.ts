@@ -7,6 +7,9 @@
  * "Play shared world" when the link carries ?world=<seed>. The island is
  * saved to localStorage every 60 seconds and when the page is left.
  */
+import { Cinema, type CinemaStrings } from './cinema';
+import { Music } from './music';
+import { heatwave, hurricane, rain, strike, wakeVolcano } from './disasters';
 import { Editor, type EditorStrings } from './editor';
 import { Camera } from './camera';
 import { Panels, type PanelStrings } from './panels';
@@ -24,6 +27,11 @@ interface MainStrings {
   ruins: string;
   tiers: Record<string, string>;
   start: { continueInfo: string; saved: string; shared: string; copied: string; share: string };
+  /** Update 3: names of the three Borders states; the Disasters window. */
+  borders?: Record<'normal' | 'strong' | 'off', string>;
+  disasters?: { onlyMountains: string };
+  cinema?: Omit<CinemaStrings, 'peoples'>;
+  ages?: Record<string, string>;
 }
 
 /** Seeds from a link: letters, digits and dashes, short. */
@@ -53,12 +61,45 @@ export function start(root: HTMLElement): () => void {
   const panels = new Panels(root, S, sim, cam);
   let playing = false;
 
+  // How the land is shown (Update 3, key G), remembered in this browser
+  const BORDERS_KEY = 'jxsi_tiny_island_borders';
+  try {
+    const b = localStorage.getItem(BORDERS_KEY);
+    if (b === 'strong' || b === 'off') renderer.borders = b;
+  } catch {
+    // no storage: the default
+  }
+  const showBorders = () => {
+    const btn = $('[data-borders]');
+    if (!btn) return;
+    btn.dataset.mode = renderer.borders;
+    btn.setAttribute('aria-pressed', String(renderer.borders !== 'off'));
+    const label = S.borders?.[renderer.borders] ?? '';
+    btn.title = `${label} (G)`;
+    const name = btn.querySelector('[data-borders-name]');
+    if (name) name.textContent = label;
+  };
+  showBorders();
+
+  // The faith map (Religions tab, Update 3)
+  root.addEventListener(
+    'click',
+    (e) => {
+      const btn = (e.target as Element).closest<HTMLElement>('[data-faith-map]');
+      if (!btn) return;
+      renderer.faithView = !renderer.faithView;
+      btn.setAttribute('aria-pressed', String(renderer.faithView));
+    },
+    { signal: ac.signal },
+  );
+
   const showSeed = () => {
     if (seedLabel) seedLabel.textContent = world.seed;
   };
   const syncRules = () => {
     root.querySelectorAll<HTMLInputElement>('[data-rule]').forEach((s) => {
       s.value = String(sim.rules[s.dataset.rule as keyof Sim['rules']]);
+      s.dispatchEvent(new Event('input'));
     });
   };
 
@@ -97,6 +138,27 @@ export function start(root: HTMLElement): () => void {
     pointable: (x, y) => renderer.villageAt(x, y) !== null,
     onPan: () => panels.stopFollow(),
     onWindow: () => panels.makeRoom(),
+    // Update 3, phase F: the gods send disasters (and rain)
+    onDisaster: (tool, x, y) => {
+      const hint = $('[data-disaster-hint]');
+      let ok = true;
+      if (tool === 'lightning') strike(sim, x, y);
+      else if (tool === 'volcano') ok = wakeVolcano(sim, x, y, true);
+      else if (tool === 'hurricane') hurricane(sim, x, y);
+      else rain(sim, x, y);
+      if (hint) hint.textContent = ok ? '' : (S.disasters?.onlyMountains ?? '');
+    },
+    onHeatwave: () => heatwave(sim, 1),
+    onCinema: () => toggleCinema(),
+    onBorders: () => {
+      renderer.borders = renderer.borders === 'normal' ? 'strong' : renderer.borders === 'strong' ? 'off' : 'normal';
+      showBorders();
+      try {
+        localStorage.setItem(BORDERS_KEY, renderer.borders);
+      } catch {
+        // private mode: it is only a preference
+      }
+    },
     // An own character came to life: show its profile, keep it in My Characters
     onPlaced: (id) => {
       panels.select(id);
@@ -223,12 +285,82 @@ export function start(root: HTMLElement): () => void {
   fit();
   frameIsland();
 
+  /* ---- cinema mode and music (Update 3, phase G) --------------------------------------- */
+
+  const music = new Music();
+  const cinemaView = $('[data-cinema-view]')!;
+  const describe = (e: Parameters<Panels['text']>[0]) => {
+    const tmp = document.createElement('span');
+    tmp.innerHTML = panels.text(e);
+    return tmp.textContent ?? '';
+  };
+  const cinema = new Cinema(sim, cam, cinemaView, { ...(S.cinema as Omit<CinemaStrings, 'peoples'>), peoples: S.peoples }, describe, music, (k) => S.ages?.[k] ?? k);
+  let musicOn = false;
+  let musicTouched = false;
+  let moodAt = 0;
+  const musicBox = $<HTMLInputElement>('[data-music]');
+  const toggleCinema = () => {
+    if (cinema.active) {
+      cinema.stop();
+      if (!musicOn) music.setMood(null);
+      return;
+    }
+    // The first time the cinema brings the music along
+    if (!musicTouched && musicBox) {
+      musicOn = true;
+      musicBox.checked = true;
+    }
+    if (!musicOn) music.setMood(null);
+    controls.toggleWindow(null);
+    cinema.start();
+    if (!musicOn) music.setMood(null);
+  };
+  // Esc, K or a click on the picture ends it
+  cinemaView.addEventListener('click', () => toggleCinema(), { signal: ac.signal });
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (cinema.active && e.key === 'Escape') toggleCinema();
+    },
+    { signal: ac.signal },
+  );
+  root.addEventListener(
+    'change',
+    (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t.matches('[data-music]')) {
+        musicOn = t.checked;
+        musicTouched = true;
+        if (musicOn) music.start();
+        music.setMood(musicOn ? (cinema.active ? (music.mood ?? 'peace') : Cinema.worldMood(sim)) : null);
+      } else if (t.matches('[data-cine-clean]')) {
+        cinema.clean = t.checked;
+        cinemaView.classList.toggle('is-clean', t.checked);
+      }
+    },
+    { signal: ac.signal },
+  );
+  root.addEventListener(
+    'input',
+    (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t.matches('[data-volume]')) music.setVolume(Number(t.value));
+    },
+    { signal: ac.signal },
+  );
+
   let raf = 0;
   let last = performance.now();
   const frame = (now: number) => {
     const dt = (now - last) / 1000;
     last = now;
-    sim.advance(dt);
+    // Cinema mode (Update 3): the director moves the camera, slow motion at climaxes
+    const scale = cinema.update(now, dt);
+    sim.advance(dt * scale);
+    if (now - moodAt > 1000) {
+      moodAt = now;
+      if (!cinema.active) music.setMood(musicOn ? Cinema.worldMood(sim) : null);
+    }
     panels.update(now);
     renderer.flush();
     renderer.selectedVillage = panels.selectedVillage;
@@ -241,10 +373,11 @@ export function start(root: HTMLElement): () => void {
   raf = requestAnimationFrame(frame);
   root.classList.add('is-ready');
   // Local development only: lets tests fast-forward the island from the console
-  if (import.meta.env.DEV) (window as unknown as { tinyIsland: unknown }).tinyIsland = { sim, cam, panels, world, renderer, save: () => save(sim, world), load: () => load(sim, world) };
+  if (import.meta.env.DEV) (window as unknown as { tinyIsland: unknown }).tinyIsland = { sim, cam, panels, world, renderer, cinema, music, save: () => save(sim, world), load: () => load(sim, world) };
 
   return () => {
     store();
+    music.stop();
     cancelAnimationFrame(raf);
     window.clearInterval(autosave);
     ac.abort();

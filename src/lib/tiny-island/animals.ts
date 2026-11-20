@@ -8,6 +8,7 @@
  */
 import { ageOf, approach, dist, goTo, randomSpot, tileOf, walk, type Agent, type Animal, type Task, type TaskKind, hasPower, type Human } from './agents';
 import { CAPS, type Sim } from './sim';
+import { penHome, walled } from './pens';
 
 function setTask(a: Animal, task: Task | null) {
   a.task = task;
@@ -58,7 +59,32 @@ export function thinkAnimal(a: Animal, sim: Sim) {
   else thinkPrey(a, sim);
 }
 
+/** In a pen (Update 3): back inside if outside, else graze and amble about within the fence. */
+function thinkPenned(a: Animal, sim: Sim, home: { x: number; y: number }) {
+  if (a.task) return;
+  const d = Math.hypot(a.x - (home.x + 0.5), a.y - (home.y + 0.5));
+  if (d > 2.6) {
+    setTask(a, task('wander', sim, home.x, home.y, { work: 1, until: sim.time + 30 }));
+    goTo(a, sim.world, home.x, home.y);
+    return;
+  }
+  if (sim.rand() < 0.6) {
+    setTask(a, task('graze', sim, Math.floor(a.x), Math.floor(a.y), { work: 1 + sim.rand() * 3 }));
+    return;
+  }
+  const x = home.x + Math.round(sim.rand() * 4 - 2);
+  const y = home.y + Math.round(sim.rand() * 4 - 2);
+  setTask(a, task('wander', sim, x, y, { work: 1 + sim.rand() * 2 }));
+  goTo(a, sim.world, x, y);
+}
+
 function thinkPrey(a: Animal, sim: Sim) {
+  const home = penHome(sim, a);
+  if (home) {
+    // A wolf at the fence: they huddle, a stone wall keeps it out
+    thinkPenned(a, sim, home);
+    return;
+  }
   const attacker = sim.byId(a.attacker);
   const wolf = sim.nearest(a.x, a.y, 5, (o) => o.kind === 'wolf');
   const threat = attacker && sim.time - a.attackedAt < 3 ? attacker : wolf;
@@ -91,7 +117,8 @@ function thinkWolf(w: Animal, sim: Sim) {
   if (w.task?.kind === 'hunt' || w.task?.kind === 'flee') return;
 
   if (w.hunger < 45) {
-    let prey: Agent | null = sim.nearest(w.x, w.y, 20, (o) => (o.kind === 'sheep' || o.kind === 'chicken') && sim.huntable(o.kind));
+    // Penned animals behind a stone wall are out of reach (Update 3)
+    let prey: Agent | null = sim.nearest(w.x, w.y, 20, (o) => (o.kind === 'sheep' || o.kind === 'chicken') && sim.huntable(o.kind) && !walled(sim, o as Animal));
     // Very hungry: someone who is alone will do
     if (!prey && w.hunger < 30) {
       prey = sim.nearest(w.x, w.y, 12, (o) => o.kind === 'human' && !hasPower(o as Human, 'wolfWhisperer') && sim.near(o.x, o.y, 4, (n) => n.kind === 'human').length === 1);
@@ -169,7 +196,7 @@ export function actAnimal(a: Animal, sim: Sim, dt: number) {
       if (sim.time >= a.hitAt) {
         a.hitAt = sim.time + 1;
         if (sim.hit(a, prey, 12)) {
-          a.hunger = Math.min(100, a.hunger + (prey.kind === 'sheep' ? 50 : prey.kind === 'human' ? 60 : 25));
+          a.hunger = Math.min(100, a.hunger + (prey.kind === 'sheep' || prey.kind === 'cow' ? 50 : prey.kind === 'human' ? 60 : 25));
           setTask(a, null);
         }
       }

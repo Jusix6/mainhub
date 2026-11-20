@@ -15,9 +15,13 @@ import type { Sim } from './sim';
 import { assignJobs } from './jobs';
 import type { FestivalKind, Piece } from './culture';
 import { knows } from './inventions';
-import { BUILDING_COST, crowdedAt, nextBuilding, promote, spoil, tierOf, trade, type Building, type BuildingKind, type Tier } from './town';
+import { BUILDING_COST, crowdedAt, HALF_SIZE, nextBuilding, promote, spoil, tierOf, trade, type Building, type BuildingKind, type PenAnimal, type Tier } from './town';
+import { wantedPen } from './pens';
 import { refOf, story } from './social';
 import { T } from './world';
+import { BALANCE } from './balance';
+import { foreignLand, landGrab } from './territory';
+import { gridSpot, layStreet, livingRadius } from './roads';
 
 /** Tent, wooden house, stone house, town house (two floors, cities only). */
 export type HouseLevel = 0 | 1 | 2 | 3;
@@ -39,6 +43,8 @@ export interface Site {
   house?: House;
   /** A special building instead of a house (town.ts). */
   kind?: BuildingKind;
+  /** A pen: for which animals (Update 3). */
+  animal?: PenAnimal;
   /** Person-seconds of work done and needed. */
   done: number;
   needed: number;
@@ -112,6 +118,21 @@ export interface Village {
   joinWatch?: number;
   /** False once it turned out the place has no coast for a harbor. */
   coast?: boolean;
+  /** Update 3, phase B: the year it fell into ruins (its land goes 20 years later), and extra reach of its land (castles). */
+  ruinYear?: number;
+  landBonus?: number;
+  /** Update 3, phase C: plots of 4 × 3 fields (top-left tiles, jobs.ts). */
+  plots?: { x: number; y: number }[];
+  /** No new try at a castle before this year (no room was found). */
+  castleAt?: number;
+  /** Update 3, phase D: the faith of most of its people (religion.ts). */
+  faith?: number;
+  /** Update 3, phase E: culture level 0…4, the best it reached, its culture points, unhappy years in a row, war trophies (society.ts). */
+  culture?: number;
+  cultureTop?: number;
+  culturePoints?: number;
+  unhappyYears?: number;
+  trophies?: number;
 }
 
 /** Building costs per level: tent, wooden house, stone house. */
@@ -131,13 +152,16 @@ export const villageOf = (h: Human, sim: Sim) => (h.village === undefined ? unde
 
 const isAdult = (h: Human, sim: Sim) => stage(h, sim.time) !== 'child';
 
-/** Is something built on or right next to this tile? */
-function taken(sim: Sim, tx: number, ty: number) {
+/** Is something built on or right next to this tile? (Castles and pens are 5 × 5.) */
+export function taken(sim: Sim, tx: number, ty: number) {
   return sim.villages.some(
     (v) =>
       (Math.abs(v.x - tx) < 2 && Math.abs(v.y - ty) < 2) ||
       v.houses.some((h) => Math.abs(h.x - tx) < 2 && Math.abs(h.y - ty) < 2) ||
-      v.buildings.some((b) => Math.abs(b.x - tx) < 2 && Math.abs(b.y - ty) < 2) ||
+      v.buildings.some((b) => {
+        const r = 2 + (HALF_SIZE[b.kind] ?? 0);
+        return Math.abs(b.x - tx) < r && Math.abs(b.y - ty) < r;
+      }) ||
       !!v.art?.some((p) => p.kind === 'statue' && Math.abs(p.x - tx) < 2 && Math.abs(p.y - ty) < 2) ||
       (v.site && Math.abs(v.site.x - tx) < 2 && Math.abs(v.site.y - ty) < 2),
   ) || onWonder(sim, tx, ty);
@@ -264,6 +288,8 @@ export function settle(sim: Sim) {
     const cx = Math.round(group.reduce((s, o) => s + o.x, 0) / group.length);
     const cy = Math.round(group.reduce((s, o) => s + o.y, 0) / group.length);
     if (sim.villages.some((v) => !v.ruin && Math.hypot(v.x - cx, v.y - cy) < 14)) continue;
+    // Not on land of another people (Update 3)
+    if (foreignLand(sim, h.people, cx, cy)) continue;
     const ruin = sim.villages.find((v) => v.ruin && Math.hypot(v.x - cx, v.y - cy) < 12);
     let v: Village;
     if (ruin) {
@@ -368,9 +394,13 @@ export function villageThink(v: Village, sim: Sim) {
   if (!v.site && next && cost) {
     const stoneCost = v.people === 'mountain' ? Math.ceil(cost.stone * 0.7) : cost.stone;
     if (v.wood >= cost.wood && v.stone >= stoneCost) {
-      v.wood -= cost.wood;
-      v.stone -= stoneCost;
-      v.site = { ...next, done: 0, needed: cost.work };
+      // A castle finds its hill now; without room it waits for the next try
+      const spot = next.kind === 'castle' ? bigSpot(v, sim, 2, livingRadius(v) + 3, livingRadius(v) + 16, castleBonus(v, sim)) : next;
+      if (spot) {
+        v.wood -= cost.wood;
+        v.stone -= stoneCost;
+        v.site = { ...next, x: spot.x, y: spot.y, done: 0, needed: cost.work };
+      } else v.castleAt = sim.year + 20;
     }
   }
 
@@ -405,7 +435,8 @@ function plan(v: Village, sim: Sim, members: Human[], grownUps: number): Omit<Si
   if (v.site) return null;
   const households = Math.ceil(grownUps / 2) + 1;
   if (v.houses.length < Math.min(households, Math.ceil(members.length / 2))) {
-    const spot = freeSpot(sim, v.x, v.y, 2, 4 + v.houses.length * 0.5);
+    // On the grid of streets, in the living ring (Update 3); in the open if there is no room
+    const spot = layoutSpot(v, sim, 2, livingRadius(v)) ?? freeSpot(sim, v.x, v.y, 2, 4 + v.houses.length * 0.5);
     return spot ? { x: spot.x, y: spot.y, level: 0 } : null;
   }
   // Special buildings of the tier (granary, market, temple …)
@@ -414,12 +445,30 @@ function plan(v: Village, sim: Sim, members: Human[], grownUps: number): Omit<Si
   const masonry = knows(sim, v.people, 'masonry');
   // City walls need masonry
   const blocked = kind && ((BUILDING_COST[kind].stone > v.stone && !v.rock) || (kind === 'wall' && !masonry));
+  // A castle: named now (so wood and stone get gathered for it), its spot is
+  // looked for only once the materials are there (villageThink), as that takes a while
+  if (kind === 'castle' && !blocked) return { x: v.x, y: v.y, level: 0, kind };
   if (kind && !blocked) {
+    const core = CORE.has(kind);
+    const ring = livingRadius(v);
     const spot =
-      kind === 'wall' ? { x: v.x, y: v.y } : kind === 'harbor' ? coastSpot(sim, v) : freeSpot(sim, v.x, v.y, kind === 'market' ? 2 : 3, kind === 'market' ? 4 : 7);
+      kind === 'wall'
+        ? { x: v.x, y: v.y }
+        : kind === 'harbor' || kind === 'lighthouse'
+          ? coastSpot(sim, v)
+          : kind === 'windmill'
+            ? (layoutSpot(v, sim, ring - 2, ring) ?? freeSpot(sim, v.x, v.y, 3, 7))
+            : (layoutSpot(v, sim, core ? 1.5 : 2, core ? 4.5 : ring) ?? freeSpot(sim, v.x, v.y, kind === 'market' ? 2 : 3, kind === 'market' ? 4 : 7));
     // No coast for a harbor: the place stops asking for one
     if (kind === 'harbor' && !spot) v.coast = false;
     if (spot) return { x: spot.x, y: spot.y, level: 0, kind };
+  }
+  // Pens for animals once the people farms (pens.ts), outside the houses
+  const animal = v.wood >= BUILDING_COST.pen.wood ? wantedPen(v, sim) : null;
+  if (animal) {
+    const ring = livingRadius(v);
+    const spot = bigSpot(v, sim, 2, ring + 3, ring + 10);
+    if (spot) return { x: spot.x, y: spot.y, level: 0, kind: 'pen', animal };
   }
   const tent = v.houses.find((h) => h.level === 0);
   if (tent) return { x: tent.x, y: tent.y, level: 1, house: tent };
@@ -433,6 +482,97 @@ function plan(v: Village, sim: Sim, members: Human[], grownUps: number): Omit<Si
   return null;
 }
 
+/** Buildings around the square (the core ring, Update 3); the rest go into the living ring. */
+const CORE = new Set<string>(['market', 'townhall', 'temple', 'palace', 'cathedral', 'totem', 'altar', 'well']);
+
+/**
+ * Tiles with something built on them or right next to it, around (cx, cy):
+ * the same as `taken`, worked out once for a whole search (Update 3).
+ */
+export function occupied(sim: Sim, cx: number, cy: number, range: number): Set<number> {
+  const w = sim.world;
+  const out = new Set<number>();
+  const mark = (x: number, y: number, r: number) => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (w.inside(x + dx, y + dy)) out.add((y + dy) * w.w + x + dx);
+  };
+  for (const v of sim.villages) {
+    if (Math.hypot(v.x - cx, v.y - cy) > range + 30) continue;
+    mark(v.x, v.y, 1);
+    for (const h of v.houses) mark(h.x, h.y, 1);
+    for (const b of v.buildings) mark(b.x, b.y, 1 + (HALF_SIZE[b.kind] ?? 0));
+    for (const p of v.art ?? []) if (p.kind === 'statue') mark(p.x, p.y, 1);
+    if (v.site) mark(v.site.x, v.site.y, 1 + (v.site.kind ? (HALF_SIZE[v.site.kind] ?? 0) : 0));
+    for (const p of v.plots ?? []) for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 4; dx++) out.add((p.y + dy) * w.w + p.x + dx);
+  }
+  for (const won of sim.wonders) mark(won.x + 2, won.y + 2, 3);
+  return out;
+}
+
+/** A spot on the street grid of the place (roads.ts), not on foreign land. */
+function layoutSpot(v: Village, sim: Sim, r0: number, r1: number) {
+  const busy = occupied(sim, v.x, v.y, r1);
+  return gridSpot(
+    sim,
+    v,
+    r0,
+    r1,
+    (x, y) => busy.has(y * sim.world.w + x),
+    (x, y) => foreignLand(sim, v.people, x, y),
+  );
+}
+
+/**
+ * Room for something of (2 · half + 1)² tiles between r0 and r1 from the
+ * square (a castle, a pen): grass, sand or forest (cleared when it is
+ * built), nothing built, no road, the place's own or free land. `bonus` makes some spots better (castles: on a
+ * hill by the mountains, near a border).
+ */
+function bigSpot(v: Village, sim: Sim, half: number, r0: number, r1: number, bonus?: (x: number, y: number) => number) {
+  const w = sim.world;
+  const busy = occupied(sim, v.x, v.y, r1 + half);
+  let best: { x: number; y: number; s: number } | null = null;
+  for (let k = 0; k < 200; k++) {
+    const ang = sim.rand() * Math.PI * 2;
+    const d = r0 + sim.rand() * (r1 - r0);
+    const cx = Math.round(v.x + Math.cos(ang) * d);
+    const cy = Math.round(v.y + Math.sin(ang) * d);
+    let ok = true;
+    for (let dy = -half; dy <= half && ok; dy++) {
+      for (let dx = -half; dx <= half && ok; dx++) {
+        const x = cx + dx;
+        const y = cy + dy;
+        const t = w.get(x, y);
+        const i = y * w.w + x;
+        ok = (t === T.GRASS || t === T.SAND || t === T.FOREST) && !w.road[i] && !busy.has(i) && w.sameLand(v.x, v.y, x, y) && !foreignLand(sim, v.people, x, y);
+      }
+    }
+    if (!ok) continue;
+    const s = d - (bonus ? bonus(cx, cy) : 0) + sim.rand() * 2;
+    if (!best || s < best.s) best = { x: cx, y: cy, s };
+  }
+  return best && { x: best.x, y: best.y };
+}
+
+/** A castle likes a hill: mountains close by, and land of another people not far. */
+function castleBonus(v: Village, sim: Sim) {
+  const w = sim.world;
+  return (x: number, y: number) => {
+    let s = 0;
+    for (let dy = -5; dy <= 5; dy += 1) for (let dx = -5; dx <= 5; dx += 1) if (w.get(x + dx, y + dy) === T.MOUNTAIN) s += 0.4;
+    for (let dy = -10; dy <= 10; dy += 2)
+      for (let dx = -10; dx <= 10; dx += 2) {
+        if (!w.inside(x + dx, y + dy)) continue;
+        const o = w.owner[(y + dy) * w.w + x + dx];
+        if (o >= 0 && o !== v.id && foreignLand(sim, v.people, x + dx, y + dy)) {
+          s += 1;
+          dy = 99;
+          break;
+        }
+      }
+    return Math.min(8, s);
+  };
+}
+
 /** Called by builders: progress on the site; finished houses appear or get better. */
 export function buildStep(v: Village, sim: Sim, dt: number): boolean {
   const s = v.site;
@@ -440,12 +580,20 @@ export function buildStep(v: Village, sim: Sim, dt: number): boolean {
   s.done += dt;
   if (s.done < s.needed) return false;
   if (s.kind) {
-    v.buildings.push({ kind: s.kind, x: s.x, y: s.y });
+    v.buildings.push({ kind: s.kind, x: s.x, y: s.y, ...(s.animal ? { animal: s.animal } : {}) });
+    // A castle makes the land reach further (territory.ts)
+    if (s.kind === 'castle') v.landBonus = BALANCE.land.castleBonus;
+    // Castles and pens: the trees on their ground are cut
+    const half = HALF_SIZE[s.kind] ?? 0;
+    for (let dy = -half; dy <= half; dy++) for (let dx = -half; dx <= half; dx++) if (sim.world.get(s.x + dx, s.y + dy) === T.FOREST) sim.world.set(s.x + dx, s.y + dy, T.GRASS);
     sim.chronicle.add({ year: sim.year, kind: 'building', a: { id: 0, name: v.name, people: v.people }, v: v.name, w: s.kind, x: s.x, y: s.y });
   } else if (s.house) s.house.level = s.level;
   else v.houses.push({ x: s.x, y: s.y, level: s.level, owners: [] });
   sim.puff(s.x + 0.5, s.y, 6, ['#ffffff', '#ffe066', '#d9b98b']);
   v.site = null;
+  // A street from the door to the square (Update 3); a castle and a pen from their gate
+  if (s.kind === 'castle' || s.kind === 'pen') layStreet(sim, v, s.x, s.y + 3);
+  else if (s.kind !== 'wall') layStreet(sim, v, s.x, s.y);
   return true;
 }
 
@@ -456,9 +604,18 @@ function split(v: Village, sim: Sim, members: Human[], famine = false) {
     return age >= 16 && age <= 32 && h.id !== v.leader;
   });
   if (young.length < 4) return;
-  const spot = famine ? richSpot(v, sim) : farSpot(v, sim);
+  let spot = famine ? richSpot(v, sim) : farSpot(v, sim);
+  // No free land left (Update 3): now and then they settle on land of another people anyway
+  let grab = false;
+  if (!spot && sim.rand() < BALANCE.land.grabChance) {
+    spot = farSpot(v, sim, true);
+    grab = !!spot && foreignLand(sim, v.people, spot.x, spot.y);
+  }
   if (!spot) return;
   const nv = newVillage(sim, v.people, spot.x, spot.y);
+  // A new place gets a few years before hunger can drive its people on again
+  // (else a starving group founded one place after the other)
+  nv.famineAt = sim.time + BALANCE.food.famineCooldown * 30;
   const leaving = new Set<Human>();
   for (const h of young.slice(0, 6)) {
     leaving.add(h);
@@ -477,6 +634,7 @@ function split(v: Village, sim: Sim, members: Human[], famine = false) {
     story(h, sim, 'moved', nv.name);
   }
   sim.chronicle.add({ year: sim.year, kind: famine ? 'exodus' : 'split', a: refOf(first), v: v.name, w: nv.name, x: nv.x, y: nv.y });
+  if (grab) landGrab(sim, nv, v);
 }
 
 /** A famine: a group of young people leaves for a place with more to eat (hunger.ts). */
@@ -509,8 +667,8 @@ function richSpot(v: Village, sim: Sim) {
   return best;
 }
 
-/** Room for a new village: grass, far enough from all others. */
-function farSpot(v: Village, sim: Sim) {
+/** Room for a new village: grass, far enough from all others, not on land of another people (unless `grab`). */
+function farSpot(v: Village, sim: Sim, grab = false) {
   for (let k = 0; k < 200; k++) {
     const ang = sim.rand() * Math.PI * 2;
     const d = 22 + sim.rand() * 30;
@@ -518,6 +676,7 @@ function farSpot(v: Village, sim: Sim) {
     const y = Math.round(v.y + Math.sin(ang) * d);
     if (sim.world.get(x, y) !== T.GRASS || !sim.world.sameLand(v.x, v.y, x, y)) continue;
     if (sim.villages.some((o) => !o.ruin && Math.hypot(o.x - x, o.y - y) < 18)) continue;
+    if (!grab && foreignLand(sim, v.people, x, y)) continue;
     return { x, y };
   }
   return null;

@@ -28,6 +28,7 @@ import { refOf, story } from './social';
 import type { Village } from './villages';
 import { feudKey, startFeud } from './war';
 import { celebrate, worksIn } from './culture';
+import { BALANCE } from './balance';
 
 export interface Kingdom {
   people: People;
@@ -49,6 +50,11 @@ export interface Kingdom {
   /** Phase C: ruled by the king of another people (personal union), and the next royal wedding. */
   union?: People;
   weddingAt?: number;
+  /** Update 3, phase B: land hunger 0 … 100, and no new claim before this year (territory.ts). */
+  landHunger?: number;
+  claimAt?: number;
+  /** Update 3, phase D: the state religion (the king's faith). */
+  stateFaith?: number;
 }
 
 const YEAR = 30;
@@ -137,10 +143,14 @@ export function kingdomTick(sim: Sim) {
     for (const v of places) {
       if (v.id === k.capital) continue;
       const far = Math.hypot(v.x - capital.x, v.y - capital.y) > 40 ? 10 : 0;
-      const temple = v.buildings.some((b) => b.kind === 'temple') ? 10 : 0;
+      const temple = (v.buildings.some((b) => b.kind === 'temple') ? 10 : 0) + (capital.buildings.some((b) => b.kind === 'palace') ? 8 : 0);
       // Songs, murals and statues make people proud of their place and crown
       const art = Math.min(10, worksIn(sim, v).length * 2);
-      const target = 45 + score + temper(v) + temple + art - far;
+      // A state religion (Update 3): places of another faith are less loyal
+      const heretic = k.stateFaith !== undefined && v.faith !== undefined && v.faith !== k.stateFaith ? 10 : 0;
+      // Culture (Update 3): an enlightened place hardly ever rises up, an unhappy one sooner
+      const culture = ((v.culture ?? 0) >= 4 ? BALANCE.culture.enlightenedLoyalty : 0) - ((v.unhappyYears ?? 0) > 0 ? BALANCE.culture.unhappyLoyalty : 0);
+      const target = 45 + score + temper(v) + temple + art - far - heretic + culture;
       const now = loyaltyOf(v);
       v.loyalty = now + Math.max(-0.1, Math.min(0.1, (target - now) * 0.01));
       const atWar = sim.wars.has(feudKey(v.id, capital.id));
