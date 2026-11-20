@@ -5,11 +5,13 @@
  * The way into the hub ("Explore the site") sits on the back of the card.
  */
 import BusinessCard from './BusinessCard.astro';
+import CardGames from './CardGames.astro';
 import { UI } from '@/data/ui';
 ---
 
 <div class="card-page">
   <BusinessCard standalone />
+  <CardGames />
   <p class="card-page__note meta" data-print-note hidden>{UI.card.scanned}</p>
 </div>
 

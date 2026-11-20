@@ -65,6 +65,35 @@ export const UI = {
     /** The standalone card (/ and /card): grab a corner to turn it, the middle to move it. */
     turnHint: 'grab a corner',
     turnLabel: 'Business card. Grab a corner and drag to turn it, grab the middle to move it, double-click to put it back. Press Enter to turn it over.',
+    frontLabel: 'Front of the card. Press Enter to turn it over.',
+    /** Games hidden in the card number (CardGames.astro): 01 = Card Breaker. */
+    games: {
+      play: 'Play game 01: Card Breaker',
+      close: 'Close the game',
+      breakout: {
+        name: 'Card Breaker',
+        score: 'Score',
+        lives: 'Lives',
+        best: 'Best',
+        level: 'Level {n}',
+        launch: 'Click, tap or press space to launch',
+        paused: 'Paused · click to go on',
+        over: 'Game over',
+        again: 'Click or press space to play again',
+        cleared: 'Wall cleared!',
+        /** Items (from the second wall on), shown when caught. */
+        items: {
+          multi: 'More balls!',
+          wide: 'Wider paddle!',
+          tnt: 'TNT! The next card goes off',
+          life: 'A life back!',
+          slow: 'Slow motion',
+          double: 'Double balls!',
+          strong: 'Strong ball!',
+          big: 'Big ball!',
+        },
+      },
+    },
     whatIMake: 'What I make',
     visit: 'Explore the site',
     scanned: 'You scanned my card. Nice.',

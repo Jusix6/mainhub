@@ -1,0 +1,124 @@
+---
+/**
+ * Games hidden in the business card (/ and /card). The card's number ends in
+ * "01": clicking it starts game 01, Card Breaker (src/lib/card-games/breakout.ts),
+ * full screen over the page. More games can hang off other numbers later.
+ * The game code loads only when it starts.
+ */
+import { getImage } from 'astro:assets';
+import portrait from '@/assets/portrait.png';
+import { UI } from '@/data/ui';
+
+const photo = await getImage({ src: portrait, width: 96, format: 'webp' });
+const G = UI.card.games;
+---
+
+<div class="games" data-games data-portrait={photo.src} data-strings={JSON.stringify(G.breakout)} hidden>
+  <canvas class="games__canvas" data-games-canvas aria-label={G.breakout.name} role="img" tabindex="-1"></canvas>
+  <button class="games__close" type="button" data-games-close aria-label={G.close}>×</button>
+</div>
+
+<style>
+  .games {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: var(--bg);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    animation: games-in 250ms ease-out both;
+  }
+
+  .games[hidden] {
+    display: none;
+  }
+
+  .games__canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: none;
+    outline: none;
+  }
+
+  .games__close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: 50%;
+    box-shadow: var(--shadow-sm);
+    font: 700 22px/1 var(--font-mono);
+    cursor: pointer;
+  }
+
+  .games__close:hover {
+    background: var(--c-yellow);
+  }
+
+  @keyframes games-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .games {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  import type { BreakoutStrings } from '@/lib/card-games/breakout';
+
+  function setup() {
+    const box = document.querySelector<HTMLElement>('[data-games]');
+    if (!box || box.dataset.js) return;
+    box.dataset.js = 'true';
+    const canvas = box.querySelector<HTMLCanvasElement>('[data-games-canvas]')!;
+    const close = box.querySelector<HTMLButtonElement>('[data-games-close]')!;
+    const strings: BreakoutStrings = JSON.parse(box.dataset.strings ?? '{}');
+    let stop: (() => void) | null = null;
+    let opener: HTMLElement | null = null;
+
+    function exit() {
+      stop?.();
+      stop = null;
+      box!.hidden = true;
+      document.documentElement.style.overflow = '';
+      opener?.focus({ preventScroll: true });
+    }
+
+    document.addEventListener('card:game', async (e) => {
+      const detail = (e as CustomEvent<{ game: number; from?: DOMRect; opener?: HTMLElement }>).detail;
+      if (stop || detail.game !== 1) return;
+      opener = detail.opener ?? null;
+      box!.hidden = false;
+      document.documentElement.style.overflow = 'hidden';
+      const { startBreakout } = await import('@/lib/card-games/breakout');
+      stop = startBreakout({
+        canvas,
+        strings,
+        portrait: box!.dataset.portrait ?? '',
+        from: detail.from,
+        reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        onExit: exit,
+      });
+      canvas.focus({ preventScroll: true });
+    });
+    close.addEventListener('click', exit);
+    // Leaving the page ends the game too
+    document.addEventListener('astro:before-swap', exit, { once: true });
+  }
+
+  document.addEventListener('astro:page-load', setup);
+</script>

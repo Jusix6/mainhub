@@ -37,6 +37,14 @@ interface Props {
 const { standalone = false, class: className } = Astro.props;
 const lic = SITE.license;
 
+// The card page: the front is no button (that would leave no room for one inside it),
+// and the "01" at the end of the number is one: it starts game 01 (CardGames.astro)
+const Front = (standalone ? 'div' : 'button') as 'div';
+const frontAttrs: Record<string, string | number> = standalone ? { tabindex: 0, role: 'group', 'aria-label': UI.card.frontLabel } : { type: 'button' };
+const cut = lic.number.lastIndexOf('-') + 1;
+const numberHead = lic.number.slice(0, cut);
+const numberTail = lic.number.slice(cut);
+
 // "HT / WT / HAIR / EYES" row of the license: project counts per category, live from the
 // collection. Videos is the YouTube upload count (worker.js keeps it current between builds
 // through data-stat="videos").
@@ -77,7 +85,7 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
           </Fragment>
         )
       }
-      <button class="face face--front" type="button" data-flip>
+      <Front class="face face--front" data-flip {...frontAttrs}>
 
         <span class="lic__head">
           <span class="lic__region">{lic.region}</span>
@@ -86,7 +94,16 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
 
         <span class="lic__number">
           <span class="lic__label">Number</span>
-          {lic.number}
+          {
+            standalone ? (
+              <Fragment>
+                {/* prettier-ignore */}
+                {numberHead}<button class="lic__game" type="button" data-game="1" aria-label={UI.card.games.play}>{numberTail}</button>
+              </Fragment>
+            ) : (
+              lic.number
+            )
+          }
         </span>
 
         <span class="lic__photo">
@@ -139,7 +156,7 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
             </span>
           )
         }
-      </button>
+      </Front>
 
       <div class="face face--back" data-back>
         <div class="back__head">
@@ -330,6 +347,25 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
         0 0 0 10px var(--c-yellow),
         var(--shadow-lg);
     }
+  }
+
+  /* Game 01 hides in the number: it looks like the rest of it until the pointer finds it */
+  .lic__game {
+    padding: 0 1px;
+    margin: 0 -1px;
+    background: none;
+    color: inherit;
+    border: 0;
+    border-radius: 3px;
+    font: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+  }
+
+  .lic__game:hover,
+  .lic__game:focus-visible {
+    background: var(--c-yellow);
+    color: var(--ink);
   }
 
   /* Gliding back after a double-click */
@@ -878,7 +914,7 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
     function faces() {
       back!.toggleAttribute('inert', !flipped);
       front!.toggleAttribute('inert', flipped);
-      front!.setAttribute('aria-expanded', String(flipped));
+      if (front!.tagName === 'BUTTON') front!.setAttribute('aria-expanded', String(flipped));
     }
 
     if (scene.classList.contains('scene--standalone')) {
@@ -1286,10 +1322,22 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
         const target = flipped ? backFlip : front;
         window.setTimeout(() => target?.focus({ preventScroll: true }), reducedMotion.matches ? 0 : 350);
       }
-      scene.querySelectorAll<HTMLButtonElement>('[data-flip]').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          if (e.detail === 0) turnOver();
-        });
+      // The flip-back pill (keyboard only) and Enter or space on the front itself
+      backFlip?.addEventListener('click', (e) => {
+        if (e.detail === 0) turnOver();
+      });
+      front!.addEventListener('keydown', (e) => {
+        if (e.target !== front || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        turnOver();
+      });
+
+      // Game 01: the "01" of the number (CardGames.astro starts it)
+      scene.querySelector<HTMLButtonElement>('[data-game]')?.addEventListener('click', (e) => {
+        const btn = e.currentTarget as HTMLButtonElement;
+        scene.dispatchEvent(
+          new CustomEvent('card:game', { bubbles: true, detail: { game: Number(btn.dataset.game), from: (flipped ? back! : front!).getBoundingClientRect(), opener: btn } }),
+        );
       });
 
       // Double-click: back to where it started, front up

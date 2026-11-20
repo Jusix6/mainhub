@@ -565,6 +565,30 @@ das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
   Klicks ohne Bewegung erreichen Links und Buttons, ein Zug schluckt den Klick.
   Passt die Seite in Ruhe ins Fenster, gibt `html.card-free` ihr `overflow: clip`.
   Reduced motion: seitlicher Zug an der Ecke überblendet zur anderen Seite.
+- **Kartenspiel 01: Card Breaker** (nur `/` und `/card`): Die "01" am Ende
+  der Nummer JXSI-CH-01 ist ein Button (`[data-game="1"]`, die Vorderseite ist
+  dort deshalb ein `div` mit `tabindex`/`role="group"`, Enter/Space dreht um);
+  ein Klick ohne Ziehen schickt `card:game` an `CardGames.astro`, das das Spiel
+  im Vollbild über der Seite startet (Code erst dann per dynamischem Import aus
+  `src/lib/card-games/breakout.ts`). Eigener Brick-Breaker: die Blöcke sind
+  kleine Visitenkarten (auf Canvas gezeichnet: Foto als 96-px-WebP über
+  `getImage`, Barcode, blauer Titel, rote Nummer, Unterschrift; Reihen in den
+  Seitenfarben pastell), sie fliegen zu Beginn aus der grossen Karte heraus.
+  5–10 Spalten je nach Breite, 5 Reihen ab Level 1, pro Level eine mehr (max 8)
+  und 8 % schneller; Schläger mit Maus/Finger überall oder ← → (A D), Start mit
+  Klick/Tipp/Leertaste/Enter, P Pause, Esc oder × beendet (Fokus zurück auf die
+  01). 3 Leben (Leben weg erst, wenn der letzte Ball raus ist), höhere Reihen
+  mehr Punkte, Bestwert in `localStorage` `jxsi_cardbreaker_best`. Ab der
+  zweiten Wand lässt jede zerbrochene Karte zu 14 % ein Item fallen (Kapsel mit
+  Symbol, mit dem Schläger fangen; Gewichte in `ITEMS`): +2 Bälle, breiter
+  Schläger 15 s, TNT (nächste getroffene Karte sprengt ihre 8 Nachbarn), +1
+  Leben (max. 5), langsame Bälle 8 s, alle Bälle verdoppeln (max. 12), starker
+  Ball fliegt 7 s durch Karten, grosser Ball 8 s. Laufende Effekte als Chips mit
+  Restzeit unter der Punktzeile; beim Fangen blendet der Name kurz ein. Unter
+  560 px Breite zweizeilige Anzeige. Ändert sich die Fenstergrösse, behält die
+  Wand ihre Spaltenzahl. Lokal: `window.cardBreaker` (level, take, info,
+  clear) zum Testen. Reduced motion: ohne Einflug und Splitter. Texte in
+  `UI.card.games`. Weitere Spiele können an andere Nummern gehängt werden.
 - **Easter Egg: DVD-Bildschirmschoner** (nur `/` und `/card`): Wird die Karte
   so in eine Fensterecke gezogen, dass ihre sichtbaren Ecken (die vier
   `[data-mark]`) bis auf 14 px (Touch 22 px) in einer Ecke des Fensters sitzen,
