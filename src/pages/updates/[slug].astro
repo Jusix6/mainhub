@@ -10,7 +10,7 @@ import Button from '@/components/Button.astro';
 import { getUpdateType } from '@/data/updateTypes';
 import { UI } from '@/data/ui';
 import { formatDate, isoDate } from '@/lib/format';
-import { getPublishedUpdates, updateSlug, updateUrl } from '@/lib/updates';
+import { getPublishedUpdates, updateExcerpt, updateSlug, updateUrl } from '@/lib/updates';
 
 export async function getStaticPaths() {
   const updates = await getPublishedUpdates();
@@ -27,7 +27,7 @@ const typeDef = getUpdateType(type);
 const project = update.data.project ? await getEntry(update.data.project) : undefined;
 
 const ogUrl = cover ? new URL((await getImage({ src: cover, width: 1200, format: 'jpg' })).src, Astro.site).href : undefined;
-const description = update.body?.split('\n').find((l) => l.trim() && !l.startsWith('#'))?.slice(0, 160);
+const description = updateExcerpt(update) || undefined;
 ---
 
 <Base title={title} description={description} image={ogUrl}>

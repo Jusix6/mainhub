@@ -10,6 +10,25 @@ export function updateSlug(entry: UpdateEntry): string {
   return entry.id.replace(/^\d{4}-\d{2}-\d{2}-/, '');
 }
 
+/**
+ * The first paragraph of an update as plain text (no headings, images or
+ * Markdown marks), cut at a word boundary. For lists and the meta description.
+ */
+export function updateExcerpt(entry: UpdateEntry, max = 160): string {
+  const para = (entry.body ?? '')
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => p.trim())
+    .find((p) => p && !p.startsWith('#') && !p.startsWith('!') && !p.startsWith('<') && !p.startsWith('-'));
+  if (!para) return '';
+  const text = para
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= max) return text;
+  return text.slice(0, text.lastIndexOf(' ', max - 1)).replace(/[,;:.]$/, '') + ' …';
+}
+
 export function updateUrl(entry: UpdateEntry): string {
   return `/updates/${updateSlug(entry)}`;
 }

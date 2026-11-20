@@ -52,6 +52,7 @@ npm run dev          # Dev-Server auf http://localhost:4321
 npm run build        # astro check, astro build, dann scripts/csp.mjs (CSP-Hashes in dist/_headers)
 npm run preview      # dist/ lokal ansehen
 npm run og           # Standard-OG-Bild neu erzeugen (nach Änderung von Name/Tagline)
+npm run shots -- <steps.json>   # Screenshots für Update-Einträge (headless Chrome, siehe scripts/screenshots.mjs)
 npm run deploy       # Build + direkter Upload in den Cloudflare Worker (braucht `npx wrangler login`)
 npm run fun          # Worker + Durable Object lokal (wrangler dev) als fun.jxsi.ch auf http://localhost:8787, braucht vorher `npm run build`
 npm run fun:www      # dasselbe als www.jxsi.ch (zum Prüfen der /fun- und /library-Weiterleitung)
@@ -333,7 +334,31 @@ draft: false                    # optional; true = nur in `npm run dev` sichtbar
 
 Die URL ist der Dateiname ohne Datums-Präfix (`/updates/omf-alpha`). Zwei Dateien
 mit gleichem Rest-Namen brechen den Build. Typen und Farben in
-`src/data/updateTypes.ts`.
+`src/data/updateTypes.ts`. Mehrere Einträge am selben Tag: `date` mit Uhrzeit
+(`2026-11-20T18:00:00`), sonst ist die Reihenfolge zufällig.
+
+`UpdateCard` (Liste, Hub, Projektseite) zeigt das Cover als Vorschaubild (ab
+520 px Kartenbreite rechts 220 px breit 16:10, schmaler oben 2:1) und den ersten
+Absatz als Anriss (`updateExcerpt()` in `src/lib/updates.ts`: erster Absatz,
+der keine Überschrift, kein Bild und keine Liste ist, ohne Markdown, an einer
+Wortgrenze gekürzt; auch die Meta-Description der Einzelseite). Der erste
+Absatz soll deshalb für sich allein stehen.
+
+**Update-Einträge schreiben** (Wunsch des Nutzers 2026-11-20): Nach jedem
+grösseren Update (neues Spiel, neue Funktion, grössere Änderung) einen Eintrag
+in `src/content/updates/` anlegen und mit dem Code committen. Englisch,
+Ich-Form als Jusi, Ton wie die bisherigen Einträge: erster Absatz als Anriss,
+dann `## What's new`, `## What was hard` (echte Schwierigkeiten), `## Bugs fixed`
+bzw. `## Changed after launch`, Fakten nur aus dem, was wirklich gebaut
+wurde, nichts erfinden. Typ `release` für Neues, `devlog` für Updates, `news`
+für Technik/Infrastruktur. Screenshots als WebP in `src/assets/updates/`
+(Cover im Frontmatter, weitere im Text als `![alt](../../assets/updates/x.webp)`),
+aufgenommen mit `npm run shots -- <steps.json>` (`scripts/screenshots.mjs`:
+headless Chrome über das DevTools-Protokoll, Schritte mit `nav`/`js`/`wait`/
+`out`/`crop`, `.webp` wird mit sharp umgewandelt; Doku im Kopf der Datei;
+lokale Seiten für Zustände, die nur Dev-Hooks erreichen, z. B. Tiny Island
+per `window.tinyIsland` vorspulen). Die Steps-Datei gehört nicht ins Repo.
+Rückblick-Einträge 2026-09-19 bis 2026-11-20 sind so entstanden.
 
 ### Zeitplan (`src/content/schedule.yaml`)
 
@@ -701,7 +726,9 @@ Zeichen-Whitelist); wer das braucht, hängt eine Wortliste in `cleanName` an.
    Wenn etwas Grösseres sinnvoll wäre: vorschlagen, nicht einfach machen.
 8. **Platzhalter kennzeichnen.** Fehlende Bilder, Links oder Texte als `TODO:`
    im Frontmatter bzw. Kommentar markieren, nie stillschweigend erfinden.
-9. **Git**: Repo wird bei Phase 1 initialisiert. Commits klein, Präfixe
+9. **Update-Eintrag** nach jedem grösseren Update, siehe "Update" im
+   Datenmodell (Screenshots mit `npm run shots`).
+10. **Git**: Repo wird bei Phase 1 initialisiert. Commits klein, Präfixe
    `feat:`, `fix:`, `content:`, `style:`, `chore:`. Commit nur auf Anfrage.
 
 ## Roadmap

@@ -90,7 +90,8 @@ import Icon from './Icon.astro';
     }
   }
 
-  @media (min-width: 900px) {
+  /* Six in a row only where "Experiments" and "Digital Products" fit (below, the page scrolled sideways) */
+  @media (min-width: 1080px) {
     .strip {
       grid-template-columns: repeat(6, 1fr);
     }
