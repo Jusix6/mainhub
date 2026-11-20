@@ -69,7 +69,10 @@ export class Editor {
       this.render(false);
     });
     on(document, 'keydown', (e) => {
-      if (e.key === 'Escape' && !this.dialog.hidden) this.close();
+      if (e.key !== 'Escape' || this.dialog.hidden) return;
+      // Only the editor closes, not the window under it (ui.ts)
+      e.preventDefault();
+      this.close();
     });
     this.renderMine();
   }

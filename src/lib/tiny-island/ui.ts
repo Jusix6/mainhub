@@ -1,6 +1,7 @@
 /**
- * Everything the player touches: the toolbar (tabs, tools, brush size,
- * random island, placing life), the speed buttons, clock and population,
+ * Everything the player touches: the bar at the bottom and its windows
+ * (Build with tabs for tools, brush size, random island and placing life;
+ * Rules; World with its tabs), the speed buttons, clock and population,
  * the input on the map (drag to move, wheel / pinch to zoom, paint with a
  * brush, click to place) and the little label over whoever the mouse is on.
  */
@@ -53,6 +54,8 @@ export interface UiHooks {
   pointable: (x: number, y: number) => boolean;
   /** An own character was placed (its id). */
   onPlaced: (id: number) => void;
+  /** A window of the bar opened on a phone (the side panels make room). */
+  onWindow?: () => void;
 }
 
 export class Controls {
@@ -114,9 +117,17 @@ export class Controls {
       });
     });
     this.on(root, 'click', (e) => {
-      const el = (e.target as Element).closest<HTMLElement>('[data-tool], [data-size], [data-speed], [data-tab], [data-random], [data-people]');
+      const el = (e.target as Element).closest<HTMLElement>('[data-tool], [data-size], [data-speed], [data-tab], [data-random], [data-people], [data-win-open], [data-win-close], [data-drop-tool]');
       if (!el) return;
-      if (el.dataset.people) {
+      if (el.dataset.winOpen) {
+        this.toggleWindow(el.dataset.winOpen);
+      } else if (el.hasAttribute('data-win-close')) {
+        this.toggleWindow(null);
+      } else if (el.hasAttribute('data-drop-tool')) {
+        this.placing = null;
+        this.tool = 'move';
+        this.renderTool();
+      } else if (el.dataset.people) {
         this.people = el.dataset.people as People;
         this.tool = 'human';
         this.renderTool();
@@ -129,16 +140,35 @@ export class Controls {
       } else if (el.dataset.speed) {
         this.setSpeed(Number(el.dataset.speed) as Speed);
       } else if (el.dataset.tab && !el.hasAttribute('aria-disabled')) {
-        this.showTab(el.dataset.tab);
+        this.showTab(el);
       } else if (el.hasAttribute('data-random')) {
         this.hooks.onRandom();
       }
     });
   }
 
-  private showTab(tab: string) {
-    this.root.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-    this.root.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== tab));
+  /** A tab inside a window (Build or World): only that window's tabs and panels change. */
+  private showTab(btn: HTMLElement) {
+    const set = btn.closest<HTMLElement>('[data-tabset]') ?? this.root;
+    const tab = btn.dataset.tab;
+    set.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    set.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== tab));
+  }
+
+  /** Opens one window of the bar (closing the others), or closes it when it is open already (null: close all). */
+  toggleWindow(name: string | null) {
+    const open = this.root.querySelector<HTMLElement>(`[data-win="${name}"]`);
+    const show = open?.hidden ? name : null;
+    this.root.querySelectorAll<HTMLElement>('[data-win]').forEach((w) => (w.hidden = w.dataset.win !== show));
+    this.root.querySelectorAll<HTMLElement>('[data-win-open]').forEach((b) => b.setAttribute('aria-expanded', String(b.dataset.winOpen === show)));
+    // Phones: the window takes the place of the chronicle and the profile
+    if (show && window.matchMedia('(max-width: 640px)').matches) this.hooks.onWindow?.();
+    this.renderTool();
+  }
+
+  /** The open window of the bar, if any. */
+  private openWindow() {
+    return this.root.querySelector<HTMLElement>('[data-win]:not([hidden])')?.dataset.win ?? null;
   }
 
   /** " · 🎨 3" for works of art made here, " · 🎉" while a festival is on. */
@@ -163,6 +193,13 @@ export class Controls {
     this.root.querySelectorAll<HTMLElement>('[data-size]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.size === this.size)));
     this.root.querySelectorAll<HTMLElement>('[data-people]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.people === this.people)));
     this.root.dataset.tool = this.tool;
+    // With the Build window closed, the bar shows the brush in hand
+    const chip = this.root.querySelector<HTMLElement>('[data-drop-tool]');
+    if (chip) {
+      chip.hidden = this.tool === 'move' || this.openWindow() === 'build';
+      const label = this.tool === 'character' ? (this.placing?.name ?? '') : this.tool === 'human' ? `${this.S.life.human} · ${this.S.peoples[this.people]}` : (this.root.querySelector<HTMLElement>(`[data-tool="${this.tool}"]`)?.title ?? '');
+      chip.querySelector('[data-current]')!.textContent = label;
+    }
   }
 
   setSpeed(speed: Speed) {
@@ -425,6 +462,14 @@ export class Controls {
         this.setSpeed(SPEEDS[Number(e.key)]);
       } else if (e.key === '0' || e.key.toLowerCase() === 'p') {
         this.setSpeed(0);
+      } else if (e.key === 'Escape') {
+        // The character editor closes first (editor.ts marks the key as used)
+        if (e.defaultPrevented || this.root.querySelector('[data-editor]:not([hidden])')) return;
+        this.toggleWindow(null);
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && ['b', 'r', 'w'].includes(e.key.toLowerCase())) {
+        this.toggleWindow({ b: 'build', r: 'rules', w: 'world' }[e.key.toLowerCase()]!);
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'c') {
+        this.root.querySelector<HTMLElement>('.ti__bar [data-chron-toggle]')?.click();
       } else if (e.key === '+' || e.key === '=') {
         this.cam.zoomAt(1.25, this.cam.vw / 2, this.cam.vh / 2);
       } else if (e.key === '-') {

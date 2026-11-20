@@ -96,6 +96,7 @@ export function start(root: HTMLElement): () => void {
     },
     pointable: (x, y) => renderer.villageAt(x, y) !== null,
     onPan: () => panels.stopFollow(),
+    onWindow: () => panels.makeRoom(),
     // An own character came to life: show its profile, keep it in My Characters
     onPlaced: (id) => {
       panels.select(id);

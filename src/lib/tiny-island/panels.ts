@@ -340,6 +340,9 @@ export class Panels {
         const entry = t.closest<HTMLElement>('[data-entry]');
         const place = t.closest<HTMLElement>('[data-village]');
         const vAction = t.closest<HTMLElement>('[data-v-show], [data-v-festival], [data-v-donate]');
+        // Jumping to a place or person from the World window: out of the way if it would cover the profile
+        const win = t.closest<HTMLElement>('[data-win]');
+        if (win && (place || person) && win.getBoundingClientRect().left < 310) win.querySelector<HTMLElement>('[data-win-close]')?.click();
         if (place) {
           // A place name anywhere: open its profile and look at it
           const id = Number(place.dataset.village);
@@ -411,10 +414,16 @@ export class Panels {
           if (fav.has(this.selected)) fav.delete(this.selected);
           else fav.add(this.selected);
           this.profileAt = 0;
+        } else if (t.closest('[data-win-open], [data-tab]')) {
+          // A window or tab just opened: fill its lists right away
+          this.rulesAt = 0;
         } else if (t.closest('[data-chron-toggle]')) {
           chron.hidden = !chron.hidden;
           // Phones: one panel at a time
-          if (!chron.hidden && this.narrow()) this.select(null);
+          if (!chron.hidden && this.narrow()) {
+            this.select(null);
+            this.closeWindows();
+          }
           this.syncToggle();
         }
       },
@@ -426,9 +435,21 @@ export class Panels {
     this.ac.abort();
   }
 
+  /** Phones: one panel at a time, so the open window of the bar closes. */
+  private closeWindows() {
+    this.root.querySelector<HTMLElement>('[data-win]:not([hidden]) [data-win-close]')?.click();
+  }
+
+  /** Phones: a window of the bar opened, so the chronicle and the profile close. */
+  makeRoom() {
+    this.select(null);
+    this.root.querySelector<HTMLElement>('[data-chron]')!.hidden = true;
+    this.syncToggle();
+  }
+
   private syncToggle() {
     const open = !this.root.querySelector<HTMLElement>('[data-chron]')!.hidden;
-    this.root.querySelector('[data-chron-toggle]')?.setAttribute('aria-expanded', String(open));
+    this.root.querySelectorAll('[data-chron-toggle]').forEach((b) => b.setAttribute('aria-expanded', String(open)));
   }
 
   private narrow() {
@@ -444,6 +465,7 @@ export class Panels {
     if (id !== null && this.narrow()) {
       this.root.querySelector<HTMLElement>('[data-chron]')!.hidden = true;
       this.syncToggle();
+      this.closeWindows();
     }
   }
 
@@ -455,6 +477,7 @@ export class Panels {
     if (this.narrow()) {
       this.root.querySelector<HTMLElement>('[data-chron]')!.hidden = true;
       this.syncToggle();
+      this.closeWindows();
     }
   }
 

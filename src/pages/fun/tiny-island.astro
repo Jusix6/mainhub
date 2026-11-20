@@ -30,6 +30,11 @@
  * separation, mentors, forbidden love, royal weddings and claims (drama.ts).
  * Phase D: leagues and fusion (leagues.ts), plots (plots.ts), god gifts Peace and Ally.
  * Phase E: six ages, nine new inventions, endless progress (inventions.ts).
+ * UI update: a bar at the bottom like in sandbox games (Build, Rules, World,
+ * Chronicle). Each opens its own window: Build (Shape, Life, Characters) and
+ * Rules (sliders only) sit over the bar, World (peoples, kingdoms, leagues,
+ * wonders, inventions, culture, population) is a big window with tabs, the
+ * chronicle stays a small window on the right.
  */
 import Fun from '@/layouts/Fun.astro';
 import '@fontsource-variable/pixelify-sans';
@@ -101,6 +106,16 @@ const swatch: Record<(typeof TERRAIN_KEYS)[number], string> = {
   forest: COLORS.leaf,
   mountain: COLORS.rock,
 };
+const worldTabs = [
+  { key: 'peoples', icon: '🤝', name: T.rules.relations },
+  { key: 'kingdoms', icon: '👑', name: T.kingdoms.title },
+  { key: 'leagues', icon: '🛡️', name: T.leagues.title },
+  { key: 'wonders', icon: '🏛️', name: T.bar.wonders },
+  { key: 'inventions', icon: '💡', name: T.rules.inventions },
+  { key: 'culture', icon: '🎨', name: T.culture.title },
+  { key: 'population', icon: '📊', name: T.statsTitle },
+] as const;
+const B = T.bar;
 const speeds = [
   { value: 0, label: '❚❚', aria: T.pause },
   { value: 1, label: '1×', aria: '1×' },
@@ -136,9 +151,6 @@ const speeds = [
         <span title={T.life.horse}>🐎 <b data-pop="horse">0</b></span>
         <span title={T.villages}>🏘️ <b data-pop="villages">0</b></span>
       </p>
-      <button type="button" class="ti__btn ti__chron-btn" data-chron-toggle aria-expanded="false" aria-controls="ti-chronicle" title={T.chronicle.toggle}>
-        📜 <span>{T.chronicle.title}</span>
-      </button>
       <div class="ti__speed" role="group" aria-label={T.speedLabel}>
         {
           speeds.map((s) => (
@@ -150,76 +162,90 @@ const speeds = [
       </div>
     </header>
 
-    <nav class="ti__dock" aria-label={T.title}>
-      <div class="ti__tabs" role="tablist">
-        <button type="button" class="ti__tab" role="tab" data-tab="shape" aria-selected="true">{T.tabs.shape}</button>
-        <button type="button" class="ti__tab" role="tab" data-tab="life" aria-selected="false">{T.tabs.life}</button>
-        <button type="button" class="ti__tab" role="tab" data-tab="rules" aria-selected="false">{T.tabs.rules}</button>
-      </div>
-      <div class="ti__panel" data-panel="shape" role="tabpanel">
-        <div class="ti__tools" role="group" aria-label={T.tabs.shape}>
-          <button type="button" class="ti__tool" data-tool="move" aria-pressed="true" title={T.tools.move}>
-            <svg class="ti__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"></path></svg>
-            <span>{T.tools.move}</span>
-          </button>
-          {
-            TERRAIN_KEYS.map((k) => (
-              <button type="button" class="ti__tool" data-tool={k} aria-pressed="false" title={T.tools[k]}>
-                <span class="ti__swatch" style={`--sw: ${swatch[k]}`} data-kind={k} aria-hidden="true" />
-                <span>{T.tools[k]}</span>
-              </button>
-            ))
-          }
+    <div class="ti__dock">
+      <section class="ti__win ti__win--build" id="ti-win-build" data-win="build" data-tabset aria-label={B.build} hidden>
+        <header class="ti__win-head">
+          <div class="ti__tabs" role="tablist" aria-label={B.build}>
+            <button type="button" class="ti__tab" role="tab" data-tab="shape" aria-selected="true">🏔️ {T.tabs.shape}</button>
+            <button type="button" class="ti__tab" role="tab" data-tab="life" aria-selected="false">🐑 {T.tabs.life}</button>
+            <button type="button" class="ti__tab" role="tab" data-tab="characters" aria-selected="false">✦ {T.tabs.characters}</button>
+          </div>
+          <button type="button" class="ti__win-close" data-win-close aria-label={B.close} title={B.close}>×</button>
+        </header>
+        <div class="ti__panel" data-panel="shape" role="tabpanel">
+          <div class="ti__tools" role="group" aria-label={T.tabs.shape}>
+            <button type="button" class="ti__tool" data-tool="move" aria-pressed="true" title={T.tools.move}>
+              <svg class="ti__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"></path></svg>
+              <span>{T.tools.move}</span>
+            </button>
+            {
+              TERRAIN_KEYS.map((k) => (
+                <button type="button" class="ti__tool" data-tool={k} aria-pressed="false" title={T.tools[k]}>
+                  <span class="ti__swatch" style={`--sw: ${swatch[k]}`} data-kind={k} aria-hidden="true" />
+                  <span>{T.tools[k]}</span>
+                </button>
+              ))
+            }
+          </div>
+          <div class="ti__sizes" role="group" aria-label={T.brushLabel}>
+            {
+              (['s', 'm', 'l'] as const).map((s) => (
+                <button type="button" class="ti__btn" data-size={s} aria-pressed={s === 'm' ? 'true' : 'false'} aria-label={`${T.brushLabel} ${T.sizes[s]}`}>
+                  {T.sizes[s]}
+                </button>
+              ))
+            }
+          </div>
+          <button type="button" class="ti__random" data-random>🎲 {T.random}</button>
         </div>
-        <div class="ti__sizes" role="group" aria-label={T.brushLabel}>
-          {
-            (['s', 'm', 'l'] as const).map((s) => (
-              <button type="button" class="ti__btn" data-size={s} aria-pressed={s === 'm' ? 'true' : 'false'} aria-label={`${T.brushLabel} ${T.sizes[s]}`}>
-                {T.sizes[s]}
-              </button>
-            ))
-          }
+        <div class="ti__panel" data-panel="life" role="tabpanel" hidden>
+          <div class="ti__tools" role="group" aria-label={T.tabs.life}>
+            <button type="button" class="ti__tool" data-tool="move" aria-pressed="true" title={T.tools.move}>
+              <svg class="ti__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"></path></svg>
+              <span>{T.tools.move}</span>
+            </button>
+            <button type="button" class="ti__tool" data-tool="human" aria-pressed="false" title={T.life.human}>
+              <span class="ti__emoji" aria-hidden="true">👤</span>
+              <span>{T.life.human}</span>
+            </button>
+            {
+              lifeTools.map((l) => (
+                <button type="button" class="ti__tool" data-tool={l.key} aria-pressed="false" title={T.life[l.key]}>
+                  <span class="ti__emoji" aria-hidden="true">{l.icon}</span>
+                  <span>{T.life[l.key]}</span>
+                </button>
+              ))
+            }
+          </div>
+          <div class="ti__peoples" role="group" aria-label={T.peopleLabel}>
+            {
+              PLAYABLE.map((k) => (
+                <button type="button" class="ti__people" data-people={k} aria-pressed={k === 'coast' ? 'true' : 'false'} title={T.peoples[k]}>
+                  <span class="ti__swatch" style={`--sw: ${PEOPLE_COLORS[k].cloth}`} aria-hidden="true" />
+                  <span>{T.peoples[k]}</span>
+                </button>
+              ))
+            }
+          </div>
+          <p class="ti__note">{T.lifeHint}</p>
         </div>
-        <button type="button" class="ti__random" data-random>🎲 {T.random}</button>
-      </div>
-      <div class="ti__panel" data-panel="life" role="tabpanel" hidden>
-        <div class="ti__tools" role="group" aria-label={T.tabs.life}>
-          <button type="button" class="ti__tool" data-tool="move" aria-pressed="true" title={T.tools.move}>
-            <svg class="ti__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"></path></svg>
-            <span>{T.tools.move}</span>
-          </button>
-          <button type="button" class="ti__tool" data-tool="human" aria-pressed="false" title={T.life.human}>
-            <span class="ti__emoji" aria-hidden="true">👤</span>
-            <span>{T.life.human}</span>
-          </button>
-          {
-            lifeTools.map((l) => (
-              <button type="button" class="ti__tool" data-tool={l.key} aria-pressed="false" title={T.life[l.key]}>
-                <span class="ti__emoji" aria-hidden="true">{l.icon}</span>
-                <span>{T.life[l.key]}</span>
-              </button>
-            ))
-          }
-        </div>
-        <div class="ti__peoples" role="group" aria-label={T.peopleLabel}>
-          {
-            PLAYABLE.map((k) => (
-              <button type="button" class="ti__people" data-people={k} aria-pressed={k === 'coast' ? 'true' : 'false'} title={T.peoples[k]}>
-                <span class="ti__swatch" style={`--sw: ${PEOPLE_COLORS[k].cloth}`} aria-hidden="true" />
-                <span>{T.peoples[k]}</span>
-              </button>
-            ))
-          }
-        </div>
-        <p class="ti__note">{T.lifeHint}</p>
-        <div class="ti__mine">
+        <div class="ti__panel ti__panel--chars" data-panel="characters" role="tabpanel" hidden>
+          <p class="ti__note">{E.intro}</p>
           <button type="button" class="ti__create" data-editor-open>{E.create}</button>
-          <span class="ti__rule-name">{E.mine}</span>
-          <div class="ti__mine-list" data-mine-list></div>
+          <div class="ti__mine">
+            <span class="ti__rule-name">{E.mine}</span>
+            <div class="ti__mine-list" data-mine-list></div>
+          </div>
+          <p class="ti__place-hint" data-place-hint hidden></p>
         </div>
-        <p class="ti__place-hint" data-place-hint hidden></p>
-      </div>
-      <div class="ti__panel ti__panel--rules" data-panel="rules" role="tabpanel" hidden>
+      </section>
+
+      <section class="ti__win ti__win--rules" id="ti-win-rules" data-win="rules" aria-labelledby="ti-rules-title" hidden>
+        <header class="ti__win-head">
+          <h2 class="ti__win-title" id="ti-rules-title">⚖️ {B.rules}</h2>
+          <button type="button" class="ti__win-close" data-win-close aria-label={B.close} title={B.close}>×</button>
+        </header>
+        <p class="ti__note">{T.rules.intro}</p>
         {
           rules.map((r) => (
             <label class="ti__rule">
@@ -231,53 +257,99 @@ const speeds = [
           ))
         }
         <p class="ti__note">{T.rules.aggressionHint}</p>
-        <div class="ti__relations">
-          <p class="ti__rule-name">{T.rules.relations}</p>
-          <ul class="ti__rel-list" data-relations></ul>
-        </div>
-        <div class="ti__relations">
-          <p class="ti__rule-name">{T.kingdoms.title}</p>
-          <ul class="ti__rel-list ti__king-list" data-kingdoms></ul>
-        </div>
-        <div class="ti__relations">
-          <p class="ti__rule-name">{T.leagues.title}</p>
-          <ul class="ti__rel-list ti__league-list" data-leagues></ul>
-        </div>
-        <div class="ti__relations">
-          <p class="ti__rule-name">{T.wonders.title}</p>
-          <ul class="ti__rel-list ti__wonder-list" data-wonders></ul>
-        </div>
-        <div class="ti__relations">
-          <p class="ti__rule-name">{T.culture.title}</p>
-          <ul class="ti__rel-list ti__tech-list ti__culture-list" data-culture></ul>
-        </div>
-        <div class="ti__relations">
-          <p class="ti__rule-name">{T.rules.inventions}</p>
-          <ul class="ti__rel-list ti__tech-list" data-tech></ul>
-        </div>
-      </div>
-    </nav>
+      </section>
 
-    <aside class="ti__profile" data-profile hidden aria-live="polite"></aside>
-    <aside class="ti__chron" id="ti-chronicle" data-chron hidden>
-      <h2 class="ti__chron-title">📊 {T.statsTitle}</h2>
-      <p class="ti__legend" aria-hidden="true">
+      <nav class="ti__bar" aria-label={B.label}>
+        <button type="button" class="ti__bar-btn" data-win-open="build" aria-expanded="false" aria-controls="ti-win-build" title={`${B.buildHint} (B)`}>
+          <span class="ti__bar-icon" aria-hidden="true">🛠️</span><span class="ti__bar-name">{B.build}</span>
+        </button>
+        <button type="button" class="ti__bar-btn" data-win-open="rules" aria-expanded="false" aria-controls="ti-win-rules" title={`${B.rulesHint} (R)`}>
+          <span class="ti__bar-icon" aria-hidden="true">⚖️</span><span class="ti__bar-name">{B.rules}</span>
+        </button>
+        <button type="button" class="ti__bar-btn" data-win-open="world" aria-expanded="false" aria-controls="ti-win-world" title={`${B.worldHint} (W)`}>
+          <span class="ti__bar-icon" aria-hidden="true">🌍</span><span class="ti__bar-name">{B.world}</span>
+        </button>
+        <span class="ti__bar-sep" aria-hidden="true"></span>
+        <button type="button" class="ti__bar-btn" data-chron-toggle aria-expanded="false" aria-controls="ti-chronicle" title={`${T.chronicle.toggle} (C)`}>
+          <span class="ti__bar-icon" aria-hidden="true">📜</span><span class="ti__bar-name">{T.chronicle.title}</span>
+        </button>
+        <button type="button" class="ti__current" data-drop-tool title={B.drop} hidden>
+          <span class="ti__current-name" data-current></span><span aria-hidden="true">✕</span>
+        </button>
+      </nav>
+    </div>
+
+    <section class="ti__win ti__win--world" id="ti-win-world" data-win="world" data-tabset aria-labelledby="ti-world-title" hidden>
+      <header class="ti__win-head">
+        <h2 class="ti__win-title" id="ti-world-title">🌍 {B.world}</h2>
+        <button type="button" class="ti__win-close" data-win-close aria-label={B.close} title={B.close}>×</button>
+      </header>
+      <div class="ti__tabs ti__wtabs" role="tablist" aria-label={B.world}>
         {
-          PEOPLES.map((k) => (
-            <span data-legend={k}>
-              <svg width="18" height="6" viewBox="0 0 18 6">
-                <line x1="1" y1="3" x2="17" y2="3" stroke={PEOPLE_COLORS[k].cloth} stroke-width="2" stroke-dasharray={k === 'forest' ? '6 3' : k === 'mountain' ? '2 3' : k === 'steppe' ? '9 3 2 3' : k === 'islanders' ? '1 2' : undefined} />
-              </svg>
-              {T.peoples[k]}
-            </span>
+          worldTabs.map((w, i) => (
+            <button type="button" class="ti__tab" role="tab" data-tab={w.key} aria-selected={i === 0 ? 'true' : 'false'}>
+              <span aria-hidden="true">{w.icon}</span> {w.name}
+            </button>
           ))
         }
-      </p>
-      <div class="ti__stats" data-stats></div>
-      <p class="ti__stats-tip" data-stats-tip hidden></p>
-      <h2 class="ti__chron-title">🪦 {T.deaths.title}</h2>
-      <ul class="ti__deaths" data-deaths></ul>
-      <h2 class="ti__chron-title">📜 {T.chronicle.title}</h2>
+      </div>
+      <div class="ti__wbody">
+        <div class="ti__wpanel" data-panel="peoples" role="tabpanel">
+          <p class="ti__note">{T.worldNotes.peoples}</p>
+          <ul class="ti__rel-list" data-relations></ul>
+        </div>
+        <div class="ti__wpanel" data-panel="kingdoms" role="tabpanel" hidden>
+          <p class="ti__note">{T.worldNotes.kingdoms}</p>
+          <ul class="ti__rel-list ti__king-list" data-kingdoms></ul>
+        </div>
+        <div class="ti__wpanel" data-panel="leagues" role="tabpanel" hidden>
+          <p class="ti__note">{T.worldNotes.leagues}</p>
+          <ul class="ti__rel-list ti__league-list" data-leagues></ul>
+        </div>
+        <div class="ti__wpanel" data-panel="wonders" role="tabpanel" hidden>
+          <p class="ti__note">{T.worldNotes.wonders}</p>
+          <ul class="ti__rel-list ti__wonder-list" data-wonders></ul>
+        </div>
+        <div class="ti__wpanel" data-panel="inventions" role="tabpanel" hidden>
+          <p class="ti__note">{T.worldNotes.inventions}</p>
+          <ul class="ti__rel-list ti__tech-list" data-tech></ul>
+        </div>
+        <div class="ti__wpanel" data-panel="culture" role="tabpanel" hidden>
+          <p class="ti__note">{T.worldNotes.culture}</p>
+          <ul class="ti__rel-list ti__tech-list ti__culture-list" data-culture></ul>
+        </div>
+        <div class="ti__wpanel ti__wpanel--pop" data-panel="population" role="tabpanel" hidden>
+          <div class="ti__pop-chart">
+            <h3 class="ti__chron-title">📈 {T.statsTitle}</h3>
+            <p class="ti__legend" aria-hidden="true">
+              {
+                PEOPLES.map((k) => (
+                  <span data-legend={k}>
+                    <svg width="18" height="6" viewBox="0 0 18 6">
+                      <line x1="1" y1="3" x2="17" y2="3" stroke={PEOPLE_COLORS[k].cloth} stroke-width="2" stroke-dasharray={k === 'forest' ? '6 3' : k === 'mountain' ? '2 3' : k === 'steppe' ? '9 3 2 3' : k === 'islanders' ? '1 2' : undefined} />
+                    </svg>
+                    {T.peoples[k]}
+                  </span>
+                ))
+              }
+            </p>
+            <div class="ti__stats" data-stats></div>
+            <p class="ti__stats-tip" data-stats-tip hidden></p>
+          </div>
+          <div class="ti__pop-deaths">
+            <h3 class="ti__chron-title">🪦 {T.deaths.title}</h3>
+            <ul class="ti__deaths" data-deaths></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="ti__profile" data-profile hidden aria-live="polite"></aside>
+    <aside class="ti__chron" id="ti-chronicle" data-chron aria-labelledby="ti-chron-title" hidden>
+      <header class="ti__win-head">
+        <h2 class="ti__chron-title" id="ti-chron-title">📜 {T.chronicle.title}</h2>
+        <button type="button" class="ti__win-close" data-chron-toggle aria-label={B.close} title={B.close}>×</button>
+      </header>
       <ol class="ti__chron-list" data-chron-list></ol>
     </aside>
     <p class="ti__hint">{T.hint}</p>
@@ -618,20 +690,204 @@ const speeds = [
     box-shadow: var(--shadow-sm);
   }
 
-  /* ---- bottom dock ---- */
+  /* ---- bottom: windows over a bar (like the build menus of sandbox games) ---- */
   .ti__dock {
     position: absolute;
     bottom: max(10px, env(safe-area-inset-bottom));
     left: 50%;
-    display: grid;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: 8px;
     width: min(calc(100% - 20px), 860px);
-    padding: 8px 10px 10px;
-    background: var(--surface);
-    border: var(--line) solid var(--ink);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
     transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .ti__dock > * {
+    pointer-events: auto;
+  }
+
+  .ti__bar {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .ti__bar-btn {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    min-width: 72px;
+    padding: 5px 8px 4px;
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease-pop);
+  }
+
+  .ti__bar-btn:hover {
+    transform: translateY(-2px);
+  }
+
+  .ti__bar-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .ti__bar-name {
+    font-size: 13px;
+    line-height: 1.1;
+  }
+
+  .ti__bar-sep {
+    width: 2px;
+    margin: 4px 2px;
+    background: var(--ti-wood);
+    border-radius: 1px;
+  }
+
+  /* The brush in hand while the Build window is closed: click to put it away */
+  .ti__current {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: center;
+    max-width: 180px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .ti__current[hidden] {
+    display: none;
+  }
+
+  .ti__current-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ti__win {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px 10px;
+  }
+
+  .ti__win[hidden] {
+    display: none;
+  }
+
+  .ti__win--rules {
+    width: min(100%, 520px);
+  }
+
+  .ti__win-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .ti__win-title {
+    margin: 0;
+    font-size: var(--text-base);
+  }
+
+  .ti__win-close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  /* The World window: big, between the top bar and the bottom bar */
+  .ti__win--world {
+    position: absolute;
+    top: var(--top, 78px);
+    bottom: var(--dock, 90px);
+    left: 50%;
+    z-index: 3;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    width: min(calc(100% - 20px), 820px);
+    max-height: 560px;
+    margin: auto 0;
+    transform: translateX(-50%);
+  }
+
+  .ti__wtabs {
+    flex-wrap: wrap;
+  }
+
+  .ti__wtabs .ti__tab {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  /* Rules: names, ends and sliders in straight columns */
+  .ti__win--rules .ti__rule {
+    display: grid;
+    grid-template-columns: 96px 58px minmax(0, 1fr) 58px;
+  }
+
+  .ti__win--rules .ti__rule-name + .ti__rule-end {
+    text-align: right;
+  }
+
+  @media (max-width: 640px) {
+    .ti__win--rules .ti__rule {
+      grid-template-columns: 58px minmax(0, 1fr) 58px;
+    }
+
+    .ti__win--rules .ti__rule .ti__rule-name {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .ti__wbody {
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-color: var(--ti-wood) var(--ti-parch-dark);
+    scrollbar-width: thin;
+  }
+
+  .ti__wpanel[hidden] {
+    display: none;
+  }
+
+  .ti__wpanel > .ti__note {
+    margin-bottom: 6px;
+  }
+
+  .ti__wpanel--pop {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 16px;
+  }
+
+  @media (max-width: 700px) {
+    .ti__wpanel--pop {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .ti__panel--chars {
+    display: grid;
+    justify-items: start;
+    gap: 8px;
+  }
+
+  .ti__panel--chars[hidden] {
+    display: none;
   }
 
   .ti__tabs {
@@ -816,6 +1072,19 @@ const speeds = [
     font-size: var(--text-base);
   }
 
+  .ti__chron > .ti__win-head {
+    position: sticky;
+    top: -10px;
+    z-index: 1;
+    margin: -10px -12px 4px;
+    padding: 8px 10px 4px 12px;
+    background: var(--ti-parch);
+  }
+
+  .ti__chron > .ti__win-head .ti__chron-title {
+    margin: 0;
+  }
+
   .ti__chron-list {
     display: grid;
     gap: 2px;
@@ -860,10 +1129,6 @@ const speeds = [
   .ti__chron-list :global(.ti-c__empty) {
     color: var(--muted);
     font-size: 12px;
-  }
-
-  .ti__chron-btn span {
-    margin-left: 2px;
   }
 
   .ti__profile :global(.ti-p__head) {
@@ -1257,17 +1522,7 @@ const speeds = [
     margin-top: 2px;
   }
 
-  /* ---- rules tab ---- */
-  .ti__panel--rules {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-
-  .ti__panel--rules[hidden] {
-    display: none;
-  }
-
+  /* ---- rules window ---- */
   .ti__rule {
     display: flex;
     flex-wrap: wrap;
@@ -1679,7 +1934,8 @@ const speeds = [
 
   /* Every panel is a sheet of parchment in a wooden frame */
   .ti__top,
-  .ti__dock,
+  .ti__bar,
+  .ti__win,
   .ti__profile,
   .ti__chron,
   .ti__start-card {
@@ -1712,6 +1968,9 @@ const speeds = [
 
   /* Wooden buttons; the active one is golden */
   .ti__btn,
+  .ti__bar-btn,
+  .ti__win-close,
+  .ti__current,
   .ti__tool,
   .ti__people,
   .ti__random,
@@ -1732,6 +1991,9 @@ const speeds = [
   }
 
   .ti__btn:hover,
+  .ti__bar-btn:hover,
+  .ti__win-close:hover,
+  .ti__current:hover,
   .ti__tool:hover,
   .ti__people:hover,
   .ti__random:hover,
@@ -1743,6 +2005,8 @@ const speeds = [
   }
 
   .ti__btn[aria-pressed='true'],
+  .ti__bar-btn[aria-expanded='true'],
+  .ti__current,
   .ti__tool[aria-pressed='true'],
   .ti__people[aria-pressed='true'],
   .ti__random,
@@ -1791,6 +2055,7 @@ const speeds = [
 
   .ti__rule-name,
   .ti__chron-title,
+  .ti__win-title,
   .ti__profile :global(.ti-p__h),
   .ti__profile :global(.ti-p__name) {
     font-family: var(--ti-pixel);
@@ -2377,16 +2642,16 @@ const speeds = [
     transform: translate(-50%, -50%);
   }
 
-  /* The hint is about shaping; other tabs make the dock taller */
-  .ti:has([data-panel='shape'][hidden]) .ti__hint {
+  /* The hint only while no window is open */
+  .ti:has(.ti__win:not([hidden])) .ti__hint {
     display: none !important;
   }
 
-  /* Hint over the dock on wide screens */
+  /* Hint over the bar on wide screens */
   @media (min-width: 760px) {
     .ti__hint {
       position: absolute;
-      bottom: 150px;
+      bottom: var(--dock, 90px);
       left: 50%;
       display: block;
       margin: 0;
@@ -2441,8 +2706,40 @@ const speeds = [
       display: none;
     }
 
-    .ti__chron-btn span {
-      display: none;
+    /* The bar: icons with small names */
+    .ti__bar {
+      gap: 4px;
+      padding: 4px;
+    }
+
+    .ti__bar-btn {
+      min-width: 54px;
+      padding: 4px 4px 3px;
+    }
+
+    .ti__bar-icon {
+      font-size: 19px;
+    }
+
+    .ti__bar-name {
+      font-size: 10px;
+    }
+
+    .ti__current {
+      max-width: 90px;
+      padding: 4px 6px;
+      font-size: 11px;
+    }
+
+    .ti__win--world {
+      max-height: none;
+    }
+
+    .ti__tab,
+    .ti__wtabs .ti__tab {
+      padding: 3px 7px;
+      font-size: 12px;
+      white-space: nowrap;
     }
 
     /* Panels become sheets across the screen */
