@@ -9,6 +9,7 @@
 import { familyName } from './names';
 import { forbiddenLove } from './drama';
 import { famished } from './hunger';
+import { brawlFactor } from './wonders';
 import { stat, hasPower, ageOf, dist, has, pickTraits, stage, tileOf, type Human, type StoryEntry, type Thought, type Trait } from './agents';
 import type { Ref } from './chronicle';
 import type { Sim } from './sim';
@@ -280,6 +281,8 @@ export function wantsBrawl(h: Human, sim: Sim): Human | null {
   if (has(h, 'cruel')) chance *= 2;
   // A temple keeps the peace
   if (sim.villages.some((v) => v.id === h.village && v.buildings?.some((b) => b.kind === 'temple'))) chance *= 0.5;
+  // The games of a colosseum (phase H) too
+  chance *= brawlFactor(sim, h.people);
   if (sim.rand() > chance) return null;
   return sim.nearest(h.x, h.y, 4, (o) => o.kind === 'human' && o !== h && relOf(h, o as Human) <= RIVAL && !(o as Human).asleep) as Human | null;
 }

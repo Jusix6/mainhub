@@ -8,6 +8,7 @@
  * it is too crowded (more than 20: young adults leave and found a new
  * village) or empty (then it falls into ruins, which others can resettle).
  */
+import { onWonder, projectOf } from './wonders';
 import { stat, hasPower, ageOf, has, PERKS, stage, type Human, type People } from './agents';
 import { villageName } from './names';
 import type { Sim } from './sim';
@@ -139,7 +140,7 @@ function taken(sim: Sim, tx: number, ty: number) {
       v.buildings.some((b) => Math.abs(b.x - tx) < 2 && Math.abs(b.y - ty) < 2) ||
       !!v.art?.some((p) => p.kind === 'statue' && Math.abs(p.x - tx) < 2 && Math.abs(p.y - ty) < 2) ||
       (v.site && Math.abs(v.site.x - tx) < 2 && Math.abs(v.site.y - ty) < 2),
-  );
+  ) || onWonder(sim, tx, ty);
 }
 
 /**
@@ -351,6 +352,11 @@ export function villageThink(v: Village, sim: Sim) {
   v.need.wood = cost && v.wood < cost.wood + 2 ? 0.8 : v.wood < 4 ? 0.3 : 0;
   v.need.stone = cost && cost.stone && v.stone < cost.stone ? 0.8 : 0;
   v.need.ore = v.ore < 6 ? 0.4 : 0;
+  // A world wonder going up (phase H) eats wood and stone
+  if (projectOf(sim, v)) {
+    if (v.wood < 12) v.need.wood = Math.max(v.need.wood, 0.6);
+    if (v.rock && v.stone < 12) v.need.stone = Math.max(v.need.stone, 0.6);
+  }
 
   // Jobs every few seconds (jobs.ts)
   if ((v.jobsAt ?? 0) <= sim.time) {

@@ -20,6 +20,7 @@ import { foodYears } from './hunger';
 import { atWar, equip, isWarrior, WEAPONS, type Weapon } from './war';
 import type { Village } from './villages';
 import { hasBuilding } from './town';
+import { wonderBuilders } from './wonders';
 import { T } from './world';
 
 export const JOBS = ['farmer', 'fisher', 'woodcutter', 'stonemason', 'miner', 'smith', 'builder', 'artist', 'soldier'] as const;
@@ -96,10 +97,10 @@ function affinity(h: Human, job: Job): number {
 }
 
 /** How many of each job a village wants, in the order they are handed out. */
-function wanted(v: Village, s: Surroundings, adults: number, tools: boolean): [Job, number][] {
+function wanted(v: Village, s: Surroundings, adults: number, tools: boolean, sim: Sim): [Job, number][] {
   const out: [Job, number][] = [];
   const add = (job: Job, n: number) => n > 0 && out.push([job, Math.round(n)]);
-  add('builder', v.site ? Math.max(1, adults / 8) : adults >= 6 ? 1 : 0);
+  add('builder', (v.site ? Math.max(1, adults / 8) : adults >= 6 ? 1 : 0) + wonderBuilders(sim, v, adults));
   // Less than two years of food in store: more hands for food (Update 2)
   const short = foodYears(v) < BALANCE.food.warnYears ? 1.5 : 1;
   add('farmer', Math.max(1, adults * 0.3 * short));
@@ -127,7 +128,7 @@ export function assignJobs(v: Village, sim: Sim, members: Human[]) {
   // Own characters with a fixed job keep it
   const free = new Set(adults.filter((h) => !h.fixedJob));
   const next = new Map<Human, Job>();
-  for (const [job, n] of wanted(v, s, adults.length, knows(sim, v.people, 'tools'))) {
+  for (const [job, n] of wanted(v, s, adults.length, knows(sim, v.people, 'tools'), sim)) {
     const ranked = [...free].sort((a, b) => affinity(b, job) - affinity(a, job) + (ageOf(a, sim.time) > 60 && job === 'soldier' ? 99 : 0));
     for (const h of ranked.slice(0, n)) {
       next.set(h, job);

@@ -12,6 +12,7 @@ import { FRIEND, RIVAL } from './social';
 import { villageOf } from './villages';
 import { allied, moodOf, pairKey, warBetween, makePeace, type War } from './war';
 import { armyTag } from './armies';
+import { progressOf, WONDER_AGE, WONDERS, wonderTag, type WonderKind } from './wonders';
 import { crown, depose, kingOf, loyaltyOf, realmOf } from './kingdoms';
 import { blessedPlace, celebrate, culturedPeoples, giftBuilding, giftBuildingAt, giftFestival, type Work } from './culture';
 import { plural, villageHtml, type Forms, type VillageStrings } from './village-panel';
@@ -123,6 +124,11 @@ export interface PanelStrings {
     colonyBack: string;
     independent: string;
     islandersJoin: string;
+    wonderBegun: string;
+    wonderBuilt: string;
+    wonderLost: string;
+    wonderAbandoned: string;
+    wonderTaken: string;
     omen: Record<string, string>;
     legend: string;
     festival: Record<string, string>;
@@ -190,6 +196,19 @@ export interface PanelStrings {
   tiers: Record<string, string>;
   village: VillageStrings;
   ages: Record<string, string>;
+  wonders: {
+    title: string;
+    names: Record<string, string>;
+    does: Record<string, string>;
+    of: string;
+    plain: string;
+    ranks: Record<string, string>;
+    built: string;
+    building: string;
+    open: string;
+    locked: string;
+    ruins: string;
+  };
   armies: {
     name: string;
     adjectives: string[];
@@ -242,6 +261,9 @@ export interface PanelStrings {
 }
 
 /** Plots in the Rules overview (phase D). */
+/** The wonders' icons (Rules tab). */
+const WONDER_ICONS: Record<WonderKind, string> = { gardens: '🌿', library: '📚', colosseum: '🏟️', lighthouse: '🗼', cathedral: '⛪', wall: '🧱', observatory: '🔭', colossus: '🗽' };
+
 const PLOT_KINDS = new Set<string>(['plotSpy', 'plotSpyCaught', 'plotSabotage', 'plotSabotageCaught', 'coup', 'coupCaught', 'betrayal', 'betrayalCaught', 'bribe', 'bribeCaught']);
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -263,6 +285,7 @@ export class Panels {
   private rulesAt = 0;
   private statsKey = '';
   private statsHover = -1;
+  private wondersShown = '';
   private relationsShown = '';
   private techShown = '';
   private kingdomsShown = '';
@@ -483,6 +506,12 @@ export class Panels {
           village: (x) => this.villageLink(x),
           workTitle: (w) => this.workTitle(w),
           leagueLine: this.S.leagues.member,
+          wonder: (x) => {
+            const w = this.sim.wonders.find((o) => o.village === x.id && !o.ruin);
+            if (!w) return null;
+            const name = this.wonderName(wonderTag(w));
+            return w.finished !== undefined ? name : `${name} · ${this.S.wonders.building.replace('{n}', String(Math.floor(progressOf(w) * 100)))}`;
+          },
           league: (x) => {
             const l = this.sim.leagues.find((g) => g.members.includes(x.id));
             return l ? this.leagueName(`${l.nameKind}:${l.nameKey}`) : null;
@@ -548,6 +577,7 @@ export class Panels {
       this.renderTech();
       this.renderKingdoms();
       this.renderLeagues();
+      this.renderWonders();
       this.renderCulture();
       this.renderStats(false);
       this.renderDeaths();
@@ -910,6 +940,46 @@ export class Panels {
     }
   }
 
+  /* ---- world wonders (Rules tab, phase H) ------------------------------------------ */
+
+  /** One line per wonder: who holds it, who is building it and how far, or from which age it can be built. */
+  private renderWonders() {
+    const box = this.root.querySelector<HTMLElement>('[data-wonders]');
+    if (!box || box.closest('[hidden]')) return;
+    const W = this.S.wonders;
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    const rows = WONDERS.map((kind) => {
+      const done = this.sim.wonders.find((w) => w.kind === kind && w.finished !== undefined && !w.ruin);
+      const icon = WONDER_ICONS[kind];
+      if (done) {
+        const v = this.sim.villages.find((x) => x.id === done.village);
+        return (
+          `<li class="ti-wd is-done"><span>${icon}</span><b>${esc(cap(this.wonderName(wonderTag(done))))}</b>` +
+          `<span><span class="ti-p__dot ti-dot--${done.people}"></span>${v ? this.villageLink(v) : ''} · ${esc(W.built.replace('{n}', String(done.finished)))}</span>` +
+          `<span class="ti-wd__does">${esc(W.does[kind] ?? '')}</span></li>`
+        );
+      }
+      const projects = this.sim.wonders.filter((w) => w.kind === kind && w.finished === undefined && !w.ruin);
+      const status = projects.length
+        ? projects
+            .map((w) => {
+              const v = this.sim.villages.find((x) => x.id === w.village);
+              return `<span class="ti-p__dot ti-dot--${w.people}"></span>${v ? this.villageLink(v) : ''} ${esc(W.building.replace('{n}', String(Math.floor(progressOf(w) * 100))))}`;
+            })
+            .join(' · ')
+        : esc([...this.sim.tech.keys()].some((p) => ageIndex(this.sim, p) >= WONDER_AGE[kind]) ? W.open : W.locked.replace('{g}', this.S.ages[AGES[WONDER_AGE[kind]]] ?? ''));
+      return (
+        `<li class="ti-wd${projects.length ? ' is-building' : ''}"><span>${projects.length ? '🏗️' : icon}</span><b>${esc(W.names[kind] ?? kind)}</b>` +
+        `<span>${status}</span><span class="ti-wd__does">${esc(W.does[kind] ?? '')}</span></li>`
+      );
+    });
+    const html = rows.join('');
+    if (html !== this.wondersShown) {
+      this.wondersShown = html;
+      box.innerHTML = html;
+    }
+  }
+
   /* ---- leagues and plots (Rules tab) ------------------------------------------- */
 
   /** A league's name from its tag ("people:coast" → "League of the Coast"). */
@@ -917,6 +987,16 @@ export class Panels {
     const [kind, key] = tag.split(':');
     const L = this.S.leagues.names;
     return kind === 'people' ? (L.people[key] ?? key) : L.city.replace('{v}', key ?? '');
+  }
+
+  /** A wonder's name from its tag ("wonder:lighthouse:queen:Mira" → "the Great Lighthouse of Queen Mira"). */
+  wonderName(tag: string): string {
+    const [, kind, rank, ...ruler] = tag.split(':');
+    const W = this.S.wonders;
+    const name = W.names[kind] ?? kind;
+    const who = ruler.join(':');
+    if (!who) return W.plain.replace('{w}', name);
+    return W.of.replace('{w}', name).replace('{r}', rank ? `${W.ranks[rank] ?? ''} ${who}` : who);
   }
 
   /** An army's name from its tag ("army:2:2:Bram" → "Iron Host of Bram"). */
@@ -933,6 +1013,7 @@ export class Panels {
   private leagueOrPlace(u: string | undefined): string {
     if (!u) return '';
     if (u.startsWith('army:')) return `<b>${esc(this.armyName(u))}</b>`;
+    if (u.startsWith('wonder:')) return `<b>${esc(this.wonderName(u))}</b>`;
     if (u.startsWith('people:') || u.startsWith('city:')) return `<b>${esc(this.leagueName(u))}</b>`;
     return this.placeName(u);
   }
@@ -1085,6 +1166,8 @@ export class Panels {
                             ? (C.omen[e.w ?? ''] ?? '')
                             : e.kind === 'newAge'
                               ? C.newAge.replace('{g}', this.S.ages[e.w ?? ''] ?? '')
+                              : e.kind === 'wonderLost' && !e.q
+                                ? C.wonderAbandoned
                               : e.kind === 'discovered' && !e.a.id
                                 ? C.discoveredNoCaptain
                               : e.kind === 'war' && e.cause

@@ -19,6 +19,7 @@
  *
  * God gifts (profile): crown anyone grown-up, or take the crown from a king.
  */
+import { owns } from './wonders';
 import { claimThrone } from './drama';
 import { ageOf, has, PEOPLES, stage, type Human, type People } from './agents';
 import type { Ref } from './chronicle';
@@ -143,7 +144,7 @@ export function kingdomTick(sim: Sim) {
       const now = loyaltyOf(v);
       v.loyalty = now + Math.max(-0.1, Math.min(0.1, (target - now) * 0.01));
       const atWar = sim.wars.has(feudKey(v.id, capital.id));
-      if (!v.free && v.loyalty < REVOLT_AT && v.members >= 6 && !atWar && sim.rand() < 0.02) revolt(sim, k, v, capital);
+      if (!v.free && v.loyalty < REVOLT_AT && v.members >= 6 && !atWar && !owns(sim, p, 'cathedral') && sim.rand() < 0.02) revolt(sim, k, v, capital);
       else if (v.free && v.loyalty >= REJOIN_AT && !atWar) {
         v.free = false;
         sim.chronicle.add({ year: sim.year, kind: 'returned', a: { id: 0, name: v.name, people: p }, v: v.name, p, x: v.x, y: v.y });

@@ -116,7 +116,7 @@ export function findPath(world: World, sx: number, sy: number, tx: number, ty: n
   if (!world.inside(tx, ty) || stepCost(world, tx, ty, mover) === Infinity) return null;
   const W = world.w;
   buffers(W * world.h);
-  const key = `${world.version}:${W}:${mover}:${sy * W + sx}:${ty * W + tx}`;
+  const key = `${world.uid}:${world.version}:${W}:${mover}:${sy * W + sx}:${ty * W + tx}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit && hit.slice();
 

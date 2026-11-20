@@ -71,6 +71,7 @@ const strings = {
   village: T.village,
   leagues: T.leagues,
   ages: T.ages,
+  wonders: T.wonders,
   armies: T.armies,
   deaths: T.deaths,
   stats: T.stats,
@@ -241,6 +242,10 @@ const speeds = [
         <div class="ti__relations">
           <p class="ti__rule-name">{T.leagues.title}</p>
           <ul class="ti__rel-list ti__league-list" data-leagues></ul>
+        </div>
+        <div class="ti__relations">
+          <p class="ti__rule-name">{T.wonders.title}</p>
+          <ul class="ti__rel-list ti__wonder-list" data-wonders></ul>
         </div>
         <div class="ti__relations">
           <p class="ti__rule-name">{T.culture.title}</p>
@@ -1351,6 +1356,33 @@ const speeds = [
   .ti__profile :global(.ti-p__soldier) {
     margin: 2px 0;
     font-size: 12px;
+  }
+
+  /* World wonders (phase H) */
+  .ti__wonder-list :global(.ti-wd) {
+    display: grid;
+    grid-template-columns: 22px minmax(130px, auto) 1fr auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ti__wonder-list :global(.ti-wd.is-done b) {
+    color: #9c6a12;
+  }
+
+  .ti__wonder-list :global(.ti-wd__does) {
+    color: var(--ti-muted);
+    font-size: 11px;
+  }
+
+  @media (max-width: 640px) {
+    .ti__wonder-list :global(.ti-wd) {
+      grid-template-columns: 22px 1fr;
+    }
+
+    .ti__wonder-list :global(.ti-wd > span:nth-child(n + 3)) {
+      grid-column: 2;
+    }
   }
 
   .ti__league-list :global(.ti-lg) {

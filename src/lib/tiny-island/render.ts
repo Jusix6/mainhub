@@ -17,6 +17,8 @@ import { SHOT_TIME, UNIT, type Unit } from './armies';
 import { T, TILE, type Terrain, type World } from './world';
 import { tileHash } from './rng';
 import { dockOf, type Ship, type ShipKind } from './ships';
+import { drawWonder } from './wonder-art';
+import { progressOf } from './wonders';
 
 export { COLORS };
 
@@ -781,6 +783,15 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
     for (const ship of sim.ships) if (visible(ship)) this.ship(ship, sim);
+    // World wonders (phase H), finished, rising or left in ruins
+    for (const w of sim.wonders) {
+      if (!visible({ x: w.x + 2, y: w.y + 2 })) continue;
+      const c = PEOPLE_COLORS[w.people];
+      drawWonder(ctx, w.kind, w.x * TILE, w.y * TILE, { t: sim.time, cloth: c.cloth, dark: c.dark, progress: progressOf(w), ruin: !!w.ruin, night: sim.darkness, hero: w.hero });
+      if (w.finished !== undefined && !w.ruin && (w.kind === 'lighthouse' || w.kind === 'cathedral' || w.kind === 'library')) {
+        this.lights.push([w.x * TILE + 16, w.y * TILE + (w.kind === 'lighthouse' ? -7 : 18)]);
+      }
+    }
 
     this.generals = new Set(sim.armies.map((a) => a.general));
     this.kings = kingIds(sim);
@@ -1042,6 +1053,11 @@ export class Renderer {
         ctx.fillStyle = load;
         ctx.fillRect(Math.round(px) - (flip ? -2 : 3), top + 2, 2, 2);
       }
+    }
+    // On the way to a world wonder: a block of stone or a log on the shoulder
+    if (h.task?.kind === 'build' && h.task.wonder !== undefined && !h.task.arrived) {
+      ctx.fillStyle = h.id % 2 ? '#b4b9c2' : '#8a5a2b';
+      ctx.fillRect(Math.round(px) - (flip ? -1 : 4), top + 1, 3, 2);
     }
     // A tool in the free hand shows the job (warriors in a war hold a sword instead)
     const warrior = isWarrior(h, sim);

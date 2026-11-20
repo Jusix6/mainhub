@@ -171,6 +171,7 @@ function fuse(sim: Sim, keep: Village, gone: Village) {
   for (const k of ['club', 'bronze', 'iron', 'musket', 'armor'] as const) keep.arms[k] += gone.arms[k] ?? 0;
   if (gone.tier === 'city' || (gone.tier === 'town' && keep.tier === 'village')) keep.tier = gone.tier;
   for (const w of sim.works) if (w.village === gone.id) w.village = keep.id;
+  for (const w of sim.wonders) if (w.village === gone.id) w.village = keep.id;
   for (const l of sim.leagues) {
     if (l.members.includes(gone.id)) l.members = [...new Set(l.members.map((id) => (id === gone.id ? keep.id : id)))];
   }

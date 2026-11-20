@@ -5,8 +5,9 @@
  *  - explorer: a captain sails into the fog towards an island nobody has
  *    seen yet and lifts the fog around the ship; the find goes into the
  *    chronicle with the captain's name, then the ship comes home
- *  - settler ship: six young people (couples first) sail to a free spot on a
- *    discovered island and found a colony (colonies.ts)
+ *  - settler ship: when home gets crowded, six young people (couples first,
+ *    with their small children) sail to a free spot on a discovered island
+ *    and found a colony (colonies.ts)
  *  - trade ship: between harbors on different islands; brings food over,
  *    lifts the mood, keeps a colony loyal
  *  - warship (Renaissance): carries armies over the sea (war.ts) and, in a
@@ -26,6 +27,8 @@ import { refOf, story } from './social';
 import { foundColony, type Village } from './villages';
 import { isEnemy, warBetween, type Army } from './war';
 import { T, type Island, type World } from './world';
+import { owns } from './wonders';
+import { crowdedAt } from './town';
 
 export type ShipKind = 'explorer' | 'settler' | 'trader' | 'warship';
 
@@ -216,7 +219,7 @@ export function moveShips(sim: Sim, dt: number) {
       }
       continue;
     }
-    let step = SPEED[ship.kind] * dt;
+    let step = SPEED[ship.kind] * dt * (owns(sim, ship.people, 'lighthouse') ? 1.3 : 1);
     while (step > 0 && ship.path.length) {
       const next = ship.path[0];
       const nx = (next % w) + 0.5;
@@ -304,7 +307,7 @@ export function shipTick(sim: Sim) {
       goHome(sim, ship);
       continue;
     }
-    if (world.reveal(ship.x, ship.y, SEE[ship.kind])) discoveries(sim, ship);
+    if (world.reveal(ship.x, ship.y, SEE[ship.kind] + (owns(sim, ship.people, 'lighthouse') ? 4 : 0))) discoveries(sim, ship);
     // Too long at sea: home
     if (ship.state === 'out' && sim.time > ship.until) goHome(sim, ship);
   }
@@ -451,8 +454,20 @@ function colonySpot(sim: Sim, from: Village): { x: number; y: number } | null {
   return null;
 }
 
+/**
+ * Settlers only sail when home is getting full: the harbor town is close to
+ * the size where young people move away anyway, or its island is two
+ * thirds full. Colonies relieve crowded islands instead of emptying small
+ * peoples.
+ */
+function crowded(sim: Sim, v: Village) {
+  if (v.members >= crowdedAt(v, sim) * 0.75) return true;
+  const land = sim.world.landAt(v.x, v.y);
+  return (sim.landPop.get(land) ?? 0) >= sim.world.landSize(land) * 0.06 * 0.66;
+}
+
 function colonize(sim: Sim, harbors: Village[]) {
-  const from = harbors.filter((v) => v.members >= 14).sort((a, b) => b.members - a.members)[0];
+  const from = harbors.filter((v) => v.members >= 14 && crowded(sim, v)).sort((a, b) => b.members - a.members)[0];
   if (!from) return;
   const spot = colonySpot(sim, from);
   const to = spot && landingNear(sim.world, spot.x, spot.y);

@@ -41,6 +41,7 @@ import { actAnimal, thinkAnimal } from './animals';
 import { SHOT_TIME, stables } from './armies';
 import { discoveries, moveShips, shipTick, type Ship, type Wreck } from './ships';
 import { colonyTick } from './colonies';
+import { lifeBonus, WONDER_SIZE, wonderTick, wonderWork, type Wonder } from './wonders';
 import { actHuman, thinkHuman } from './ai';
 import { researchTick, type Tech, knows } from './inventions';
 import { kingdomTick, type Kingdom } from './kingdoms';
@@ -128,6 +129,10 @@ export class Sim {
   wrecks: Wreck[] = [];
   shipYear = 0;
   colonyYear = 0;
+  /** World wonders (phase H). */
+  wonders: Wonder[] = [];
+  nextWonderId = 1;
+  wonderYear = 0;
   /** People per land mass, counted once a second (births slow down as an island fills up). */
   landPop = new Map<number, number>();
   /** Population per people, one snapshot per game year (stats.ts). */
@@ -192,6 +197,9 @@ export class Sim {
     this.wrecks = [];
     this.shipYear = 0;
     this.colonyYear = 0;
+    this.wonders = [];
+    this.nextWonderId = 1;
+    this.wonderYear = 0;
     this.footprints = [];
     this.history = [];
     this.historyYear = 0;
@@ -242,6 +250,8 @@ export class Sim {
       stables(this);
       shipTick(this);
       colonyTick(this);
+      wonderTick(this);
+      wonderWork(this);
       this.lookAround();
       kingdomTick(this);
       researchTick(this);
@@ -312,7 +322,7 @@ export class Sim {
     if (!h.asleep) h.energy = Math.max(0, h.energy - 3.6 * DT);
     if (h.hunger <= 0 && !hasPower(h, 'immortal') && !hasPower(h, 'invincible')) this.hurt(h, 3 * DT, 'hunger');
     else if (h.hunger > 30 && h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + 1.5 * DT);
-    if (ageOf(h, this.time) > h.lifespan * this.rules.lifespan) this.kill(h, 'age');
+    if (ageOf(h, this.time) > h.lifespan * this.rules.lifespan * lifeBonus(this, h.people)) this.kill(h, 'age');
   }
 
   get year() {
@@ -599,6 +609,7 @@ export class Sim {
       for (const b of v.buildings) mark(b.x, b.y, 1);
       if (v.site) mark(v.site.x, v.site.y, 1);
     }
+    for (const w of this.wonders) mark(w.x + WONDER_SIZE / 2, w.y + WONDER_SIZE / 2, 4);
   }
 
   puff(x: number, y: number, n: number, colors: string[]) {

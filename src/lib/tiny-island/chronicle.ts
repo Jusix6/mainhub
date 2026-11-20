@@ -110,7 +110,11 @@ export interface ChronicleEntry {
     | 'independence'
     | 'colonyBack'
     | 'independent'
-    | 'islandersJoin';
+    | 'islandersJoin'
+    | 'wonderBegun'
+    | 'wonderBuilt'
+    | 'wonderLost'
+    | 'wonderTaken';
   a: Ref;
   b?: Ref;
   c?: Ref;

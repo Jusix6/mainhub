@@ -16,6 +16,7 @@
  *
  * A god gift (Rules tab) hands a people its next invention at once.
  */
+import { researchBonus } from './wonders';
 import { celebrate } from './culture';
 import { has, hasPower, PEOPLES, stage, stat, type Human, type People } from './agents';
 import type { Sim } from './sim';
@@ -146,7 +147,7 @@ export function researchRate(sim: Sim, p: People): number {
   }
   // A living genius makes the whole people research three times as fast
   const genius = sim.humans.some((h) => h.people === p && hasPower(h, 'genius'));
-  return rate * (knows(sim, p, 'writing') ? 1.5 : 1) * (genius ? 3 : 1);
+  return rate * (knows(sim, p, 'writing') ? 1.5 : 1) * (genius ? 3 : 1) * researchBonus(sim, p);
 }
 
 /** Once a second: research moves on, and inventions are made. */

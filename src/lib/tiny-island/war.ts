@@ -32,6 +32,7 @@ import { knows } from './inventions';
 import { armyTag, assignUnits, endBattles, findBattles, muster, releaseUnits, UNIT } from './armies';
 import { canShip, ferryHome, shipArmy } from './ships';
 import { independenceOver } from './colonies';
+import { wallHolds } from './wonders';
 import { councilVote, defenders, leagueTag, sharedLeague } from './leagues';
 import { has, PEOPLES, stage, stat, type Human, type People } from './agents';
 import type { Sim } from './sim';
@@ -270,6 +271,8 @@ export function warTick(sim: Sim) {
       const enemy = other(side);
       const attackers = sim.near(v.x + 0.5, v.y + 0.5, 6, (o) => o.kind === 'human' && stage(o as Human, sim.time) === 'adult' && sideOf(war, o as Human) === enemy);
       if (attackers.length < 2) continue;
+      // The Great Wall (phase H): only armies with catapults or cannons get through
+      if (wallHolds(sim, v, attackers as Human[])) continue;
       const defenders = sim.near(v.x + 0.5, v.y + 0.5, 12, (o) => o.kind === 'human' && (o as Human).village === v.id && stage(o as Human, sim.time) === 'adult' && !has(o as Human, 'cowardly'));
       if (defenders.length) continue;
       if (war.va !== undefined) {

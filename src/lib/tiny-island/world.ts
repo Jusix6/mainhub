@@ -76,7 +76,11 @@ export interface Island {
   found: number;
 }
 
+let nextUid = 1;
+
 export class World {
+  /** Tells worlds apart (the path cache is shared by all of them). */
+  readonly uid = nextUid++;
   w = W;
   h = H;
   tiles = new Uint8Array(W * H);

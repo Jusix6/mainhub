@@ -18,6 +18,7 @@ import type { Kingdom } from './kingdoms';
 import type { Legend, Work } from './culture';
 import { H, W, type Island, type World } from './world';
 import type { Ship, Wreck } from './ships';
+import type { Wonder } from './wonders';
 
 const KEY = 'jxsi_tiny_island_v1';
 
@@ -87,6 +88,9 @@ interface SaveData {
   ships?: Ship[];
   nextShipId?: number;
   wrecks?: Wreck[];
+  /** World wonders (phase H). */
+  wonders?: Wonder[];
+  nextWonderId?: number;
 }
 
 function toB64(bytes: Uint8Array) {
@@ -155,6 +159,8 @@ export function save(sim: Sim, world: World): boolean {
     ships: sim.ships.map((s) => ({ ...s, path: null })),
     nextShipId: sim.nextShipId,
     wrecks: sim.wrecks,
+    wonders: sim.wonders,
+    nextWonderId: sim.nextWonderId,
   };
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
@@ -314,6 +320,8 @@ export function load(sim: Sim, world: World): boolean {
   sim.legends = d.legends ?? [];
   sim.nextShipId = d.nextShipId ?? 1;
   sim.wrecks = d.wrecks ?? [];
+  sim.wonders = d.wonders ?? [];
+  sim.nextWonderId = d.nextWonderId ?? 1;
   // Ships plan their course again from where they are
   sim.ships = (d.ships ?? []).map((s) => ({ ...s, path: null }));
   if (d.tech) for (const [p, t] of d.tech) sim.tech.set(p, { known: [...t.known], progress: t.progress });

@@ -84,6 +84,8 @@ export interface VillageCtx {
   village: (v: Village) => string;
   workTitle: (w: Work) => string;
   entry: (id: number) => string;
+  /** The world wonder the place holds or builds (phase H), with its name. */
+  wonder: (v: Village) => string | null;
   /** The league the place belongs to, if any (phase D). */
   league: (v: Village) => string | null;
   leagueLine: string;
@@ -184,6 +186,7 @@ export function villageHtml(c: VillageCtx, v: Village): string {
     <p class="ti-p__village">${realm}</p>
     ${sea}
     ${c.league(v) ? `<p class="ti-v__line">🏳️ ${esc(c.leagueLine.replace('{l}', c.league(v)!))}</p>` : ''}
+    ${c.wonder(v) ? `<p class="ti-v__line">🏛️ ${esc(c.wonder(v)!)}</p>` : ''}
     <dl class="ti-p__fam"><dt>${esc(S.leader)}</dt><dd>${leader}</dd></dl>
 
     <h3 class="ti-p__h">${esc(S.sections.people)}</h3>

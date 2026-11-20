@@ -210,6 +210,8 @@ export interface Task {
   make?: 'tool' | 'club' | 'bronze' | 'iron' | 'musket' | 'armor';
   /** Walks a bit slower (an army's general, so the others keep up). */
   slow?: boolean;
+  /** Build task on a world wonder (phase H): its id. */
+  wonder?: number;
 }
 
 interface Base {

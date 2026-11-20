@@ -35,6 +35,7 @@ import { foodYears } from './hunger';
 import { festiveAt, inspire } from './culture';
 import { armyOf, atWar, equip, isEnemy, isWarrior, trespass, WEAPON_POWER, type Army } from './war';
 import { UNIT, type Unit } from './armies';
+import { drillFactor, foodBonus, projectOf, wonderStep } from './wonders';
 import {
   changeRel,
   chatOutcome,
@@ -106,7 +107,13 @@ export const SCORES: Record<Choice, (h: Human, c: Ctx) => number> = {
     return jobUrge(h, v, c.sim) * (c.old ? 0.6 : 1) * (c.grieving ? 0.7 : 1);
   },
   // A house is being built: builders first, others lend a hand
-  build: (h, c) => (c.village?.site && c.adult ? (h.job === 'builder' ? 55 : 28) * (c.old ? 0.6 : 1) : 0),
+  // A world wonder (phase H) comes first for builders by day
+  build: (h, c) =>
+    c.adult && !c.night && h.job === 'builder' && !c.village?.site && projectOf(c.sim, c.village)
+      ? 70 * (c.old ? 0.6 : 1)
+      : c.village?.site && c.adult
+        ? (h.job === 'builder' ? 55 : 28) * (c.old ? 0.6 : 1)
+        : 0,
   // Artists play music and paint on the square (by day)
   art: (h, c) => (c.village && !c.night ? (h.job === 'artist' ? 38 : has(h, 'artistic') && c.adult ? 18 : 0) : 0),
   // Soldiers keep watch around the village
@@ -356,7 +363,17 @@ function start(h: Human, choice: Choice, sim: Sim, ctx: Ctx): boolean {
     }
     case 'build': {
       const site = ctx.village?.site;
-      if (!site) return false;
+      if (!site) {
+        // A world wonder (phase H): carry stone or wood to a spot along its site
+        const w = projectOf(sim, ctx.village);
+        if (!w) return false;
+        const side = Math.floor(sim.rand() * 4);
+        const along = Math.floor(sim.rand() * 4);
+        const x = side === 0 ? w.x - 1 : side === 1 ? w.x + 4 : w.x + along;
+        const y = side === 2 ? w.y - 1 : side === 3 ? w.y + 4 : w.y + along;
+        setTask(h, newTask('build', sim, x, y, { until: sim.time + 30, wonder: w.id }));
+        return goTo(h, sim.world, x, y) || adjacentGo(h, sim, x, y);
+      }
       setTask(h, newTask('build', sim, site.x, site.y, { until: sim.time + 20 }));
       return goTo(h, sim.world, site.x, site.y) || adjacentGo(h, sim, site.x, site.y);
     }
@@ -820,7 +837,7 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
         // Units (phase F): spears are deadly against riders; soldiers from a barracks are drilled
         const foeUnit = enemy.kind === 'human' ? (enemy as Human).unit : undefined;
         const kind = unit ? unit.power * (unit.vsRider && foeUnit && UNIT[foeUnit].mounted ? unit.vsRider : 1) : 1;
-        const drill = task.lethal && h.job === 'soldier' && hasBuilding(home, 'barracks') ? 1.15 : 1;
+        const drill = (task.lethal && h.job === 'soldier' && hasBuilding(home, 'barracks') ? 1.15 : 1) * (task.lethal && (h.job === 'soldier' || h.unit) ? drillFactor(sim, h.people) : 1);
         if (sim.hit(h, enemy, (people ? 8 : 10) * PERKS[h.people].fight * walled * weapon * kind * drill * might(h), people)) end(h);
       }
       return;
@@ -974,6 +991,18 @@ export function actHuman(h: Human, sim: Sim, dt: number) {
 
     case 'build': {
       const v = villageOf(h, sim);
+      if (task.wonder !== undefined) {
+        const won = sim.wonders.find((x) => x.id === task.wonder);
+        if (!won || won.finished !== undefined) return end(h);
+        if (!task.arrived) {
+          if (walk(h, w, dt, speed * 0.85)) task.arrived = true;
+          return;
+        }
+        h.moving = false;
+        h.facing = won.x + 2 > h.x ? 1 : -1;
+        if (wonderStep(sim, won, dt * (has(h, 'hardworking') ? 1.3 : 1) * (0.9 + stat(h, 'intelligence') * 0.02))) end(h);
+        return;
+      }
       if (!v || !v.site) return end(h);
       if (!task.arrived) {
         if (walk(h, w, dt, speed)) task.arrived = true;
@@ -1068,7 +1097,8 @@ function actWork(h: Human, sim: Sim, task: Task, dt: number, speed: number) {
   }
   // Carrying it home
   if (walk(h, w, dt, speed * 0.9)) {
-    if (h.carry) v[h.carry.res] += h.carry.n;
+    // The Hanging Gardens (phase H): food brought home counts 30 % more
+    if (h.carry) v[h.carry.res] += h.carry.res === 'food' ? h.carry.n * foodBonus(sim, v.people) : h.carry.n;
     h.carry = null;
     wearTools(v, sim);
     end(h);

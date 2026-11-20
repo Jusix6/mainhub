@@ -63,7 +63,7 @@ export interface Legend {
   year: number;
 }
 
-export type FestivalKind = 'harvest' | 'midsummer' | 'victory' | 'coronation' | 'gods' | 'newAge';
+export type FestivalKind = 'harvest' | 'midsummer' | 'victory' | 'coronation' | 'gods' | 'newAge' | 'games' | 'wonder';
 
 const YEAR = 30;
 /** Seconds of playing on the square for one work. */
