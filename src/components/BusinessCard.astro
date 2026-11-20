@@ -3,6 +3,15 @@
  * 3D business card. Front: name + tagline. Back: what I make, contact, socials.
  * - Tap/click/Enter flips it (rotateY 180deg).
  * - Fine pointers get a subtle tilt that follows the cursor.
+ * - Standalone (/ and /card) it is a card in your hand instead: grab a corner
+ *   (a turn symbol shows up, a little outside the corner too) and drag to turn
+ *   it freely in 3D, so the back comes round; grab the middle and drag to move
+ *   it anywhere on the screen; double-click to put it back. No click flip, no
+ *   flip-back pill (it stays for the keyboard: Enter turns the card over).
+ * - Easter egg (standalone): put the card exactly into a corner of the window
+ *   and it bounces around like the old DVD screensaver, a new colour every
+ *   time it touches the edge of the window; a perfect corner hit makes it
+ *   spin. Grab it to stop it, double-click to bring it home (and white again).
  * - Without JS both faces render stacked and fully usable.
  * - With reduced motion the flip becomes a crossfade (see global reduced-motion rule).
  * All content comes from src/data/site.ts and src/data/ui.ts.
@@ -46,12 +55,29 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
 <div
   class:list={['scene', { 'scene--standalone': standalone }, className]}
   data-business-card
-  data-tired={JSON.stringify(UI.card.tired)}
+  role={standalone ? 'group' : undefined}
+  aria-label={standalone ? UI.card.turnLabel : undefined}
 >
+  {
+    standalone && (
+      <span class="turn-cursor" data-turn-cursor aria-hidden="true">
+        <Icon name="rotate" size={22} />
+      </span>
+    )
+  }
   <div class="tilt" data-tilt>
     <div class="card" data-card>
+      {
+        standalone && (
+          <Fragment>
+            <span class="mark mark--tl" data-mark aria-hidden="true" />
+            <span class="mark mark--tr" data-mark aria-hidden="true" />
+            <span class="mark mark--br" data-mark aria-hidden="true" />
+            <span class="mark mark--bl" data-mark aria-hidden="true" />
+          </Fragment>
+        )
+      }
       <button class="face face--front" type="button" data-flip>
-        <span class="face__tired" data-tired-text hidden></span>
 
         <span class="lic__head">
           <span class="lic__region">{lic.region}</span>
@@ -100,14 +126,22 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
           {lic.addressLines.map((l) => <span class="lic__addr">{l}</span>)}
         </span>
 
-        <span class="front__hint">
-          {UI.actions.tapToFlip}
-          <Icon name="arrow" size={16} />
-        </span>
+        {
+          standalone ? (
+            <span class="front__hint front__hint--turn">
+              <Icon name="rotate" size={16} />
+              {UI.card.turnHint}
+            </span>
+          ) : (
+            <span class="front__hint">
+              {UI.actions.tapToFlip}
+              <Icon name="arrow" size={16} />
+            </span>
+          )
+        }
       </button>
 
       <div class="face face--back" data-back>
-        <span class="face__tired" data-tired-text hidden aria-live="polite"></span>
         <div class="back__head">
           <span class="back__name">{SITE.name}</span>
           <a class="back__mail" href={`mailto:${SITE.email}`}>
@@ -187,6 +221,138 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
 
   .scene--standalone {
     width: min(100%, 680px);
+    /* Dragging the card must not scroll, zoom or select text */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Four invisible points in the corners: the browser tells where they end up on screen, however the card is turned */
+  .scene--standalone .card {
+    position: relative;
+  }
+
+  .mark {
+    position: absolute;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .mark--tl {
+    top: 0;
+    left: 0;
+  }
+
+  .mark--tr {
+    top: 0;
+    right: 0;
+  }
+
+  .mark--br {
+    right: 0;
+    bottom: 0;
+  }
+
+  .mark--bl {
+    bottom: 0;
+    left: 0;
+  }
+
+  /* The card follows the hand directly, no easing behind the pointer */
+  .scene--standalone .tilt {
+    transition: none;
+  }
+
+  /* A card in your hand: the middle moves it, the corners turn it (see the script) */
+  .scene--standalone .face--front,
+  .scene--standalone .face--back {
+    cursor: grab;
+  }
+
+  .scene--standalone.is-moving .face {
+    cursor: grabbing;
+  }
+
+  .scene--standalone .face--back :is(a, button) {
+    cursor: pointer;
+  }
+
+  /* A page that fits the window gets no scrollbars from a card turned or moved over its edge */
+  :global(html.card-free),
+  :global(html.card-free body) {
+    overflow: clip;
+  }
+
+  /* While turning (or hovering a corner) the turn symbol replaces the cursor */
+  :global(html.card-turning),
+  :global(html.card-turning *) {
+    cursor: none !important;
+  }
+
+  .turn-cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 50;
+    display: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    margin: -17px 0 0 -17px;
+    color: var(--ink);
+    background: var(--c-yellow);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    box-shadow: 2px 2px 0 var(--ink);
+    pointer-events: none;
+  }
+
+  .turn-cursor.is-shown {
+    display: grid;
+  }
+
+  /* Easter egg: the DVD screensaver. A new colour at every edge of the window */
+  .scene.is-dvd .face--front,
+  .scene.is-dvd .face--back {
+    background: color-mix(in srgb, var(--dvd, #fff) 45%, #fff);
+    transition: background-color 250ms ease;
+  }
+
+  /* …and a flash when it hits a corner exactly */
+  .scene.is-dvd-corner .face {
+    animation: dvd-corner 900ms ease-out;
+  }
+
+  @keyframes dvd-corner {
+    30% {
+      box-shadow:
+        0 0 0 10px var(--c-yellow),
+        var(--shadow-lg);
+    }
+  }
+
+  /* Gliding back after a double-click */
+  .scene.is-gliding,
+  :global([data-card-move].is-gliding) {
+    transition:
+      translate 600ms var(--ease-pop),
+      scale 150ms var(--ease-out);
+  }
+
+  .scene--standalone.is-gliding .tilt {
+    transition: transform 600ms var(--ease-pop);
+  }
+
+  /* The keyboard can still turn the card over from the back; the pill only shows when focused */
+  .scene--standalone .back__flip:not(:focus-visible) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    border: 0;
   }
 
   .tilt {
@@ -247,7 +413,7 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
   }
 
   /* Grid content; the overlays keep their own positioning */
-  .face--front > :not(.front__hint):not(.face__tired) {
+  .face--front > :not(.front__hint) {
     position: relative;
     z-index: 1;
     min-width: 0;
@@ -575,40 +741,10 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
     box-shadow: var(--shadow-sm);
   }
 
-  /* Easter egg: after too many flips the card gets tired and hides everything but a line of text */
-  .face__tired {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    padding: clamp(14px, 5cqw, 28px);
-    background: var(--bg);
-    font-family: var(--font-mono);
-    font-size: clamp(16px, 4.5cqw, 26px);
-    text-align: center;
-    text-transform: lowercase;
-    letter-spacing: 0.02em;
-    animation: tired-in var(--t-base) ease-out both;
-  }
-
-  .face__tired[hidden] {
-    display: none;
-  }
-
-  /* The flip controls stay on top of the overlay so the card can always be turned */
+  /* The hint on the front and the flip pill on the back stay above the card content */
   .front__hint,
   .back__flip {
     z-index: 3;
-  }
-
-  @keyframes tired-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
   }
 
   /* No JS (html.js is set inline in <head> before first paint): both faces stacked, no 3D */
@@ -738,47 +874,26 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
 
     let flipped = false;
 
-    // Easter egg: count flips, show a message after a while, reset at the last stage.
-    type Stage = { at: number; text: string; reset?: boolean };
-    const stages: Stage[] = JSON.parse(scene.dataset.tired ?? '[]');
-    const tiredTexts = scene.querySelectorAll<HTMLElement>('[data-tired-text]');
-    let flips = 0;
-    let resetTimer = 0;
-
-    function setTired(text: string | null) {
-      scene.classList.toggle('is-tired', text !== null);
-      tiredTexts.forEach((el) => {
-        el.textContent = text ?? '';
-        el.hidden = text === null;
-      });
-    }
-
-    function countFlip() {
-      flips++;
-      const stage = stages.find((s) => s.at === flips);
-      if (!stage) return;
-      setTired(stage.text);
-      if (stage.reset) {
-        window.clearTimeout(resetTimer);
-        resetTimer = window.setTimeout(() => {
-          setTired(null);
-          flips = 0;
-        }, 1800);
-      }
-    }
-
-    function render() {
-      card!.classList.toggle('is-flipped', flipped);
-      // Keep the hidden face out of the tab order and the accessibility tree.
+    /** Keep the hidden face out of the tab order and the accessibility tree. */
+    function faces() {
       back!.toggleAttribute('inert', !flipped);
       front!.toggleAttribute('inert', flipped);
       front!.setAttribute('aria-expanded', String(flipped));
     }
 
+    if (scene.classList.contains('scene--standalone')) {
+      freeCard();
+      return;
+    }
+
+    function render() {
+      card!.classList.toggle('is-flipped', flipped);
+      faces();
+    }
+
     function flip(to: boolean) {
       flipped = to;
       render();
-      countFlip();
       // Move focus to the face that is now visible, after the animation has started.
       const target = flipped ? backFlip : front;
       window.setTimeout(() => target?.focus({ preventScroll: true }), reducedMotion.matches ? 0 : 350);
@@ -804,6 +919,429 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
     }
 
     render();
+
+    /**
+     * The standalone card: a card in your hand. Near a corner (also a little
+     * outside it, like the rotate handle in an image editor) a turn symbol
+     * shows up; drag there to turn the card freely in 3D, so the back comes
+     * round. Drag anywhere else on it to move it around the screen. A
+     * double-click puts it back. Clicks without moving still reach the links
+     * and buttons on the back. With reduced motion a sideways drag at a
+     * corner turns the card over with a crossfade instead.
+     */
+    function freeCard() {
+      const ac = new AbortController();
+      const opts = { signal: ac.signal };
+      document.addEventListener('astro:before-swap', () => ac.abort(), { once: true });
+      const html = document.documentElement;
+      // The page may move a wrapper (with things on it, like a medal) instead of just the card
+      const mover = scene.closest<HTMLElement>('[data-card-move]') ?? scene;
+      const symbol = scene.querySelector<HTMLElement>('[data-turn-cursor]');
+      // The scene's perspective would make "fixed" relative to the card: the symbol lives on the body
+      if (symbol) {
+        document.body.append(symbol);
+        ac.signal.addEventListener('abort', () => {
+          symbol.remove();
+          html.classList.remove('card-turning');
+        });
+      }
+      const rad = (d: number) => (d * Math.PI) / 180;
+
+      let rx = 0;
+      let ry = 0;
+      let tx = 0;
+      let ty = 0;
+      let spin = 0;
+      let vx = 0;
+      let vy = 0;
+      let swing = 0;
+      let swallow = false;
+      type Drag = { mode: 'turn' | 'move'; corner: number; id: number; x: number; y: number; t: number; started: boolean };
+      let drag: Drag | null = null;
+
+      function apply() {
+        tilt!.style.setProperty('--rx', `${rx.toFixed(2)}deg`);
+        tilt!.style.setProperty('--ry', `${ry.toFixed(2)}deg`);
+        mover.style.translate = `${tx.toFixed(1)}px ${ty.toFixed(1)}px`;
+        // Which side faces us: the card's normal after rotateX(rx) rotateY(ry)
+        const backNow = Math.cos(rad(rx)) * Math.cos(rad(ry)) < 0;
+        if (backNow !== flipped) {
+          flipped = backNow;
+          faces();
+          }
+      }
+
+      /** Reduced motion: no 3D, the faces crossfade (CSS on .is-flipped). */
+      function turnOverFlat() {
+        flipped = !flipped;
+        card!.classList.toggle('is-flipped', flipped);
+        faces();
+      }
+
+      /** Keep at least the middle of the card on screen. */
+      function clamp() {
+        const r = mover.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const m = 24;
+        if (cx < m) tx += m - cx;
+        if (cx > window.innerWidth - m) tx -= cx - (window.innerWidth - m);
+        if (cy < m) ty += m - cy;
+        if (cy > window.innerHeight - m) ty -= cy - (window.innerHeight - m);
+      }
+
+      /**
+       * Where the pointer is: near a corner (turn, inside or a little outside),
+       * on the card (move) or neither. The corners are where the card really
+       * shows on screen, turned and in perspective (the four marks).
+       */
+      const marks = [...scene.querySelectorAll<HTMLElement>('[data-mark]')];
+      function zone(x: number, y: number): { mode: 'turn' | 'move'; corner: number } | null {
+        const pts = marks.map((m) => {
+          const r = m.getBoundingClientRect();
+          return { x: r.left, y: r.top };
+        });
+        const reach = finePointer.matches ? 40 : 56;
+        let corner = -1;
+        let near = Infinity;
+        pts.forEach((p, i) => {
+          const d = Math.hypot(x - p.x, y - p.y);
+          if (d < near) {
+            near = d;
+            corner = i;
+          }
+        });
+        if (near < reach) return { mode: 'turn', corner };
+        // Inside the four corners (ray casting)
+        let inside = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const a = pts[i];
+          const b = pts[j];
+          if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+        }
+        return inside ? { mode: 'move', corner: -1 } : null;
+      }
+
+      /** The turn symbol follows the pointer, curled the way of its corner. */
+      function showSymbol(x: number, y: number, corner: number | null) {
+        if (!symbol) return;
+        const on = corner !== null && corner >= 0;
+        symbol.classList.toggle('is-shown', on);
+        html.classList.toggle('card-turning', on);
+        if (!on) return;
+        symbol.style.translate = `${x}px ${y}px`;
+        symbol.style.rotate = `${corner * 90}deg`;
+      }
+
+      function stopSpin() {
+        cancelAnimationFrame(spin);
+        spin = 0;
+      }
+
+      /** After letting go of a turn, the card spins on a little and slows down. */
+      function coast() {
+        vx *= 0.93;
+        vy *= 0.93;
+        ry += vx;
+        rx += vy;
+        apply();
+        spin = Math.abs(vx) + Math.abs(vy) > 0.05 ? requestAnimationFrame(coast) : 0;
+      }
+
+      window.addEventListener(
+        'pointermove',
+        (e) => {
+          if (!drag) {
+            if (e.pointerType === 'mouse') {
+              const z = zone(e.clientX, e.clientY);
+              showSymbol(e.clientX, e.clientY, z ? z.corner : null);
+            }
+            return;
+          }
+          if (e.pointerId !== drag.id) return;
+          const dx = e.clientX - drag.x;
+          const dy = e.clientY - drag.y;
+          if (!drag.started) {
+            if (Math.hypot(dx, dy) < 4) return;
+            drag.started = true;
+            scene.classList.toggle('is-moving', drag.mode === 'move');
+          }
+          const now = performance.now();
+          const dt = Math.max(1, now - drag.t);
+          drag.x = e.clientX;
+          drag.y = e.clientY;
+          drag.t = now;
+          if (drag.mode === 'move') {
+            tx += dx;
+            ty += dy;
+            mover.style.translate = `${tx.toFixed(1)}px ${ty.toFixed(1)}px`;
+            clamp();
+            apply();
+            return;
+          }
+          if (drag.mode === 'turn') {
+            showSymbol(e.clientX, e.clientY, drag.corner);
+            if (reducedMotion.matches) {
+              swing += dx;
+              if (Math.abs(swing) > 80) {
+                swing = 0;
+                turnOverFlat();
+              }
+              return;
+            }
+            // Sideways turns around the upright axis, up and down tips it
+            ry += dx * 0.5;
+            rx -= dy * 0.5;
+            // Degrees per frame (16 ms) for the coast after letting go, at most 18
+            const cap = (v: number) => Math.max(-18, Math.min(18, v));
+            vx = cap(((dx * 0.5) / dt) * 16);
+            vy = cap(((-dy * 0.5) / dt) * 16);
+            apply();
+          }
+        },
+        opts,
+      );
+
+      window.addEventListener(
+        'pointerdown',
+        (e) => {
+          if (e.button !== 0 || !e.isPrimary) return;
+          const z = zone(e.clientX, e.clientY);
+          if (!z) return;
+          // A link or button on the card keeps its click (unless grabbed at a corner)
+          const target = e.target as Element;
+          const control = target.closest('a, button:not(.face--front), input');
+          if (z.mode === 'move' && control && scene.contains(control)) {
+            drag = { mode: 'move', corner: -1, id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), started: false };
+            return;
+          }
+          if (z.mode === 'turn') {
+            e.preventDefault();
+            showSymbol(e.clientX, e.clientY, z.corner);
+          }
+          stopSpin();
+          stopDvd();
+          swing = 0;
+          scene.classList.remove('is-gliding');
+          mover.classList.remove('is-gliding');
+          drag = { mode: z.mode, corner: z.corner, id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), started: false };
+        },
+        opts,
+      );
+
+      /*
+       * Easter egg: put the card exactly into a corner of the window (its
+       * corners on screen, from the marks, within 14 px, 22 on touch) and it
+       * bounces around like the DVD screensaver: flat, front up, diagonally,
+       * a new colour every time it touches an edge; a perfect corner hit makes
+       * it spin and flash. Grabbing it stops it, a double-click brings it home.
+       */
+      const DVD_COLORS = ['--c-pink', '--c-blue', '--c-yellow', '--c-green', '--c-purple', '--c-orange'];
+      let dvd = 0;
+      let dvdColor = -1;
+      let dvdLast = 0;
+      let dvdX = 1;
+      let dvdY = 1;
+      let base = { left: 0, top: 0, width: 0, height: 0 };
+
+      function inCorner() {
+        const pts = marks.map((m) => m.getBoundingClientRect());
+        const left = Math.min(...pts.map((p) => p.left));
+        const right = Math.max(...pts.map((p) => p.left));
+        const top = Math.min(...pts.map((p) => p.top));
+        const bottom = Math.max(...pts.map((p) => p.top));
+        const tol = finePointer.matches ? 14 : 22;
+        const x = Math.abs(left) <= tol || Math.abs(right - window.innerWidth) <= tol;
+        const y = Math.abs(top) <= tol || Math.abs(bottom - window.innerHeight) <= tol;
+        return x && y;
+      }
+
+      function nextColor() {
+        const n = DVD_COLORS.length;
+        dvdColor = dvdColor < 0 ? Math.floor(Math.random() * n) : (dvdColor + 1 + Math.floor(Math.random() * (n - 1))) % n;
+        scene.style.setProperty('--dvd', `var(${DVD_COLORS[dvdColor]})`);
+        scene.classList.add('is-dvd');
+      }
+
+      /** Where the card would be without being moved (to bounce off the window edges). */
+      function measureBase() {
+        const r = mover.getBoundingClientRect();
+        base = { left: r.left - tx, top: r.top - ty, width: r.width, height: r.height };
+      }
+
+      function startDvd() {
+        if (dvd || reducedMotion.matches) return;
+        stopSpin();
+        // Flat and front up, like a logo
+        scene.classList.add('is-gliding');
+        rx = Math.round(rx / 360) * 360;
+        ry = Math.round(ry / 360) * 360;
+        apply();
+        window.setTimeout(() => scene.classList.remove('is-gliding'), 650);
+        measureBase();
+        // Off and away from the corner it sits in
+        dvdX = base.left + tx + base.width / 2 < window.innerWidth / 2 ? 1 : -1;
+        dvdY = base.top + ty + base.height / 2 < window.innerHeight / 2 ? 1 : -1;
+        nextColor();
+        dvdLast = performance.now();
+        dvd = requestAnimationFrame(stepDvd);
+      }
+
+      function stopDvd() {
+        cancelAnimationFrame(dvd);
+        dvd = 0;
+      }
+
+      function stepDvd(now: number) {
+        const dt = Math.min(0.05, (now - dvdLast) / 1000);
+        dvdLast = now;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const speed = Math.max(110, Math.min(w, h) * 0.22);
+        let hitX = false;
+        let hitY = false;
+        // A card wider (or taller) than the window only bounces the other way
+        if (base.width < w) {
+          tx += dvdX * speed * dt;
+          if (base.left + tx <= 0) {
+            tx = -base.left;
+            dvdX = 1;
+            hitX = true;
+          } else if (base.left + tx + base.width >= w) {
+            tx = w - base.width - base.left;
+            dvdX = -1;
+            hitX = true;
+          }
+        }
+        if (base.height < h) {
+          ty += dvdY * speed * dt;
+          if (base.top + ty <= 0) {
+            ty = -base.top;
+            dvdY = 1;
+            hitY = true;
+          } else if (base.top + ty + base.height >= h) {
+            ty = h - base.height - base.top;
+            dvdY = -1;
+            hitY = true;
+          }
+        }
+        if (hitX || hitY) nextColor();
+        // The moment everyone waits for: right into a corner (a few pixels of slack)
+        const near = (v: number, edge: number) => Math.abs(v - edge) <= 4;
+        const corner =
+          (hitX && (near(base.top + ty, 0) || near(base.top + ty + base.height, h))) || (hitY && (near(base.left + tx, 0) || near(base.left + tx + base.width, w)));
+        if (corner) {
+          scene.classList.remove('is-dvd-corner');
+          void scene.offsetWidth;
+          scene.classList.add('is-dvd-corner');
+          scene.classList.add('is-gliding');
+          ry += 360;
+          window.setTimeout(() => scene.classList.remove('is-gliding'), 650);
+        }
+        apply();
+        dvd = requestAnimationFrame(stepDvd);
+      }
+
+      const end = (e: PointerEvent) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        const was = drag;
+        drag = null;
+        scene.classList.remove('is-moving');
+        if (e.pointerType !== 'mouse') showSymbol(0, 0, null);
+        else {
+          const z = zone(e.clientX, e.clientY);
+          showSymbol(e.clientX, e.clientY, z ? z.corner : null);
+        }
+        if (!was.started) return;
+        // A drag is not a click: the button or link it started on stays quiet
+        swallow = true;
+        window.setTimeout(() => (swallow = false), 0);
+        if (was.mode === 'turn' && !reducedMotion.matches && Math.abs(vx) + Math.abs(vy) > 0.3) spin = requestAnimationFrame(coast);
+        if (was.mode === 'move' && inCorner()) startDvd();
+      };
+      window.addEventListener('pointerup', end, opts);
+      window.addEventListener('pointercancel', end, opts);
+      window.addEventListener(
+        'click',
+        (e) => {
+          if (!swallow) return;
+          swallow = false;
+          e.stopPropagation();
+          e.preventDefault();
+        },
+        { capture: true, signal: ac.signal },
+      );
+
+      // A pointer click on the front does nothing (no flip); the keyboard turns the card over
+      function turnOver() {
+        stopSpin();
+        if (reducedMotion.matches) {
+          turnOverFlat();
+        } else {
+          scene.classList.add('is-gliding');
+          ry = Math.round(ry / 180) * 180 + 180;
+          rx = Math.round(rx / 180) * 180;
+          apply();
+        }
+        const target = flipped ? backFlip : front;
+        window.setTimeout(() => target?.focus({ preventScroll: true }), reducedMotion.matches ? 0 : 350);
+      }
+      scene.querySelectorAll<HTMLButtonElement>('[data-flip]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          if (e.detail === 0) turnOver();
+        });
+      });
+
+      // Double-click: back to where it started, front up
+      scene.addEventListener(
+        'dblclick',
+        (e) => {
+          if ((e.target as Element).closest('a, button:not(.face--front)')) return;
+          stopSpin();
+          stopDvd();
+          scene.classList.remove('is-dvd', 'is-dvd-corner');
+          dvdColor = -1;
+          scene.classList.add('is-gliding');
+          mover.classList.add('is-gliding');
+          rx = Math.round(rx / 360) * 360;
+          ry = Math.round(ry / 360) * 360;
+          tx = 0;
+          ty = 0;
+          if (reducedMotion.matches && flipped) turnOverFlat();
+          apply();
+          window.setTimeout(() => {
+            scene.classList.remove('is-gliding');
+            mover.classList.remove('is-gliding');
+          }, 650);
+        },
+        opts,
+      );
+
+      // Keep the card on screen when the window gets smaller
+      window.addEventListener(
+        'resize',
+        () => {
+          if (dvd) {
+            measureBase();
+            return;
+          }
+          clamp();
+          apply();
+        },
+        opts,
+      );
+
+      // No scrollbars when the card sticks out, as long as the page fits the window at rest
+      const fits = () => html.scrollHeight <= window.innerHeight + 1 && html.scrollWidth <= window.innerWidth + 1;
+      html.classList.toggle('card-free', fits());
+      ac.signal.addEventListener('abort', () => {
+        html.classList.remove('card-free');
+        stopDvd();
+      });
+
+      apply();
+      faces();
+    }
   }
 
   function init() {

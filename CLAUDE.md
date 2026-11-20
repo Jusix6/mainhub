@@ -534,7 +534,7 @@ die Website ist die eigentliche Karte.
 das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
 `npm run logo -- <pfad>`, dann `favicon.svg` von Hand anpassen.
   Bewusst kein echtes Amtsdokument nachgebaut: Land statt US-Staat, "Creative
-  License" statt "Driver License". Hinweis "tap to flip" unten rechts.
+  License" statt "Driver License". Hinweis unten rechts: "tap to flip" im Hub, "grab a corner" mit Dreh-Icon auf `/` und `/card`.
   Bekannte Ausnahme von der 12-px-Regel: Die Ausweisfelder skalieren mit der
   Kartenbreite und liegen auf dem Handy bei 8–9 px, wie auf einem echten
   Ausweis. Lighthouse Best Practices auf `/` deshalb 96 statt 100, akzeptiert.
@@ -547,19 +547,37 @@ das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
   nach Kontext: auf `/` und `/card` (Prop `standalone`) "Explore the site" →
   `/hub`, im Hub-Hero "See my work" → `/projects`. Unter der Karte steht auf der
   Startseite kein weiterer Button.
-- **Interaktion**: Klick/Tipp dreht die Karte (`rotateY(180deg)`, `--t-slow`,
-  `--ease-pop`, `perspective: 1200px`, `backface-visibility: hidden`). Desktop
-  zusätzlich: leichtes Kippen mit der Mausposition (max. ±8°), per Script.
-  Tastatur: Karte ist ein `<button>`, Enter/Space dreht, Fokusring sichtbar.
+- **Interaktion**: Im Hub-Hero dreht Klick/Tipp die Karte (`rotateY(180deg)`,
+  `--t-slow`, `--ease-pop`, `perspective`, `backface-visibility: hidden`),
+  Desktop zusätzlich leichtes Kippen mit der Mausposition (max. ±8°).
+  Auf `/` und `/card` (Prop `standalone`) ist sie eine Karte in der Hand
+  (`freeCard()` in `BusinessCard.astro`): Nahe einer Ecke (Radius 40 px Maus /
+  56 px Touch, auch knapp ausserhalb) erscheint ein gelbes Dreh-Symbol (hängt am
+  `body`, weil die Perspektive `fixed` sonst an die Karte bindet); Ziehen dreht
+  frei in 3D (seitlich um die senkrechte Achse = Rückseite, hoch/runter kippt,
+  0,5° pro px, Nachschwung max. 18°/Frame). Die Ecken kommen von vier
+  unsichtbaren Punkten `[data-mark]` in den Kartenecken, deren Bildschirmposition
+  auch gedreht stimmt; die Mitte (innerhalb der vier Punkte) verschiebt die
+  Karte (`translate` auf `[data-card-move]` bzw. die Szene, Mitte bleibt 24 px im
+  Bild). Doppelklick: zurück an den Platz. Kein Klick-Drehen, keine «Flip back»-
+  Pille (nur per Tastatur sichtbar); Enter auf der Karte dreht sie um. Welche
+  Seite vorne ist (inert): cos(rx)·cos(ry) < 0 = Rückseite.
+  Klicks ohne Bewegung erreichen Links und Buttons, ein Zug schluckt den Klick.
+  Passt die Seite in Ruhe ins Fenster, gibt `html.card-free` ihr `overflow: clip`.
+  Reduced motion: seitlicher Zug an der Ecke überblendet zur anderen Seite.
+- **Easter Egg: DVD-Bildschirmschoner** (nur `/` und `/card`): Wird die Karte
+  so in eine Fensterecke gezogen, dass ihre sichtbaren Ecken (die vier
+  `[data-mark]`) bis auf 14 px (Touch 22 px) in einer Ecke des Fensters sitzen,
+  legt sie sich flach mit der Vorderseite nach vorn und gleitet diagonal durchs
+  Fenster (Tempo 22 % der kürzeren Fensterseite pro Sekunde, mindestens 110 px/s).
+  An jedem Fensterrand prallt sie ab und nimmt eine andere Seitenfarbe an
+  (`--dvd`, als Pastell `color-mix` 45 % mit Weiss, damit Blau/Rot lesbar
+  bleiben); trifft sie eine Ecke exakt (±4 px), dreht sie sich einmal und
+  leuchtet gelb. Anfassen stoppt sie (Farbe bleibt), Doppelklick bringt sie
+  heim und wieder weiss. Nicht mit reduced motion.
 - **Ohne JS / reduced motion**: Beide Seiten stehen als Text im HTML; ohne JS
   wird die Rückseite unter der Vorderseite angezeigt, mit reduced motion wird
   überblendet statt gedreht.
-- **Easter Egg**: Wer die Karte zu oft dreht, bekommt statt der Daten nur noch
-  einen Satz zu sehen (Stufen in `UI.card.tired`: 10 → "why are you doing
-  this?", 13 → "seriously?", 16 → "fine. here you go." und Reset). Zählt pro
-  Seitenaufruf. Der Dreh-Hinweis vorne und die "flip back"-Pille hinten sitzen
-  beide unten rechts, liegen über der Überlagerung und bleiben immer sichtbar.
-  Texte in `src/data/ui.ts`.
 - **Daten** kommen ausschliesslich aus `src/data/site.ts`. vCard wird daraus
   in `contact.vcf.ts` generiert (`FN`, `EMAIL`, `URL`, `NOTE`, `X-SOCIALPROFILE`).
 - Der QR-Code selbst ist nicht Teil der Website (wird extern für den Druck erzeugt).

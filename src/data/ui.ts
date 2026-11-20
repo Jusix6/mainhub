@@ -62,15 +62,12 @@ export const UI = {
   card: {
     flip: 'Flip the card',
     flipBack: 'Flip back',
+    /** The standalone card (/ and /card): grab a corner to turn it, the middle to move it. */
+    turnHint: 'grab a corner',
+    turnLabel: 'Business card. Grab a corner and drag to turn it, grab the middle to move it, double-click to put it back. Press Enter to turn it over.',
     whatIMake: 'What I make',
     visit: 'Explore the site',
     scanned: 'You scanned my card. Nice.',
-    /** Easter egg: after this many flips the card gets tired. Stages in flip order; the last one resets. */
-    tired: [
-      { at: 10, text: 'why are you doing this?' },
-      { at: 13, text: 'seriously?' },
-      { at: 16, text: 'fine. here you go.', reset: true },
-    ],
   },
   /** Easter egg: three quick clicks on the logo boot the XP-style skin (see Nav.astro, retro.css). */
   retro: {
