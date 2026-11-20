@@ -1,8 +1,9 @@
 ---
 /**
- * Games hidden in the business card (/ and /card). The card's number ends in
- * "01": clicking it starts game 01, Card Breaker (src/lib/card-games/breakout.ts),
- * full screen over the page. More games can hang off other numbers later.
+ * Games hidden in the business card (/ and /card), full screen over the page:
+ * - the "01" at the end of the card's number starts game 01, Card Breaker
+ *   (src/lib/card-games/breakout.ts)
+ * - the "S" of the name starts game 02, Snake (src/lib/card-games/snake.ts)
  * The game code loads only when it starts.
  */
 import { getImage } from 'astro:assets';
@@ -13,8 +14,8 @@ const photo = await getImage({ src: portrait, width: 96, format: 'webp' });
 const G = UI.card.games;
 ---
 
-<div class="games" data-games data-portrait={photo.src} data-strings={JSON.stringify(G.breakout)} hidden>
-  <canvas class="games__canvas" data-games-canvas aria-label={G.breakout.name} role="img" tabindex="-1"></canvas>
+<div class="games" data-games data-portrait={photo.src} data-strings={JSON.stringify({ breakout: G.breakout, snake: G.snake })} hidden>
+  <canvas class="games__canvas" data-games-canvas role="img" tabindex="-1"></canvas>
   <button class="games__close" type="button" data-games-close aria-label={G.close}>×</button>
 </div>
 
@@ -40,6 +41,11 @@ const G = UI.card.games;
     height: 100%;
     cursor: none;
     outline: none;
+  }
+
+  /* Snake is played with keys and swipes, the pointer may stay */
+  .games__canvas[data-game='2'] {
+    cursor: default;
   }
 
   .games__close {
@@ -79,6 +85,7 @@ const G = UI.card.games;
 
 <script>
   import type { BreakoutStrings } from '@/lib/card-games/breakout';
+  import type { SnakeStrings } from '@/lib/card-games/snake';
 
   function setup() {
     const box = document.querySelector<HTMLElement>('[data-games]');
@@ -86,7 +93,7 @@ const G = UI.card.games;
     box.dataset.js = 'true';
     const canvas = box.querySelector<HTMLCanvasElement>('[data-games-canvas]')!;
     const close = box.querySelector<HTMLButtonElement>('[data-games-close]')!;
-    const strings: BreakoutStrings = JSON.parse(box.dataset.strings ?? '{}');
+    const strings: { breakout: BreakoutStrings; snake: SnakeStrings } = JSON.parse(box.dataset.strings ?? '{}');
     let stop: (() => void) | null = null;
     let opener: HTMLElement | null = null;
 
@@ -100,19 +107,21 @@ const G = UI.card.games;
 
     document.addEventListener('card:game', async (e) => {
       const detail = (e as CustomEvent<{ game: number; from?: DOMRect; opener?: HTMLElement }>).detail;
-      if (stop || detail.game !== 1) return;
+      if (stop || (detail.game !== 1 && detail.game !== 2)) return;
       opener = detail.opener ?? null;
       box!.hidden = false;
       document.documentElement.style.overflow = 'hidden';
-      const { startBreakout } = await import('@/lib/card-games/breakout');
-      stop = startBreakout({
-        canvas,
-        strings,
-        portrait: box!.dataset.portrait ?? '',
-        from: detail.from,
-        reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-        onExit: exit,
-      });
+      canvas.dataset.game = String(detail.game);
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (detail.game === 1) {
+        canvas.setAttribute('aria-label', strings.breakout.name);
+        const { startBreakout } = await import('@/lib/card-games/breakout');
+        stop = startBreakout({ canvas, strings: strings.breakout, portrait: box!.dataset.portrait ?? '', from: detail.from, reducedMotion, onExit: exit });
+      } else {
+        canvas.setAttribute('aria-label', strings.snake.name);
+        const { startSnake } = await import('@/lib/card-games/snake');
+        stop = startSnake({ canvas, strings: strings.snake, from: detail.from, reducedMotion, onExit: exit });
+      }
       canvas.focus({ preventScroll: true });
     });
     close.addEventListener('click', exit);

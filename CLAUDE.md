@@ -614,6 +614,23 @@ das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
   Wand ihre Spaltenzahl. Lokal: `window.cardBreaker` (level, take, info,
   clear) zum Testen. Reduced motion: ohne Einflug und Splitter. Texte in
   `UI.card.games`. Weitere Spiele können an andere Nummern gehängt werden.
+- **Kartenspiel 02: Snake** (nur `/` und `/card`): Das "S" im Namen JUSI ist ein
+  Button (`[data-game="2"]`, `.lic__game--name`, erbt Grossschreibung und Schrift,
+  gelb bei Hover/Fokus wie die 01); gleicher Weg über `card:game` und
+  `CardGames.astro` (Canvas bekommt `data-game`, bei 2 normaler Mauszeiger),
+  Code in `src/lib/card-games/snake.ts`. Klassisches Snake nach den bekannten
+  Regeln, eigener Look (Schachbrett in Creme/Gelb, Tinte-Rand mit hartem
+  Schatten, grüne Schlange mit Augen, oranger Apfel): Brett 17 × 15 Felder
+  (hochkant 15 × 17), Zelle max. 48 px; Start mit 4 Teilen links, Apfel rechts
+  in derselben Reihe; erster Pfeil/WASD/Wisch/Klick/Leertaste startet, dann
+  gleichmässig 135 ms pro Feld, die Schlange gleitet dazwischen weich. Apfel = 1
+  Punkt + 1 Teil, Wand oder eigener Schwanz = Ende (Kreuzaugen, kurzes
+  Wackeln, dann "Game over"). Kurven werden gepuffert (2 voraus), Umkehr wird
+  ignoriert; Wischen: alle 24 px eine Kurve. P Pause (auch beim Tab-Wechsel),
+  Esc oder × beendet. Bestwert in `localStorage` `jxsi_snake_best`. Volles Brett
+  = gewonnen. Das Brett wächst zu Beginn aus der Karte heraus (Reduced motion:
+  ohne, und ohne Apfel-Splitter). Lokal: `window.cardSnake` (info, steer, step,
+  apple, grow) zum Testen. Texte in `UI.card.games.snake`.
 - **Easter Egg: DVD-Bildschirmschoner** (nur `/` und `/card`): Wird die Karte
   so in eine Fensterecke gezogen, dass ihre sichtbaren Ecken (die vier
   `[data-mark]`) bis auf 14 px (Touch 22 px) in einer Ecke des Fensters sitzen,

@@ -69,6 +69,7 @@ export const UI = {
     /** Games hidden in the card number (CardGames.astro): 01 = Card Breaker. */
     games: {
       play: 'Play game 01: Card Breaker',
+      playSnake: 'Play game 02: Snake',
       close: 'Close the game',
       breakout: {
         name: 'Card Breaker',
@@ -92,6 +93,18 @@ export const UI = {
           strong: 'Strong ball!',
           big: 'Big ball!',
         },
+      },
+      /** Game 02, hidden in the "S" of the name. */
+      snake: {
+        name: 'Snake',
+        score: 'Score',
+        best: 'Best',
+        start: 'Press an arrow key or swipe to start',
+        paused: 'Paused',
+        over: 'Game over',
+        again: 'Press space or tap to play again',
+        won: 'The whole board!',
+        record: 'New best',
       },
     },
     whatIMake: 'What I make',

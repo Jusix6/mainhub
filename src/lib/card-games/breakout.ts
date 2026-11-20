@@ -22,6 +22,7 @@
  */
 
 export interface BreakoutStrings {
+  name: string;
   score: string;
   lives: string;
   best: string;
