@@ -76,7 +76,7 @@ export const COSTS: Record<Invention, number> = {
 /** The six ages (Update 2, phase E) and the invention that opens each one. */
 export const AGES = ['stone', 'bronze', 'iron', 'medieval', 'renaissance', 'industry'] as const;
 export type Age = (typeof AGES)[number];
-const AGE_OF: Record<Invention, Age> = {
+export const AGE_OF: Record<Invention, Age> = {
   tools: 'stone',
   agriculture: 'stone',
   wheel: 'bronze',
@@ -99,11 +99,25 @@ const AGE_OF: Record<Invention, Age> = {
 /** After the last invention: endless progress levels, each a little dearer. */
 export const progressCost = (level: number) => 15000 + 4000 * (level - 1);
 
+/** Who found an invention out, and when (World window → Inventions). */
+export interface Found {
+  /** Year. */
+  y: number;
+  /** The inventor (id, name at the time, home village id); missing for gifts. */
+  h?: number;
+  n?: string;
+  v?: number;
+  /** A gift from the gods. */
+  g?: 1;
+}
+
 export interface Tech {
   known: Invention[];
   progress: number;
   /** Progress levels reached after the last invention. */
   level?: number;
+  /** When and by whom each invention was found (saves from before this have none). */
+  by?: Partial<Record<Invention, Found>>;
 }
 
 /** The age a people lives in (0 = Stone Age … 5 = industry). */
@@ -182,8 +196,8 @@ export function researchTick(sim: Sim) {
   }
 }
 
-/** The people learns it; the wisest grown-up among them gets the credit. */
-export function invent(sim: Sim, p: People, inv: Invention) {
+/** The people learns it; the wisest grown-up among them gets the credit (a gift: the gods). */
+export function invent(sim: Sim, p: People, inv: Invention, gifted = false) {
   const t = techOf(sim, p);
   if (t.known.includes(inv)) return;
   const before = ageIndex(sim, p);
@@ -198,6 +212,8 @@ export function invent(sim: Sim, p: People, inv: Invention) {
   const people = sim.humans.filter((h) => h.people === p && h.village !== undefined && stage(h, sim.time) !== 'child');
   const inventor =
     people.filter((h) => has(h, 'wise')).sort((a, b) => a.born - b.born)[0] ?? people.sort((a, b) => a.born - b.born)[0] ?? (undefined as Human | undefined);
+  t.by ??= {};
+  t.by[inv] = gifted || !inventor ? { y: sim.year, ...(gifted ? { g: 1 as const } : {}) } : { y: sim.year, h: inventor.id, n: inventor.name, v: inventor.village };
   if (inventor) {
     story(inventor, sim, 'invented', inv);
     sim.puff(inventor.x, inventor.y - 0.6, 10, ['#ffe066', '#ffffff', '#4d8dff']);
@@ -222,6 +238,6 @@ function capitalOf(sim: Sim, p: People) {
 /** God gift: the next invention, right now. */
 export function gift(sim: Sim, p: People): Invention | null {
   const next = nextInvention(sim, p);
-  if (next) invent(sim, p, next);
+  if (next) invent(sim, p, next, true);
   return next;
 }

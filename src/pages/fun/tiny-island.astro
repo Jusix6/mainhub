@@ -1986,13 +1986,125 @@ const speeds = [
     font-size: 12px;
   }
 
-  /* World wonders (phase H) */
+  /* World wonders (phase H): only the ones that stand, each with its picture */
   .ti__wonder-list :global(.ti-wd) {
     display: grid;
-    grid-template-columns: 22px minmax(130px, auto) 1fr auto;
+    grid-template-columns: 84px minmax(130px, auto) 1fr auto;
     align-items: center;
     gap: 8px;
   }
+
+  /* Twice the map's pixels, so they stay sharp */
+  .ti__wonder-list :global(.ti-wd__art) {
+    width: 80px;
+    height: 92px;
+    image-rendering: pixelated;
+    background: #e9dfc6;
+    border: 2px solid #6b4f2f;
+    border-radius: 6px;
+  }
+
+  .ti__wonder-list :global(.ti-wd__art--rising) {
+    display: grid;
+    place-items: center;
+    width: 80px;
+    height: 40px;
+    font-size: 18px;
+    border-style: dashed;
+  }
+
+  .ti__wonder-list :global(.ti-wd.is-rising) {
+    grid-template-columns: 84px 1fr;
+    color: var(--ti-muted);
+    font-style: italic;
+  }
+
+  /* The inventions: clickable symbols, details below the row */
+  .ti__tech-list :global(button.ti-t__icon) {
+    padding: 0 1px;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    font: inherit;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+
+  .ti__tech-list :global(button.ti-t__icon:hover),
+  .ti__tech-list :global(button.ti-t__icon:focus-visible) {
+    opacity: 1;
+    filter: none;
+    background: #f4e7c4;
+  }
+
+  .ti__tech-list :global(button.ti-t__icon.is-open) {
+    opacity: 1;
+    filter: none;
+    background: #ffc83d;
+    outline: 2px solid #6b4f2f;
+  }
+
+  .ti__tech-list :global(.ti-t__info) {
+    position: relative;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    margin-top: 2px;
+    padding: 8px 32px 8px 10px;
+    background: #f7efd9;
+    border: 2px solid #6b4f2f;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+  .ti__tech-list :global(.ti-t__info p) {
+    margin: 0 0 2px;
+  }
+
+  .ti__tech-list :global(.ti-t__info.is-unknown .ti-t__big) {
+    opacity: 0.35;
+    filter: grayscale(1);
+  }
+
+  .ti__tech-list :global(.ti-t__big) {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .ti__tech-list :global(.ti-t__does) {
+    color: var(--ti-muted);
+  }
+
+  .ti__tech-list :global(.ti-t__first) {
+    font-weight: 700;
+    color: #9c6a12;
+  }
+
+  /* People dots inside running text */
+  .ti__tech-list :global(.ti-t__info .ti-p__dot),
+  .ti__wonder-list :global(.ti-wd .ti-p__dot) {
+    display: inline-block;
+    margin-right: 4px;
+    vertical-align: -1px;
+  }
+
+  .ti__tech-list :global(.ti-t__other) {
+    margin-right: 8px;
+    white-space: nowrap;
+  }
+
+  .ti__tech-list :global(.ti-t__close) {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    padding: 0 4px;
+    background: none;
+    border: 0;
+    font: 700 16px / 1 inherit;
+    cursor: pointer;
+  }
+
 
   .ti__wonder-list :global(.ti-wd.is-done b) {
     color: #9c6a12;
@@ -2005,10 +2117,10 @@ const speeds = [
 
   @media (max-width: 640px) {
     .ti__wonder-list :global(.ti-wd) {
-      grid-template-columns: 22px 1fr;
+      grid-template-columns: 84px 1fr;
     }
 
-    .ti__wonder-list :global(.ti-wd > span:nth-child(n + 3)) {
+    .ti__wonder-list :global(.ti-wd > :nth-child(n + 3)) {
       grid-column: 2;
     }
   }

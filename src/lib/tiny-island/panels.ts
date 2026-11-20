@@ -12,14 +12,15 @@ import { FRIEND, RIVAL } from './social';
 import { villageOf } from './villages';
 import { allied, moodOf, pairKey, warBetween, makePeace, type War } from './war';
 import { armyTag } from './armies';
-import { progressOf, WONDER_AGE, WONDERS, wonderTag, type WonderKind } from './wonders';
+import { progressOf, wonderTag, type WonderKind } from './wonders';
 import { crown, depose, kingOf, loyaltyOf, realmOf } from './kingdoms';
 import { blessedPlace, celebrate, culturedPeoples, giftBuilding, giftBuildingAt, giftFestival, type Work } from './culture';
 import { plural, villageHtml, type Forms, type VillageStrings } from './village-panel';
 import type { Village } from './villages';
 import { chartSvg, indexAt, tipText, CHART_W } from './stats';
-import { COSTS, gift, INVENTIONS, nextInvention, researchRate, techOf, AGES, ageIndex, progressCost } from './inventions';
-import { PEOPLES } from './agents';
+import { AGE_OF, COSTS, gift, INVENTIONS, nextInvention, researchRate, techOf, AGES, ageIndex, progressCost, type Invention } from './inventions';
+import { drawWonder } from './wonder-art';
+import { PEOPLE_COLORS, PEOPLES } from './agents';
 import { TILE } from './world';
 import { landShares } from './territory';
 import { religionById, SYMBOL_ICON } from './religion';
@@ -186,6 +187,8 @@ export interface PanelStrings {
     allKnown: string;
     gift: string;
     giftTitle: string;
+    /** The details of one invention (click its symbol). */
+    techInfo: { by: string; found: string; gift: string; old: string; working: string; later: string; first: string; only: string; others: string; close: string };
     goals: Record<'conquest' | 'tribute' | 'revenge' | 'land' | 'expel' | 'faith', string>;
     seas: string;
   };
@@ -241,8 +244,8 @@ export interface PanelStrings {
     ranks: Record<string, string>;
     built: string;
     building: string;
-    open: string;
-    locked: string;
+    rising: string;
+    none: string;
     ruins: string;
   };
   armies: {
@@ -335,8 +338,6 @@ export interface PanelStrings {
 }
 
 /** Plots in the Rules overview (phase D). */
-/** The wonders' icons (Rules tab). */
-const WONDER_ICONS: Record<WonderKind, string> = { gardens: '🌿', library: '📚', colosseum: '🏟️', lighthouse: '🗼', cathedral: '⛪', wall: '🧱', observatory: '🔭', colossus: '🗽' };
 
 const PLOT_KINDS = new Set<string>(['plotSpy', 'plotSpyCaught', 'plotSabotage', 'plotSabotageCaught', 'coup', 'coupCaught', 'betrayal', 'betrayalCaught', 'bribe', 'bribeCaught']);
 
@@ -364,6 +365,8 @@ export class Panels {
   private wondersShown = '';
   private relationsShown = '';
   private techShown = '';
+  /** The invention whose details are open in the World window (one people, one symbol). */
+  private techPick: { p: People; i: Invention } | null = null;
   private kingdomsShown = '';
   private leaguesShown = '';
   private cultureShown = '';
@@ -458,6 +461,14 @@ export class Panels {
           this.rulesAt = 0;
         } else if (t.closest('[data-donate]')) {
           giftBuilding(this.sim, t.closest<HTMLElement>('[data-donate]')!.dataset.donate as People);
+          this.rulesAt = 0;
+        } else if (t.closest('[data-inv]')) {
+          // An invention's symbol: its details below the row (again: closed)
+          const [p, i] = t.closest<HTMLElement>('[data-inv]')!.dataset.inv!.split(':') as [People, Invention];
+          this.techPick = this.techPick?.p === p && this.techPick.i === i ? null : { p, i };
+          this.rulesAt = 0;
+        } else if (t.closest('[data-inv-close]')) {
+          this.techPick = null;
           this.rulesAt = 0;
         } else if (t.closest('[data-gift]')) {
           // God gift: the next invention for that people, right away
@@ -1103,41 +1114,55 @@ export class Panels {
 
   /* ---- world wonders (Rules tab, phase H) ------------------------------------------ */
 
-  /** One line per wonder: who holds it, who is building it and how far, or from which age it can be built. */
+  /**
+   * Only wonders that stand: a small picture (drawn with the map's own art),
+   * the name, who holds it and since when, what it does. Wonders still being
+   * built show as a line without a name (no spoilers: you find out what it is
+   * when it is finished). Nothing at all while none is begun.
+   */
   private renderWonders() {
     const box = this.root.querySelector<HTMLElement>('[data-wonders]');
     if (!box || box.closest('[hidden]')) return;
     const W = this.S.wonders;
     const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-    const rows = WONDERS.map((kind) => {
-      const done = this.sim.wonders.find((w) => w.kind === kind && w.finished !== undefined && !w.ruin);
-      const icon = WONDER_ICONS[kind];
-      if (done) {
-        const v = this.sim.villages.find((x) => x.id === done.village);
-        return (
-          `<li class="ti-wd is-done"><span>${icon}</span><b>${esc(cap(this.wonderName(wonderTag(done))))}</b>` +
-          `<span><span class="ti-p__dot ti-dot--${done.people}"></span>${v ? this.villageLink(v) : ''} · ${esc(W.built.replace('{n}', String(done.finished)))}</span>` +
-          `<span class="ti-wd__does">${esc(W.does[kind] ?? '')}</span></li>`
-        );
-      }
-      const projects = this.sim.wonders.filter((w) => w.kind === kind && w.finished === undefined && !w.ruin);
-      const status = projects.length
-        ? projects
-            .map((w) => {
-              const v = this.sim.villages.find((x) => x.id === w.village);
-              return `<span class="ti-p__dot ti-dot--${w.people}"></span>${v ? this.villageLink(v) : ''} ${esc(W.building.replace('{n}', String(Math.floor(progressOf(w) * 100))))}`;
-            })
-            .join(' · ')
-        : esc([...this.sim.tech.keys()].some((p) => ageIndex(this.sim, p) >= WONDER_AGE[kind]) ? W.open : W.locked.replace('{g}', this.S.ages[AGES[WONDER_AGE[kind]]] ?? ''));
+    const built = this.sim.wonders.filter((w) => w.finished !== undefined && !w.ruin).sort((a, b) => a.finished! - b.finished!);
+    const rising = this.sim.wonders.filter((w) => w.finished === undefined && !w.ruin);
+    const rows = built.map((w) => {
+      const v = this.sim.villages.find((x) => x.id === w.village);
+      const hero = w.hero ? (w.hero.female ? 'f' : 'm') : '';
       return (
-        `<li class="ti-wd${projects.length ? ' is-building' : ''}"><span>${projects.length ? '🏗️' : icon}</span><b>${esc(W.names[kind] ?? kind)}</b>` +
-        `<span>${status}</span><span class="ti-wd__does">${esc(W.does[kind] ?? '')}</span></li>`
+        `<li class="ti-wd is-done"><canvas class="ti-wd__art" width="40" height="46" data-wd-art="${w.kind}|${w.people}|${hero}" aria-hidden="true"></canvas>` +
+        `<b>${esc(cap(this.wonderName(wonderTag(w))))}</b>` +
+        `<span><span class="ti-p__dot ti-dot--${w.people}"></span>${v ? this.villageLink(v) : ''} · ${esc(W.built.replace('{n}', String(w.finished)))}</span>` +
+        `<span class="ti-wd__does">${esc(W.does[w.kind] ?? '')}</span></li>`
       );
     });
-    const html = rows.join('');
-    if (html !== this.wondersShown) {
-      this.wondersShown = html;
-      box.innerHTML = html;
+    for (const w of rising) {
+      const v = this.sim.villages.find((x) => x.id === w.village);
+      rows.push(
+        `<li class="ti-wd is-rising"><span class="ti-wd__art ti-wd__art--rising" aria-hidden="true">🏗️</span>` +
+          `<span><span class="ti-p__dot ti-dot--${w.people}"></span>${esc(W.rising).replace('{v}', v ? this.villageLink(v) : '?').replace('{n}', String(Math.floor(progressOf(w) * 100)))}</span></li>`,
+      );
+    }
+    const html = rows.length ? rows.join('') : `<li class="ti-r__none">${esc(W.none)}</li>`;
+    if (html === this.wondersShown) return;
+    this.wondersShown = html;
+    box.innerHTML = html;
+    // The pictures: the wonder as it stands on the map, in the colours of its people
+    for (const c of box.querySelectorAll<HTMLCanvasElement>('[data-wd-art]')) {
+      const [kind, people, hero] = c.dataset.wdArt!.split('|');
+      const ctx = c.getContext('2d');
+      if (!ctx) continue;
+      const col = PEOPLE_COLORS[people as People];
+      drawWonder(ctx, kind as WonderKind, 4, 12, {
+        t: 0,
+        cloth: col.cloth,
+        dark: col.dark,
+        progress: 1,
+        ruin: false,
+        beam: false,
+        hero: hero ? { female: hero === 'f' } : undefined,
+      });
     }
   }
 
@@ -1364,9 +1389,10 @@ export class Panels {
   /* ---- inventions (Rules tab) ------------------------------------------------- */
 
   /**
-   * One block per people with villages: the icons of what it knows, a bar to
-   * its next invention and the gift button. The list is only rebuilt when
-   * something new was invented; the bars are updated in place.
+   * One block per people with villages: its inventions as symbols (clickable:
+   * the details open below the row), a bar to its next invention and the gift
+   * button. The list is only rebuilt when something new was invented or
+   * another symbol is opened; the bars are updated in place.
    */
   private renderTech() {
     const box = this.root.querySelector<HTMLElement>('[data-tech]');
@@ -1374,7 +1400,12 @@ export class Panels {
     const R = this.S.rules;
     const I = this.S.inventions;
     const present = PEOPLES.filter((p) => this.sim.villages.some((v) => !v.ruin && v.people === p));
-    const key = present.map((p) => `${p}:${techOf(this.sim, p).known.join(',')}:${techOf(this.sim, p).level ?? 0}`).join('|');
+    if (this.techPick && !present.includes(this.techPick.p)) this.techPick = null;
+    const pick = this.techPick;
+    // The open details show the progress of the next invention: rebuild them when it moves on a whole percent
+    const pickPct = pick && nextInvention(this.sim, pick.p) === pick.i ? Math.floor((techOf(this.sim, pick.p).progress / COSTS[pick.i]) * 100) : -1;
+    const key =
+      present.map((p) => `${p}:${techOf(this.sim, p).known.join(',')}:${techOf(this.sim, p).level ?? 0}`).join('|') + `|${pick?.p}:${pick?.i}:${pickPct}`;
     if (key !== this.techShown) {
       this.techShown = key;
       box.innerHTML = present.length
@@ -1382,9 +1413,10 @@ export class Panels {
             .map((p) => {
               const t = techOf(this.sim, p);
               const next = nextInvention(this.sim, p);
-              const icons = INVENTIONS.map(
-                (i) => `<span class="ti-t__icon${t.known.includes(i) ? ' is-known' : ''}" title="${esc(`${I[i].name}: ${I[i].does}`)}">${I[i].icon}</span>`,
-              ).join('');
+              const icons = INVENTIONS.map((i) => {
+                const open = pick?.p === p && pick.i === i;
+                return `<button type="button" class="ti-t__icon${t.known.includes(i) ? ' is-known' : ''}${open ? ' is-open' : ''}" data-inv="${p}:${i}" aria-pressed="${open}" title="${esc(I[i].name)}" aria-label="${esc(I[i].name)}">${I[i].icon}</button>`;
+              }).join('');
               // The age the people lives in (phase E)
               const age = this.S.ages[AGES[ageIndex(this.sim, p)]];
               return (
@@ -1394,6 +1426,7 @@ export class Panels {
                 (next
                   ? `<button type="button" class="ti-t__gift" data-gift="${p}" title="${esc(R.giftTitle.replace('{i}', I[next].name))}">🎁 ${esc(R.gift)}</button>`
                   : '<span></span>') +
+                (pick?.p === p ? this.techInfo(p, pick.i) : '') +
                 `</li>`
               );
             })
@@ -1419,6 +1452,51 @@ export class Panels {
     }
   }
 
+  /**
+   * The details of one invention for one people: big symbol, name, age, what
+   * it does; who found it, where and when (or that the gods gave it); if it
+   * was the first on the island; which other peoples know it.
+   */
+  private techInfo(p: People, inv: Invention): string {
+    const I = this.S.inventions[inv];
+    const T = this.S.rules.techInfo;
+    const t = techOf(this.sim, p);
+    const f = t.by?.[inv];
+    let status: string;
+    let extra = '';
+    if (t.known.includes(inv)) {
+      if (!f) status = esc(T.old);
+      else if (f.g) status = esc(T.gift.replace('{y}', String(f.y)));
+      else if (f.h || f.n) {
+        const who = (f.h ? this.person(f.h) : '') || `<b>${esc(f.n ?? '')}</b>`;
+        const v = f.v !== undefined ? this.sim.villages.find((x) => x.id === f.v) : undefined;
+        status = esc(T.by)
+          .replace('{y}', String(f.y))
+          .replace('{who}', who)
+          .replace('{v}', v ? ` (${this.villageLink(v)})` : '');
+      } else status = esc(T.found.replace('{y}', String(f.y)));
+      // Who else knows it, with the year where it is known; first on the island?
+      const others = PEOPLES.filter((o) => o !== p && techOf(this.sim, o).known.includes(inv));
+      const years = [p, ...others].map((o) => techOf(this.sim, o).by?.[inv]?.y);
+      if (f && others.length && years.every((y) => y !== undefined) && f.y < Math.min(...(years.slice(1) as number[]))) extra += `<p class="ti-t__first">⭐ ${esc(T.first)}</p>`;
+      extra += others.length
+        ? `<p>${esc(T.others)} ${others
+            .map((o) => {
+              const y = techOf(this.sim, o).by?.[inv]?.y;
+              return `<span class="ti-t__other"><span class="ti-p__dot ti-dot--${o}"></span>${esc(this.S.peoples[o])}${y !== undefined ? ` (${y})` : ''}</span>`;
+            })
+            .join(' ')}</p>`
+        : `<p>${esc(T.only)}</p>`;
+    } else if (nextInvention(this.sim, p) === inv) {
+      status = esc(T.working.replace('{n}', String(Math.min(100, Math.floor((t.progress / COSTS[inv]) * 100)))));
+    } else status = esc(T.later);
+    return (
+      `<div class="ti-t__info${t.known.includes(inv) ? '' : ' is-unknown'}"><span class="ti-t__big" aria-hidden="true">${I.icon}</span>` +
+      `<div><p><b>${esc(I.name.charAt(0).toUpperCase() + I.name.slice(1))}</b> <small class="ti-t__age">${esc(this.S.ages[AGE_OF[inv]] ?? '')}</small></p>` +
+      `<p class="ti-t__does">${esc(I.does)}</p><p>${status}</p>${extra}</div>` +
+      `<button type="button" class="ti-t__close" data-inv-close aria-label="${esc(T.close)}">×</button></div>`
+    );
+  }
 
   /* ---- chronicle ------------------------------------------------------------- */
 

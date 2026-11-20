@@ -428,7 +428,13 @@ export function load(sim: Sim, world: World): boolean {
   if (d.streets) for (const v of sim.villages) if (!v.ruin && !v.merged) layAllStreets(sim, v);
   // Ships plan their course again from where they are
   sim.ships = (d.ships ?? []).map((s) => ({ ...s, path: null }));
-  if (d.tech) for (const [p, t] of d.tech) sim.tech.set(p, { known: [...t.known], progress: t.progress });
+  if (d.tech)
+    for (const [p, t] of d.tech) {
+      // level was lost on loading before; by (who found what) came with the inventions view
+      const by: Tech['by'] = {};
+      for (const [inv, f] of Object.entries(t.by ?? {})) if (f && typeof f.y === 'number') by[inv as keyof typeof by] = f;
+      sim.tech.set(p, { known: [...t.known], progress: t.progress, level: t.level, by });
+    }
   else oldTech(sim);
   setNextId(d.nextAgentId);
   return true;
