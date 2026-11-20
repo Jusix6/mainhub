@@ -631,6 +631,125 @@ das Favicon (`public/favicon.svg`, als Vektor nachgebaut). Neue Masterdatei:
   = gewonnen. Das Brett wächst zu Beginn aus der Karte heraus (Reduced motion:
   ohne, und ohne Apfel-Splitter). Lokal: `window.cardSnake` (info, steer, step,
   apple, grow) zum Testen. Texte in `UI.card.games.snake`.
+- **Creative-Modus** (nur `/` und `/card`, Plan: Claude Docs "Creative Mode –
+  Umsetzungsplan", Phasen A–E; Stand: alle Phasen fertig). Das Wort "Creative" in
+  "Creative License" ist ein Button (`[data-creative-start]`, `.lic__game--kind`,
+  erstes Wort von `SITE.license.kind`), schickt `card:creative` an
+  `CreativeMode.astro` (Vollbild-Overlay z-index 90: Leiste mit Hand-Anzeige,
+  Tile-Zahl, ↶ ↷, Menü ⋯, "Inventory E", "Save & quit"; Hotbar unten; Toast
+  beim Start). Code in `src/lib/creative/` (per dynamischem Import): `tiles.ts`
+  (Vorlagen laden, `renderTile`, `previewTile`, `fitTile`, `applyExtra`; auch
+  für die fertige Startseite gedacht), `editor.ts` (Raster und Bedienung),
+  `inventory.ts` (Hotbar, Inventar), `plan.ts` (Bauplan, Hotbar, Speichern, Prüfen),
+  `share.ts` (Teil-Links), `page.ts` (Bau als echte Seite), `fx.ts` (Effekte),
+  `sound.ts` (Klänge). Die Styles des Editors stehen in `editor.css` (kein
+  Astro-`<style>` in `CreativeMode.astro`): `editor.ts` importiert sie nur als
+  URL (`?url`) und hängt sie mit `loadStyles()` beim Start an, das Overlay
+  erscheint erst danach. Ein normaler CSS-Import würde Astro das Stylesheet in
+  den Kopf von `/` setzen lassen, obwohl der Code dynamisch geladen wird. `CardGames` und
+  `CreativeMode` stehen in `CardScreen.astro` *ausserhalb* von `.card-page`, weil
+  die eigene Startseite `.card-page` ausblendet und beide trotzdem braucht.
+  - **Tiles:** `src/pages/creative/tiles.astro` (`/creative/tiles`, noindex, nicht
+    in der Sitemap) rendert jedes Tile einmal in ein `<template data-tile data-tab
+    data-name data-sizes data-fit>` mit den echten Komponenten (BusinessCard,
+    ProjectCard, UpdateCard, ScheduleItem, LatestVideo) oder eigenem `.ct`-Markup.
+    Der Editor holt die Seite per `fetch`, übernimmt ihre `<link rel=stylesheet>`
+    und `<style>` in den eigenen `<head>` (CSP erlaubt `style-src 'self'
+    'unsafe-inline'`) und klont die Templates. Ids bleiben stabil (stehen in
+    gespeicherten Bauten): `card`, `portrait`, `name`, `bio`, `contact`, `email`,
+    `p:<projekt>`, `cat:<slug>`, `all-projects`, `g:<spiel>` (aus
+    `src/data/games.ts`, auch Quelle der Fun-Startseite), `library`, `breaker`,
+    `snake`, `video`, `s:<typ>` bzw. `s:youtube-main`/`-gaming`, `videos`,
+    `latest-update`, `schedule`, `u:<update-slug>`, `b:heading|text|sticker|
+    yellow…green|spacer|divider`. `fill` = Tile füllt die Box (Texte über
+    Container-Einheiten); `scale` = Inhalt in Tile-Breite, schrumpft auf die Höhe
+    (nie `container-type: size` in einem `scale`-Tile, sonst fällt es zusammen).
+    Blocks mit `data-edit="text|color"` + `data-max`: Text landet per
+    `textContent` (nie HTML) in `[data-text]`, Farbe in der Custom Property aus
+    `[data-color]` (beim Sticker auf `.sticker`, `data-color-on`). Startlayouts als
+    `<template data-plan="hub" data-tiles="[…]">` ("Original hub": /hub aus Tiles,
+    Überschriften mit den Abschnittstiteln als eigenem Text).
+  - **Raster:** 12 Spalten, quadratische Zellen (`--cell`, `--gap` 10 px, unter
+    560 px 6 px), max. 1200 px breit; Zeilen = Bildschirm oder unterstes Tile + 4.
+    In der Hand ist das Tile im gewählten Hotbar-Slot; Klick platziert (Umriss
+    grün/rot), Rechtsklick entfernt, Ziehen verschiebt (Umriss zeigt das Ziel,
+    am Rand scrollt es), R = nächste passende Grösse des Tiles unter dem Zeiger,
+    sonst des Tiles in der Hand; Mittelklick legt ein Tile in die Hand (Slot mit
+    dem Tile wird gewählt, sonst landet es im gewählten Slot); Doppelklick auf
+    einen Block öffnet das Bearbeiten-Fenster (Text, Farbe; Enter/Klick daneben
+    übernimmt, Esc verwirft). Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) bzw. ↶ ↷: 100
+    Schritte (Bauplan-Schnappschüsse). Menü ⋯: "Start from the original hub",
+    "Clear all" (beide mit eigener Rückfrage, rückgängig machbar), Tastenliste.
+    Esc schliesst Rückfrage, Bearbeiten, Inventar, Menü bzw. den Modus. Tile-Inhalt ist beim Bauen `inert`. Das
+    Raster wird nur für neue/entfernte Tiles angefasst (Map nach Platzierung),
+    sonst würden die Einblend-Animationen der Komponenten bei jedem Klick neu laufen.
+  - **Hotbar:** 9 Slots unten (58 px, unter 560 px 36 px) mit kleinem Bild des
+    echten Tiles (`previewTile`: Tile in fester Grösse gerendert, per `scale`
+    verkleinert). 1–9 oder Mausrad *über der Hotbar* wählen (das Rad über dem
+    Raster scrollt die Seite), der Name blendet kurz über der Hotbar ein.
+    Rechtsklick leert einen Slot, Slot auf Slot ziehen tauscht. Gespeichert in
+    `localStorage` `jxsi_creative_hotbar` (`[{id, size}|null] × 9`, geprüft);
+    ohne Speicherstand ein Start-Set (Name, Karte, Portrait, erstes Projekt,
+    erstes Spiel, Video, neuster Update, Überschrift, Text).
+  - **Inventar:** E (oder Knopf) öffnet/schliesst, Esc schliesst. 6 Tabs + Suche
+    (über alle Tabs, Name oder Id; E im Suchfeld tippt). Bilder in der
+    quadratischsten Grösse des Tiles. Klick legt das Tile in den gewählten Slot,
+    Zeigen + 1–9 in jenen Slot, oder auf einen Slot ziehen (eigenes Pointer-Drag).
+  - **Bauplan:** `{ v: 1, cols: 12, tiles: [[id, x, y, w, h, extra?]] }` (extra =
+    `{ t?: Text, c?: yellow|pink|blue|purple|orange|green }`, `cleanExtra` kürzt
+    auf `data-max`, entfernt Steuerzeichen) in
+    `localStorage` `jxsi_creative`, nach jeder Änderung gespeichert. `cleanPlan`
+    prüft streng (bekannte Ids, erlaubte Grössen, im Raster, keine Überlappung,
+    max. 120 Tiles); Ungültiges fällt still weg. Lokal: `window.creative` (plan,
+    ids, inv, undo, redo, resize, edit, place) zum Testen.
+  - **Eigene Startseite** (`MyStartPage.astro`, nur in `index.astro`, nie auf
+    `/card`, damit gedruckte QR-Codes immer die Karte zeigen): Gibt es einen Bau
+    (`localStorage`) oder einen Link `#build=…`, zeigt `/` den Bau statt der
+    Karte (`page.ts`: Tiles live, nicht inert; Desktop 12 Spalten wie gebaut;
+    unter 640 px 6 Spalten, Lesereihenfolge, `grid-auto-flow: dense`, Handy-Grösse
+    `--pw/--ph`: ab 4 breit → 6, 2–3 → 3, 1 → 2, Höhe proportional, Abstände weg).
+    Video-Fassade, Karte umdrehen und Spiel-Tiles (`card:game`) behandelt
+    `page.ts` selbst, weil ihre Komponenten-Skripte die nachträglich eingesetzten
+    Tiles nicht kennen. Knöpfe: "Edit in creative mode", "Original card" (Karte für
+    diesen Besuch, Pille "My start page" zurück). Kein Aufblitzen der Karte: das
+    Inline-Bootstrap in `Head.astro` setzt `html[data-build="wait"]` (Karte
+    unsichtbar, CSS-Notbremse nach 4 s), `MyStartPage` setzt `shown`/`card` oder
+    entfernt es. Ohne JS, ohne Bau oder bei kaputtem Link: die normale Karte (bei
+    kaputtem Link mit kurzem Hinweis). Schliessen des Editors schickt
+    `creative:closed`, die Startseite zeichnet neu.
+  - **Teil-Link** (`share.ts`, Menü ⋯ "Copy share link"): `/#build=1<base64url>`,
+    Bauplan als JSON, `deflate-raw` (CompressionStream; ohne: Präfix `0`, roh).
+    32 Tiles ≈ 580 Zeichen. Der Hash geht nie an den Server. Dekodieren streng
+    begrenzt (max. 24 000 Zeichen, nur base64url, entpackt max. 200 KB), danach
+    `cleanPlan`. Kopieren über die Zwischenablage, sonst steht der Link markiert
+    im Menü-Feld. Fremder Bau: Hinweis "Someone built this …", "Use as my start
+    page" (fragt per zweitem Klick, wenn es einen eigenen Bau gibt, speichert,
+    entfernt den Hash), "Build my own" (Editor mit dem eigenen Bau). Der Worker
+    setzt auch auf `/creative/tiles` das aktuelle Video und die Video-Zahl ein
+    (`VIDEO_PAGES`).
+  - **Rückmeldung (Phase E):** Alle Änderungen laufen über `addTile`,
+    `removeAt`, `setTile` (dazu `noRoom`, Undo/Redo, Vorlage, Clear all):
+    Platzieren = Tile ploppt auf + paar Splitter, Entfernen = Kopie schrumpft
+    weg + Splitter in den Farben des Tiles (Weisstöne ausgelassen; `fx.ts`, Web
+    Animations, Elemente `.cr-bit`/`.cr-vanish` fixed im Overlay), Clear all lässt
+    alle sichtbaren Tiles zerfallen. Reduced motion: keine Effekte. Klänge per
+    Web Audio (`sound.ts`, keine Dateien): place, remove, move, pick (Slot),
+    open/close (Inventar), undo, bad (kein Platz), clear; leise, standardmässig
+    an, M oder Menü "Sound: on/off", `localStorage` `jxsi_creative_sound`.
+  - **Barrierefreiheit:** Raster ist fokussierbar (`role="application"`,
+    `aria-label` mit den Tasten): Pfeile bewegen einen Cursor (`.cr-cursor`, die
+    Ansicht scrollt mit), Enter/Leertaste platziert (auf einem Block: bearbeiten),
+    Entf/Backspace entfernt, Shift+Pfeile verschieben das Tile unter dem Cursor,
+    R Grösse, C kopieren. Jede Änderung und jede Cursor-Position wird über
+    `[data-cr-live]` (aria-live polite, `.visually-hidden`) angesagt, Texte in
+    `UI.creative.live`. Tab bleibt in der obersten offenen Ebene (Rückfrage,
+    Block-Editor, sonst das ganze Overlay).
+  - **Handy/Touch im Editor:** Zellen mindestens 44 px, das 12er-Raster scrollt
+    seitlich (ein Bau für alle Bildschirme, statt eines eigenen 6er-Bauplans).
+    Antippen platziert; Antippen eines Tiles öffnet das Tile-Menü (Size, Edit,
+    Copy, Move, Remove; Move wartet auf ein Antippen des Ziels). Ziehen scrollt
+    (kein Drag-to-move bei Touch). Unter 560 px blendet die Leiste Badge, Hand-
+    Anzeige und Tastenkürzel aus. Texte in `UI.creative`.
 - **Easter Egg: DVD-Bildschirmschoner** (nur `/` und `/card`): Wird die Karte
   so in eine Fensterecke gezogen, dass ihre sichtbaren Ecken (die vier
   `[data-mark]`) bis auf 14 px (Touch 22 px) in einer Ecke des Fensters sitzen,

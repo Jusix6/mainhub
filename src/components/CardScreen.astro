@@ -6,14 +6,17 @@
  */
 import BusinessCard from './BusinessCard.astro';
 import CardGames from './CardGames.astro';
+import CreativeMode from './CreativeMode.astro';
 import { UI } from '@/data/ui';
 ---
 
 <div class="card-page">
   <BusinessCard standalone />
-  <CardGames />
   <p class="card-page__note meta" data-print-note hidden>{UI.card.scanned}</p>
 </div>
+{/* Outside .card-page: they also serve the creative start page, which hides the card (MyStartPage.astro) */}
+<CardGames />
+<CreativeMode />
 
 <style>
   .card-page {

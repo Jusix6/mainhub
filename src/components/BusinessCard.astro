@@ -13,7 +13,8 @@
  *   time it touches the edge of the window; a perfect corner hit makes it
  *   spin. Grab it to stop it, double-click to bring it home (and white again).
  * - Games (standalone, CardGames.astro): the "01" of the number starts Card
- *   Breaker, the "S" of the name starts Snake.
+ *   Breaker, the "S" of the name starts Snake. "Creative" in "Creative License"
+ *   starts the creative mode (CreativeMode.astro).
  * - Without JS both faces render stacked and fully usable.
  * - With reduced motion the flip becomes a crossfade (see global reduced-motion rule).
  * All content comes from src/data/site.ts and src/data/ui.ts.
@@ -46,6 +47,9 @@ const frontAttrs: Record<string, string | number> = standalone ? { tabindex: 0, 
 const cut = lic.number.lastIndexOf('-') + 1;
 const numberHead = lic.number.slice(0, cut);
 const numberTail = lic.number.slice(cut);
+// Creative mode hides in the first word of the licence kind ("Creative License")
+const kindHead = lic.kind.split(' ')[0];
+const kindTail = lic.kind.slice(kindHead.length);
 // Game 02 hides in the "S" of the name (the first one, any case)
 const sAt = SITE.name.search(/s/i);
 
@@ -93,7 +97,16 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
 
         <span class="lic__head">
           <span class="lic__region">{lic.region}</span>
-          <span class="lic__kind">{lic.kind}</span>
+          {
+            standalone && kindHead ? (
+              <span class="lic__kind">
+                {/* prettier-ignore */}
+                <button class="lic__game lic__game--kind" type="button" data-creative-start aria-label={UI.creative.enter}>{kindHead}</button>{kindTail}
+              </span>
+            ) : (
+              <span class="lic__kind">{lic.kind}</span>
+            )
+          }
         </span>
 
         <span class="lic__number">
@@ -1355,6 +1368,11 @@ const stats = CATEGORIES.slice(0, 4).map((c) => ({
           );
         }),
       );
+
+      // Creative mode: the "Creative" of the licence (CreativeMode.astro starts it)
+      scene.querySelector<HTMLButtonElement>('[data-creative-start]')?.addEventListener('click', (e) => {
+        scene.dispatchEvent(new CustomEvent('card:creative', { bubbles: true, detail: { opener: e.currentTarget } }));
+      });
 
       // Double-click: back to where it started, front up
       scene.addEventListener(

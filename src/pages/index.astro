@@ -1,9 +1,11 @@
 ---
 /**
- * Start page = the business card. The content hub lives at /hub.
+ * Start page = the business card. The content hub lives at /hub. Visitors who
+ * built their own start page in the creative mode see that instead (MyStartPage).
  */
 import Bare from '@/layouts/Bare.astro';
 import CardScreen from '@/components/CardScreen.astro';
+import MyStartPage from '@/components/MyStartPage.astro';
 import { SITE } from '@/data/site';
 
 const jsonLd = {
@@ -21,4 +23,5 @@ const jsonLd = {
 <Bare description={SITE.description}>
   <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   <CardScreen />
+  <MyStartPage />
 </Bare>

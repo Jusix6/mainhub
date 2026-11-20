@@ -1,0 +1,188 @@
+---
+/**
+ * Creative mode (/ and /card): the "Creative" of "Creative License" on the
+ * card switches it on. Full screen over the page: a bar on top, a 12-column
+ * block grid to build your own start page from the site's tiles. The editor
+ * code (src/lib/creative/) loads only when the mode starts; the tiles come
+ * from /creative/tiles. Its styles are in src/lib/creative/editor.css (loaded
+ * with the editor, not with the page).
+ */
+import { UI } from '@/data/ui';
+
+const C = UI.creative;
+const strings = {
+  on: C.on,
+  onSub: C.onSub,
+  hand: C.hand,
+  empty: C.empty,
+  loading: C.loading,
+  failed: C.failed,
+  count: C.count,
+  inventory: C.inventory,
+  search: C.search,
+  noResults: C.noResults,
+  emptySlot: C.emptySlot,
+  sizes: C.sizes,
+  tabs: C.tabs,
+  confirmTemplate: C.confirmTemplate,
+  confirmClear: C.confirmClear,
+  shareCopied: C.shareCopied,
+  shareSub: C.shareSub,
+  shareFailed: C.shareFailed,
+  shareEmpty: C.shareEmpty,
+  moveHint: C.moveHint,
+  soundOn: C.soundOn,
+  soundOff: C.soundOff,
+  live: C.live,
+};
+---
+
+<div class="creative" data-creative data-strings={JSON.stringify(strings)} role="dialog" aria-modal="true" aria-label={C.enter} hidden>
+  <header class="creative__bar">
+    <span class="creative__badge">{C.title}</span>
+    <span class="creative__hand" data-cr-hand aria-live="polite"></span>
+    <span class="creative__count meta" data-cr-count></span>
+    <span class="creative__group">
+      <button class="creative__btn creative__btn--icon" type="button" data-cr-undo aria-label={C.undo} title={`${C.undo} (Ctrl+Z)`} disabled>↶</button>
+      <button class="creative__btn creative__btn--icon" type="button" data-cr-redo aria-label={C.redo} title={`${C.redo} (Ctrl+Y)`} disabled>↷</button>
+      <button class="creative__btn creative__btn--icon" type="button" data-cr-menu-btn aria-label={C.menu} aria-expanded="false" aria-controls="cr-menu">⋯</button>
+    </span>
+    <button class="creative__btn" type="button" data-cr-inv-btn aria-expanded="false" aria-controls="cr-inv">
+      {C.inventory} <kbd>E</kbd>
+    </button>
+    <button class="creative__btn creative__btn--done" type="button" data-cr-done>{C.done}</button>
+  </header>
+  <div class="creative__scroll" data-cr-scroll>
+    <p class="creative__status" data-cr-status hidden></p>
+    <div class="creative__wrap">
+      <div class="creative__grid" data-cr-grid tabindex="0" role="application" aria-label={C.gridLabel}></div>
+    </div>
+  </div>
+  <p class="visually-hidden" data-cr-live aria-live="polite"></p>
+  <div class="cr-hotbar-wrap">
+    <p class="cr-hotbar__name" data-cr-slotname aria-hidden="true"></p>
+    <div class="cr-hotbar" data-cr-hotbar role="toolbar" aria-label={C.hotbar}>
+      {
+        Array.from({ length: 9 }, (_, i) => (
+          <button class="cr-slot" type="button" data-slot={i} aria-pressed={i === 0 ? 'true' : 'false'}>
+            <span class="cr-slot__num" aria-hidden="true">{i + 1}</span>
+          </button>
+        ))
+      }
+    </div>
+  </div>
+  <div class="cr-inv" id="cr-inv" data-cr-inv role="dialog" aria-label={C.inventory} hidden>
+    <div class="cr-inv__head">
+      <strong class="cr-inv__title">{C.inventory}</strong>
+      <input class="cr-inv__search" type="search" data-cr-search placeholder={C.search} aria-label={C.search} />
+      <button class="creative__btn" type="button" data-cr-inv-close aria-label="Close">×</button>
+    </div>
+    <div class="cr-inv__tabs" data-cr-tabs role="tablist"></div>
+    <div class="cr-inv__items" data-cr-items></div>
+    <p class="cr-inv__hint meta">{C.invHint}</p>
+  </div>
+  <div class="cr-menu" id="cr-menu" data-cr-menu hidden>
+    <button class="cr-menu__item cr-menu__item--main" type="button" data-cr-share>{C.share}</button>
+    <input class="cr-menu__link" type="text" readonly data-cr-share-url aria-label={C.share} hidden />
+    <button class="cr-menu__item" type="button" data-cr-template>{C.template}</button>
+    <button class="cr-menu__item" type="button" data-cr-sound aria-pressed="true">{C.soundOn}</button>
+    <button class="cr-menu__item cr-menu__item--danger" type="button" data-cr-clear>{C.clear}</button>
+    <p class="cr-menu__title">{C.keysTitle}</p>
+    <dl class="cr-keys">
+      {
+        C.keys.map(([k, v]) => (
+          <div>
+            <dt>
+              <kbd>{k}</kbd>
+            </dt>
+            <dd>{v}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+  <div class="cr-tilemenu" data-cr-tilemenu role="menu" hidden>
+    <button type="button" role="menuitem" data-act="size">{C.tileMenu.size}</button>
+    <button type="button" role="menuitem" data-act="edit">{C.tileMenu.edit}</button>
+    <button type="button" role="menuitem" data-act="copy">{C.tileMenu.copy}</button>
+    <button type="button" role="menuitem" data-act="move">{C.tileMenu.move}</button>
+    <button type="button" role="menuitem" data-act="remove" class="is-danger">{C.tileMenu.remove}</button>
+  </div>
+  <div class="cr-confirm" data-cr-confirm hidden>
+    <div class="cr-confirm__box" role="alertdialog" aria-modal="true" aria-labelledby="cr-confirm-text">
+      <p id="cr-confirm-text" data-cr-confirm-text></p>
+      <div class="cr-confirm__actions">
+        <button class="creative__btn" type="button" data-cr-no>{C.cancel}</button>
+        <button class="creative__btn creative__btn--done" type="button" data-cr-yes>{C.yes}</button>
+      </div>
+    </div>
+  </div>
+  <div class="cr-edit" data-cr-edit role="dialog" aria-label={C.editTitle} hidden>
+    <strong class="cr-edit__title">{C.editTitle}</strong>
+    <label class="cr-edit__field">
+      <span>{C.textLabel}</span>
+      <textarea data-cr-edit-text rows="1"></textarea>
+    </label>
+    <fieldset class="cr-edit__field">
+      <legend>{C.colorLabel}</legend>
+      <div class="cr-edit__colors" data-cr-edit-colors></div>
+    </fieldset>
+    <button class="creative__btn creative__btn--done" type="button" data-cr-edit-done>{C.save}</button>
+  </div>
+</div>
+<div class="creative-toast" data-creative-toast role="status" hidden>
+  <strong data-toast-title></strong>
+  <span data-toast-sub></span>
+</div>
+
+<script>
+  import type { CreativeStrings } from '@/lib/creative/editor';
+
+  function setup() {
+    const box = document.querySelector<HTMLElement>('[data-creative]');
+    const toast = document.querySelector<HTMLElement>('[data-creative-toast]');
+    if (!box || !toast || box.dataset.js) return;
+    box.dataset.js = 'true';
+    const strings: CreativeStrings = JSON.parse(box.dataset.strings ?? '{}');
+    let stop: (() => void) | null = null;
+    let starting = false;
+    let opener: HTMLElement | null = null;
+
+    function say(title: string, sub = '') {
+      toast!.hidden = true;
+      toast!.querySelector('[data-toast-title]')!.textContent = title;
+      toast!.querySelector('[data-toast-sub]')!.textContent = sub;
+      // Restart the animation
+      void toast!.offsetWidth;
+      toast!.hidden = false;
+    }
+
+    function exit() {
+      stop?.();
+      stop = null;
+      box!.hidden = true;
+      document.documentElement.style.overflow = '';
+      toast!.hidden = true;
+      opener?.focus({ preventScroll: true });
+      document.dispatchEvent(new CustomEvent('creative:closed'));
+    }
+
+    document.addEventListener('card:creative', async (e) => {
+      if (stop || starting) return;
+      starting = true;
+      opener = (e as CustomEvent<{ opener?: HTMLElement }>).detail?.opener ?? null;
+      // The editor brings its own CSS: load it before the overlay shows
+      const { startCreative, loadStyles } = await import('@/lib/creative/editor');
+      await loadStyles();
+      box.hidden = false;
+      document.documentElement.style.overflow = 'hidden';
+      say(strings.on, strings.onSub);
+      stop = await startCreative({ root: box, strings, onExit: exit, say });
+      starting = false;
+      box.querySelector<HTMLElement>('[data-slot][aria-pressed="true"]')?.focus({ preventScroll: true });
+    });
+    document.addEventListener('astro:before-swap', exit, { once: true });
+  }
+
+  document.addEventListener('astro:page-load', setup);
+</script>

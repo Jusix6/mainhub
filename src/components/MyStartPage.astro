@@ -1,0 +1,312 @@
+---
+/**
+ * The start page built in creative mode, shown on / instead of the card
+ * (only on /, never on /card: printed QR codes always get the card).
+ *
+ * - Own build (localStorage `jxsi_creative`) or a shared one (#build=… in the
+ *   address, see src/lib/creative/share.ts). A shared build wins while its
+ *   link is open; "Use as my start page" saves it (asks once if you have your
+ *   own), "Build my own" opens the creative mode with your own build.
+ * - "Original card" switches back to the card for this visit, a pill on the
+ *   card switches to the build again. "Edit" opens the creative mode.
+ * - No flash of the card: the head bootstrap (Head.astro) sets
+ *   html[data-build="wait"] when there is a build, which hides the card until
+ *   this script has drawn the build (or gives up: then the card shows; a CSS
+ *   failsafe shows it after 4 s anyway).
+ * - Without JS, without a build, or with a broken link: the normal card.
+ */
+import { UI } from '@/data/ui';
+
+const P = UI.creative.page;
+---
+
+<div class="mp" data-mypage data-strings={JSON.stringify(P)} aria-label={P.label} hidden>
+  <div class="mp__bar">
+    <p class="mp__note" data-mp-shared hidden>{P.shared}</p>
+    <span class="mp__actions">
+      <button class="mp__btn mp__btn--main" type="button" data-mp-adopt hidden>{P.adopt}</button>
+      <button class="mp__btn" type="button" data-mp-own hidden>{P.buildOwn}</button>
+      <button class="mp__btn" type="button" data-mp-edit>{P.edit}</button>
+      <button class="mp__btn" type="button" data-mp-card>{P.card}</button>
+    </span>
+  </div>
+  <div class="mp__wrap">
+    <div class="mp__grid" data-mp-grid></div>
+  </div>
+</div>
+<button class="mp-back" type="button" data-mp-back hidden>{P.mine}</button>
+<p class="mp-notice" data-mp-notice role="status" hidden></p>
+
+<style>
+  /* While the build is being drawn the card stays hidden (failsafe: visible after 4 s) */
+  :global(html[data-build='wait'] .card-page) {
+    visibility: hidden;
+    animation: mp-failsafe 0s 4s forwards;
+  }
+
+  :global(html[data-build='shown'] .card-page) {
+    display: none;
+  }
+
+  @keyframes mp-failsafe {
+    to {
+      visibility: visible;
+    }
+  }
+
+  .mp {
+    align-self: start;
+    display: grid;
+    gap: var(--space-3);
+    width: 100%;
+    max-width: 1200px;
+  }
+
+  .mp[hidden] {
+    display: none;
+  }
+
+  .mp__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .mp__note {
+    font-weight: 700;
+  }
+
+  .mp__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+
+  .mp__btn,
+  .mp-back {
+    padding: 6px 14px;
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    box-shadow: var(--shadow-sm);
+    font: 700 var(--text-sm) / 1.2 var(--font-body);
+    cursor: pointer;
+  }
+
+  .mp__btn:hover,
+  .mp-back:hover {
+    background: var(--c-yellow);
+  }
+
+  .mp__btn--main {
+    background: var(--c-green);
+  }
+
+  .mp__btn[hidden],
+  .mp-back[hidden] {
+    display: none;
+  }
+
+  .mp-back {
+    position: fixed;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 5;
+  }
+
+  .mp-notice {
+    position: fixed;
+    left: 50%;
+    bottom: var(--space-5);
+    z-index: 5;
+    max-width: min(520px, calc(100vw - 2 * var(--gutter)));
+    padding: var(--space-2) var(--space-4);
+    background: var(--ink);
+    color: var(--bg);
+    border-radius: var(--radius);
+    font-weight: 700;
+    text-align: center;
+    translate: -50% 0;
+  }
+
+  .mp-notice[hidden] {
+    display: none;
+  }
+
+  /* The build: 12 square columns as in the editor */
+  .mp__wrap {
+    container-type: inline-size;
+    width: 100%;
+  }
+
+  .mp__grid {
+    --gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-rows: calc((100cqw - 11 * var(--gap)) / 12);
+    gap: var(--gap);
+    padding-bottom: var(--space-6);
+  }
+
+  .mp__grid :global(.cr-tile) {
+    position: relative;
+    grid-column: var(--gc);
+    grid-row: var(--gr);
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .mp__grid :global(.cr-tile__inner) {
+    width: 100%;
+    height: 100%;
+  }
+
+  .mp__grid :global(.cr-tile[data-fit='scale'] .cr-tile__inner) {
+    height: auto;
+    transform-origin: top center;
+  }
+
+  /* Phones: 6 columns, reading order, packed (sizes from page.ts) */
+  @media (max-width: 640px) {
+    .mp__grid {
+      --gap: 8px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-auto-rows: calc((100cqw - 5 * var(--gap)) / 6);
+      grid-auto-flow: row dense;
+    }
+
+    .mp__grid :global(.cr-tile) {
+      grid-column: span var(--pw);
+      grid-row: span var(--ph);
+    }
+
+    .mp__grid :global(.cr-tile[data-id='b:spacer']) {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  function setup() {
+    const box = document.querySelector<HTMLElement>('[data-mypage]');
+    if (!box || box.dataset.js) return;
+    box.dataset.js = 'true';
+    const P: Record<'adopt' | 'adoptSure' | 'adopted' | 'broken', string> = JSON.parse(box.dataset.strings ?? '{}');
+    const ac = new AbortController();
+    const { signal } = ac;
+    const html = document.documentElement;
+    const grid = box.querySelector<HTMLElement>('[data-mp-grid]')!;
+    const back = document.querySelector<HTMLButtonElement>('[data-mp-back]')!;
+    const notice = document.querySelector<HTMLElement>('[data-mp-notice]')!;
+    const adopt = box.querySelector<HTMLButtonElement>('[data-mp-adopt]')!;
+    const own = box.querySelector<HTMLButtonElement>('[data-mp-own]')!;
+    const edit = box.querySelector<HTMLButtonElement>('[data-mp-edit]')!;
+    const note = box.querySelector<HTMLElement>('[data-mp-shared]')!;
+    let cleanup: (() => void) | null = null;
+    let shared: unknown = null;
+    let sure = false;
+
+    function setView(v: 'none' | 'build' | 'card') {
+      if (v === 'none') html.removeAttribute('data-build');
+      else html.dataset.build = v === 'build' ? 'shown' : 'card';
+      box!.hidden = v !== 'build';
+      back.hidden = v !== 'card';
+    }
+
+    let noticeTimer = 0;
+    function say(text: string) {
+      notice.textContent = text;
+      notice.hidden = false;
+      clearTimeout(noticeTimer);
+      noticeTimer = window.setTimeout(() => (notice.hidden = true), 4000);
+    }
+
+    const dropHash = () => history.replaceState(history.state, '', location.pathname + location.search);
+
+    async function show() {
+      const [{ loadLibrary }, { cleanPlan, loadPlan }, { showBuild }, { codeFromHash, decodePlan }] = await Promise.all([
+        import('@/lib/creative/tiles'),
+        import('@/lib/creative/plan'),
+        import('@/lib/creative/page'),
+        import('@/lib/creative/share'),
+      ]);
+      const code = codeFromHash();
+      const mine = loadPlan();
+      if (!code && !(mine && JSON.stringify(mine).includes('"tiles":[['))) return setView('none');
+      try {
+        const lib = await loadLibrary();
+        let plan = null;
+        shared = null;
+        if (code) {
+          try {
+            const p = cleanPlan(await decodePlan(code), lib.tiles);
+            if (!p.tiles.length) throw new Error('empty');
+            shared = p;
+            plan = p;
+          } catch {
+            dropHash();
+            say(P.broken);
+          }
+        }
+        plan ??= cleanPlan(mine, lib.tiles);
+        if (!plan.tiles.length) return setView('none');
+        cleanup?.();
+        cleanup = showBuild(grid, plan, lib);
+        note.hidden = adopt.hidden = own.hidden = !shared;
+        edit.hidden = !!shared;
+        sure = false;
+        adopt.textContent = P.adopt;
+        setView('build');
+      } catch {
+        setView('none');
+      }
+    }
+
+    box.querySelector('[data-mp-card]')!.addEventListener('click', () => {
+      setView('card');
+      back.focus();
+    });
+    back.addEventListener('click', () => {
+      setView('build');
+      window.scrollTo(0, 0);
+    });
+    const openCreative = (opener: HTMLElement) => {
+      if (shared) dropHash();
+      document.dispatchEvent(new CustomEvent('card:creative', { detail: { opener } }));
+    };
+    edit.addEventListener('click', () => openCreative(edit));
+    own.addEventListener('click', () => openCreative(own));
+    adopt.addEventListener('click', async () => {
+      const { loadPlan, savePlan } = await import('@/lib/creative/plan');
+      const mine = loadPlan();
+      if (!sure && mine && JSON.stringify(mine).includes('"tiles":[[')) {
+        sure = true;
+        adopt.textContent = P.adoptSure;
+        return;
+      }
+      savePlan(shared as Parameters<typeof savePlan>[0]);
+      dropHash();
+      say(P.adopted);
+      void show();
+    });
+    // Back from the creative mode, or a new build link pasted into the address
+    document.addEventListener('creative:closed', () => void show(), { signal });
+    window.addEventListener('hashchange', () => void show(), { signal });
+    document.addEventListener(
+      'astro:before-swap',
+      () => {
+        cleanup?.();
+        ac.abort();
+        html.removeAttribute('data-build');
+      },
+      { once: true },
+    );
+    void show();
+  }
+
+  document.addEventListener('astro:page-load', setup);
+</script>

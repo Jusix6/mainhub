@@ -40,7 +40,7 @@ const FUN_SHORT_LINKS = { '/10s': '/10s', '/flag': '/flag', '/colors': '/colors'
 /** Main YouTube channel. Keep in sync with SITE.youtube.channelId in src/data/site.ts. */
 const YOUTUBE_CHANNEL_ID = 'UCWHDPzJa99zS3XHaetPjdig';
 /** Pages with the latest-video block and/or the business card ("Videos" stat). */
-const VIDEO_PAGES = ['/', '/card', '/hub'];
+const VIDEO_PAGES = ['/', '/card', '/hub', '/creative/tiles'];
 /** Older than this, a page request also triggers a refresh (in case the cron missed runs). */
 const VIDEO_STALE_MS = 2 * 60 * 60 * 1000;
 /** At most one feed request per this interval, whoever asks. */

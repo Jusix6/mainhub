@@ -12,8 +12,8 @@ export default defineConfig({
   integrations: [
     sitemap({
       // Pages under /fun/ and /library/ are served on fun.jxsi.ch and library.jxsi.ch
-      // (see worker.js); www redirects there.
-      filter: (page) => !/\/(fun|library)(\/|$)/.test(new URL(page).pathname),
+      // (see worker.js); www redirects there. /creative/tiles only holds templates.
+      filter: (page) => !/\/(fun|library|creative)(\/|$)/.test(new URL(page).pathname),
     }),
   ],
   build: {

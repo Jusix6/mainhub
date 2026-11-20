@@ -43,6 +43,10 @@ const ogImage = image ?? new URL(ogDefault.src, Astro.site).href;
         if (localStorage.getItem('theme') === 'xp' || new URLSearchParams(location.search).get('xp') === '1') {
           document.documentElement.setAttribute('data-theme', 'xp');
         }
+        // Creative mode build on the start page: keep the card hidden until it is drawn (MyStartPage.astro)
+        var build = location.pathname === '/' && (location.hash.indexOf('#build=') === 0 || /"tiles":\[\[/.test(localStorage.getItem('jxsi_creative') || ''));
+        if (build) document.documentElement.setAttribute('data-build', 'wait');
+        else document.documentElement.removeAttribute('data-build');
       } catch (e) {}
     }
     apply();

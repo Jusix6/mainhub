@@ -1,0 +1,590 @@
+---
+/**
+ * Creative mode tile templates (/creative/tiles, not indexed). Every tile the
+ * creative mode offers is rendered here once at build time, with the real
+ * components of the site, inside a <template>. The creative mode fetches this
+ * page, takes over its stylesheets and clones the templates into its grid, so
+ * tiles look exactly like on the site and no server is needed.
+ *
+ * Each template carries:
+ *   data-tile   id used in saved builds and share links (keep stable!)
+ *   data-tab    inventory tab: me | projects | fun | social | news | blocks
+ *   data-name   name in the inventory
+ *   data-sizes  allowed sizes in grid cells, "WxH", the first is the default
+ *   data-fit    "fill": the tile fills its box; "scale": the content keeps its
+ *               own layout at the tile's width and shrinks to fit the height
+ *   data-edit   blocks only: "text", "color" or "text color" can be changed
+ *               (double-click in the creative mode), data-max = text length;
+ *               the text goes into [data-text], the colour into the custom
+ *               property named by [data-color] (on [data-color-on] inside it)
+ * Starting layouts are <template data-plan> with the plan as JSON in data-tiles.
+ * New projects, games and updates show up here with the next build.
+ */
+import { getCollection } from 'astro:content';
+import { Image } from 'astro:assets';
+import Bare from '@/layouts/Bare.astro';
+import BusinessCard from '@/components/BusinessCard.astro';
+import ProjectCard from '@/components/ProjectCard.astro';
+import UpdateCard from '@/components/UpdateCard.astro';
+import ScheduleItem from '@/components/ScheduleItem.astro';
+import LatestVideo from '@/components/LatestVideo.astro';
+import Sticker from '@/components/Sticker.astro';
+import Icon from '@/components/Icon.astro';
+import portrait from '@/assets/portrait.png';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import { CATEGORIES } from '@/data/categories';
+import { GAMES } from '@/data/games';
+import { getLinkType } from '@/data/linkTypes';
+import { getPublishedUpdates, updateSlug } from '@/lib/updates';
+import { getLatestVideo, getVideoCount } from '@/lib/youtube';
+import { getUpcomingAndPast } from '@/lib/schedule';
+
+const C = UI.creative;
+const N = C.names;
+const S = UI.sections;
+
+const projects = (await getCollection('projects')).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const projectById = new Map(projects.map((p) => [p.id, p]));
+const updates = await getPublishedUpdates();
+const featured = projects.filter((p) => p.data.featured).slice(0, 4);
+const video = await getLatestVideo();
+const videoCount = await getVideoCount();
+const { upcoming } = await getUpcomingAndPast();
+const nextEvents = upcoming.slice(0, 3);
+
+const COLORS = [
+  { id: 'yellow', v: '--c-yellow' },
+  { id: 'pink', v: '--c-pink' },
+  { id: 'blue', v: '--c-blue' },
+  { id: 'purple', v: '--c-purple' },
+  { id: 'orange', v: '--c-orange' },
+  { id: 'green', v: '--c-green' },
+] as const;
+
+/** "Original hub": the /hub page rebuilt from tiles (headings carry the section titles as own text). */
+const heading = (t: string, x: number, y: number) => ['b:heading', x, y, 6, 1, { t }];
+const hubPlan = [
+  ['card', 0, 0, 6, 4],
+  ['name', 6, 0, 6, 2],
+  ['bio', 6, 2, 4, 2],
+  ['all-projects', 10, 2, 2, 1],
+  ['contact', 10, 3, 2, 1],
+  heading(UI.card.whatIMake, 0, 4),
+  ...CATEGORIES.map((c, i) => [`cat:${c.slug}`, i * 2, 5, 2, 2]),
+  heading(S.featured, 0, 7),
+  ...featured.map((p, i) => [`p:${p.id}`, i * 3, 8, 3, 4]),
+  heading(UI.fun.indexTitle, 0, 12),
+  ...['colors', 'flag', 'the-button'].map((g, i) => [`g:${g}`, i * 4, 13, 4, 3]),
+  heading(UI.library.indexTitle, 0, 16),
+  heading(UI.schedule.upcoming, 6, 16),
+  ['library', 0, 17, 6, 3],
+  ['schedule', 6, 17, 6, 3],
+  heading(S.latestUpdates, 0, 20),
+  heading(S.latestVideo, 6, 20),
+  ['latest-update', 0, 21, 6, 2],
+  ...(updates[1] ? [[`u:${updateSlug(updates[1])}`, 0, 23, 6, 2]] : []),
+  ['video', 6, 21, 6, 4],
+  ['s:twitch', 6, 25, 3, 1],
+  ['s:youtube-main', 9, 25, 3, 1],
+];
+
+/** Stable short id for a social link: its type, plus the label when the type appears twice (the two YouTube channels). */
+const socials = SITE.socials.map((s) => {
+  const dup = SITE.socials.filter((o) => o.type === s.type).length > 1;
+  return { ...s, id: dup ? `${s.type}-${s.label.toLowerCase()}` : s.type, def: getLinkType(s.type) };
+});
+---
+
+<Bare title={C.title} noIndex>
+  <h1 class="ct-page">Creative mode tiles</h1>
+  <p class="ct-page">Templates only: this page is read by the creative mode on the business card.</p>
+
+  {/* ---- Me ---- */}
+  <template data-tile="card" data-tab="me" data-name={N.card} data-sizes="6x4 4x3 8x5" data-fit="scale">
+    <div class="ct-center"><BusinessCard /></div>
+  </template>
+  <template data-tile="portrait" data-tab="me" data-name={N.portrait} data-sizes="3x3 2x2 3x4 4x4" data-fit="fill">
+    <div class="ct ct--photo">
+      <Image src={portrait} alt={SITE.name} width={480} height={600} densities={[1, 2]} loading="lazy" />
+    </div>
+  </template>
+  <template data-tile="name" data-tab="me" data-name={N.name} data-sizes="6x2 4x2 8x2 12x2" data-fit="fill">
+    <div class="ct ct--name">
+      <p class="ct__meta">{SITE.tagline}</p>
+      <p class="ct__big">Hi, I'm <span class="marker">{SITE.name}</span>.</p>
+    </div>
+  </template>
+  <template data-tile="bio" data-tab="me" data-name={N.bio} data-sizes="4x2 6x2 3x3" data-fit="fill">
+    <div class="ct ct--text"><p>{SITE.bio}</p></div>
+  </template>
+  <template data-tile="contact" data-tab="me" data-name={N.contact} data-sizes="3x1 2x1 4x1" data-fit="fill">
+    <a class="ct ct--button" style="--fill: var(--c-yellow)" href="/contact.vcf" download="jusi.vcf">
+      <Icon name="download" size={20} />
+      <span>{UI.actions.saveContact}</span>
+    </a>
+  </template>
+  <template data-tile="email" data-tab="me" data-name={N.email} data-sizes="4x1 3x1 6x1" data-fit="fill">
+    <a class="ct ct--button" style="--fill: var(--surface)" href={`mailto:${SITE.email}`}>
+      <Icon name="mail" size={20} />
+      <span>{SITE.email}</span>
+    </a>
+  </template>
+
+  {/* ---- Projects ---- */}
+  {
+    projects.map((p) => (
+      <template data-tile={`p:${p.id}`} data-tab="projects" data-name={p.data.title} data-sizes="4x4 3x4 4x5" data-fit="scale">
+        <ul class="ct-list">
+          <ProjectCard project={p} />
+        </ul>
+      </template>
+    ))
+  }
+  {
+    CATEGORIES.map((c) => (
+      <template data-tile={`cat:${c.slug}`} data-tab="projects" data-name={c.label} data-sizes="2x2 3x2 2x1" data-fit="fill">
+        <a class="ct ct--cat" style={`--fill: var(${c.color})`} href={`/projects?cat=${c.slug}`}>
+          <span class="ct__cat">
+            <span class="ct__icon">
+              <Icon name={c.icon} size={26} />
+            </span>
+            <span class="ct__label">{c.label}</span>
+            <span class="ct__small">{c.blurb}</span>
+          </span>
+        </a>
+      </template>
+    ))
+  }
+  <template data-tile="all-projects" data-tab="projects" data-name={N.allProjects} data-sizes="3x1 2x1 4x1" data-fit="fill">
+    <a class="ct ct--button" style="--fill: var(--c-pink)" href="/projects">
+      <span>{UI.actions.allProjects}</span>
+      <Icon name="arrow" size={20} />
+    </a>
+  </template>
+
+  {/* ---- Fun ---- */}
+  {
+    GAMES.map((g) => (
+      <template data-tile={`g:${g.href}`} data-tab="fun" data-name={g.title} data-sizes="4x3 3x3 6x4" data-fit="fill">
+        <a class="ct ct--game" href={`${SITE.fun.url}/${g.href}`}>
+          <Image src={g.thumb} alt="" widths={[480, 720]} sizes="400px" loading="lazy" />
+          <span class="ct__caption">
+            <strong>{g.title}</strong>
+            <span class="ct__small">{g.tagline}</span>
+          </span>
+        </a>
+      </template>
+    ))
+  }
+  <template data-tile="library" data-tab="fun" data-name={UI.library.flags.title} data-sizes="4x3 3x3 6x3" data-fit="fill">
+    <a class="ct ct--library" href={`${SITE.library.url}/flags`}>
+      <span class="ct__shelf" aria-hidden="true"><i>Flags</i><i></i><i></i><i></i></span>
+      <span class="ct__caption">
+        <strong>{UI.library.flags.title}</strong>
+        <span class="ct__small">{UI.library.hubTeaser}</span>
+      </span>
+    </a>
+  </template>
+  <template data-tile="breaker" data-tab="fun" data-name={N.breaker} data-sizes="3x2 2x2 4x2" data-fit="fill">
+    <button class="ct ct--play" type="button" style="--fill: var(--c-orange)" data-play-game="1">
+      <span class="ct__label">{N.breaker}</span>
+      <span class="ct__small">Game 01 · {C.play}</span>
+    </button>
+  </template>
+  <template data-tile="snake" data-tab="fun" data-name={N.snake} data-sizes="3x2 2x2 4x2" data-fit="fill">
+    <button class="ct ct--play" type="button" style="--fill: var(--c-green)" data-play-game="2">
+      <span class="ct__label">{N.snake}</span>
+      <span class="ct__small">Game 02 · {C.play}</span>
+    </button>
+  </template>
+
+  {/* ---- Videos & Social ---- */}
+  {
+    video && (
+      <template data-tile="video" data-tab="social" data-name={N.video} data-sizes="6x4 4x3 8x5" data-fit="scale">
+        <LatestVideo video={video} />
+      </template>
+    )
+  }
+  {
+    socials.map((s) => (
+      <template data-tile={`s:${s.id}`} data-tab="social" data-name={`${s.def.label} · ${s.label}`} data-sizes="3x1 2x1 2x2" data-fit="fill">
+        <a class="ct ct--social" style={`--fill: var(${s.def.color})`} href={s.url} target="_blank" rel="me noopener">
+          <Icon name={s.def.icon} size={22} />
+          <span class="ct__social-text">
+            <strong>{s.def.label}</strong>
+            <span class="ct__small">{s.handle}</span>
+          </span>
+        </a>
+      </template>
+    ))
+  }
+  <template data-tile="videos" data-tab="social" data-name={N.videos} data-sizes="2x2 3x2 3x1" data-fit="fill">
+    <a class="ct ct--count" style="--fill: var(--c-orange)" href={SITE.socials[0].url} target="_blank" rel="noopener">
+      <span class="ct__number" data-stat="videos"><span data-stat-value>{videoCount}</span></span>
+      <span class="ct__small">{C.videosLabel}</span>
+    </a>
+  </template>
+
+  {/* ---- News ---- */}
+  {
+    updates[0] && (
+      <template data-tile="latest-update" data-tab="news" data-name={N.latestUpdate} data-sizes="6x2 4x3 6x3" data-fit="scale">
+        <ul class="ct-list">
+          <UpdateCard update={updates[0]} project={updates[0].data.project ? projectById.get(updates[0].data.project.id) : undefined} />
+        </ul>
+      </template>
+    )
+  }
+  <template data-tile="schedule" data-tab="news" data-name={N.schedule} data-sizes="6x3 4x4 6x4" data-fit="fill">
+    <div class="ct ct--schedule">
+      <p class="ct__label">{UI.schedule.upcoming}</p>
+      {
+        nextEvents.length ? (
+          <ul class="ct-list ct-list--gap">
+            {nextEvents.map((e, i) => (
+              <ScheduleItem event={e} project={e.data.project ? projectById.get(e.data.project.id) : undefined} index={i} compact />
+            ))}
+          </ul>
+        ) : (
+          <p>{UI.schedule.empty}</p>
+        )
+      }
+    </div>
+  </template>
+  {
+    updates.map((u) => (
+      <template data-tile={`u:${updateSlug(u)}`} data-tab="news" data-name={u.data.title} data-sizes="6x2 4x3 6x3" data-fit="scale">
+        <ul class="ct-list">
+          <UpdateCard update={u} project={u.data.project ? projectById.get(u.data.project.id) : undefined} />
+        </ul>
+      </template>
+    ))
+  }
+
+  {/* ---- Blocks ---- */}
+  <template data-tile="b:heading" data-tab="blocks" data-name={N.heading} data-sizes="6x1 4x1 8x1 12x1" data-fit="fill" data-edit="text" data-max="40">
+    <div class="ct ct--heading"><h2 data-text>{C.blocks.heading}</h2></div>
+  </template>
+  <template data-tile="b:text" data-tab="blocks" data-name={N.text} data-sizes="4x2 3x2 6x1 6x2" data-fit="fill" data-edit="text color" data-max="200">
+    <div class="ct ct--text" data-color="--fill"><p data-text>{C.blocks.text}</p></div>
+  </template>
+  <template data-tile="b:sticker" data-tab="blocks" data-name={N.sticker} data-sizes="2x1 3x1 2x2" data-fit="fill" data-edit="text color" data-max="24">
+    <div class="ct ct--sticker" data-color="--sticker" data-color-on=".sticker"><Sticker color="--c-pink"><span data-text>{C.blocks.sticker}</span></Sticker></div>
+  </template>
+  {
+    COLORS.map((c) => (
+      <template data-tile={`b:${c.id}`} data-tab="blocks" data-name={C.colors[c.id]} data-sizes="2x2 1x1 3x3 4x1 12x1" data-fit="fill">
+        <div class="ct ct--color" style={`--fill: var(${c.v})`} />
+      </template>
+    ))
+  }
+  <template data-tile="b:spacer" data-tab="blocks" data-name={N.spacer} data-sizes="1x1 2x1 4x1 12x1" data-fit="fill">
+    <div class="ct-spacer" aria-hidden="true"></div>
+  </template>
+  <template data-tile="b:divider" data-tab="blocks" data-name={N.divider} data-sizes="12x1 6x1 4x1" data-fit="fill">
+    <div class="ct-divider" aria-hidden="true"><hr /></div>
+  </template>
+
+  {/* ---- Starting layouts ---- */}
+  <template data-plan="hub" data-name={C.templateName} data-tiles={JSON.stringify(hubPlan)}></template>
+</Bare>
+
+<style>
+  .ct-page {
+    max-width: 60ch;
+  }
+
+  /* Every "fill" tile: a box that takes the whole tile and sizes its text to it */
+  .ct {
+    container-type: size;
+    display: grid;
+    align-content: center;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+    padding: clamp(8px, 6cqmin, 18px);
+    overflow: hidden;
+    background: var(--fill, var(--surface));
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    text-decoration: none;
+    font: inherit;
+    text-align: left;
+    transition:
+      transform var(--t-base) var(--ease-pop),
+      box-shadow var(--t-base) var(--ease-pop);
+  }
+
+  a.ct:hover,
+  button.ct:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  button.ct {
+    cursor: pointer;
+  }
+
+  .ct-center {
+    display: grid;
+    place-items: center;
+  }
+
+  .ct-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ct-list--gap {
+    gap: var(--space-2);
+  }
+
+  .ct__meta {
+    font-family: var(--font-mono);
+    font-size: clamp(11px, 5cqh, 14px);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .ct__big {
+    font-family: var(--font-display);
+    font-size: clamp(20px, min(30cqh, 9cqw), 64px);
+    line-height: 1.05;
+  }
+
+  .ct__label {
+    font-family: var(--font-display);
+    font-size: clamp(20px, min(18cqh, 12cqw), 34px);
+    line-height: 1.05;
+  }
+
+  .ct__small {
+    font-size: clamp(11px, min(10cqh, 6cqw), 15px);
+    line-height: 1.25;
+  }
+
+  .ct__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    background: var(--surface);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius);
+  }
+
+  .ct--photo {
+    padding: 0;
+  }
+
+  .ct--photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .ct--name {
+    gap: var(--space-1);
+  }
+
+  .ct--text {
+    font-size: clamp(14px, min(12cqh, 5.5cqw), 22px);
+    line-height: 1.35;
+  }
+
+  .ct--button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-weight: 700;
+    font-size: clamp(14px, 30cqh, 20px);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ct--cat {
+    align-content: end;
+  }
+
+  .ct__cat {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+  }
+
+  /* 2×1 categories: icon and label in one row (the query looks at the tile box, so it styles the inner row) */
+  @container (max-height: 120px) {
+    .ct__cat {
+      grid-auto-flow: column;
+      justify-content: start;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .ct__cat .ct__small {
+      display: none;
+    }
+  }
+
+  .ct--game,
+  .ct--library {
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    padding: 0;
+    gap: 0;
+  }
+
+  .ct--game img {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    object-fit: cover;
+    border-bottom: var(--line) solid var(--ink);
+  }
+
+  .ct__caption {
+    display: grid;
+    gap: 2px;
+    padding: clamp(6px, 4cqmin, 12px);
+    background: var(--surface);
+  }
+
+  .ct__caption strong {
+    font-family: var(--font-display);
+    font-size: clamp(16px, 8cqmin, 24px);
+    font-weight: 400;
+  }
+
+  /* The tagline only where the picture keeps enough room (3×3 and 4×3 are too short) */
+  @container (max-height: 360px) {
+    .ct__caption .ct__small {
+      display: none;
+    }
+  }
+
+  .ct--library {
+    background: var(--c-purple);
+  }
+
+  .ct__shelf {
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    gap: 6px;
+    min-height: 0;
+    padding: 12px 12px 0;
+    border-bottom: var(--line) solid var(--ink);
+  }
+
+  .ct__shelf i {
+    width: 18%;
+    height: 70%;
+    background: var(--c-yellow);
+    border: var(--line) solid var(--ink);
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .ct__shelf i:first-child {
+    display: grid;
+    place-items: center;
+    height: 90%;
+    background: var(--c-pink);
+    font: 700 12px var(--font-mono);
+    font-style: normal;
+    writing-mode: vertical-rl;
+  }
+
+  .ct__shelf i:nth-child(3) {
+    height: 80%;
+    background: var(--c-green);
+  }
+
+  .ct--play {
+    align-content: end;
+  }
+
+  .ct--social {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .ct__social-text {
+    display: grid;
+    min-width: 0;
+  }
+
+  .ct__social-text > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ct--count {
+    align-content: center;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .ct__number {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 34cqh, 72px);
+    line-height: 1;
+  }
+
+  .ct--schedule {
+    align-content: start;
+    gap: var(--space-2);
+    background: var(--bg);
+  }
+
+  .ct--heading {
+    padding-block: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .ct--heading h2 {
+    font-size: clamp(22px, 52cqh, 48px);
+    line-height: 1.05;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ct--sticker {
+    place-items: center;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    font-size: clamp(16px, 30cqh, 28px);
+    font-weight: 700;
+  }
+
+  .ct-spacer {
+    width: 100%;
+    height: 100%;
+  }
+
+  .ct-divider {
+    display: grid;
+    align-items: center;
+    height: 100%;
+  }
+
+  .ct-divider hr {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-top: var(--line) solid var(--ink);
+  }
+</style>
