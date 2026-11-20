@@ -32,7 +32,7 @@ import {
   type Shot, type Slash,
   type Trait,
 } from './agents';
-import { Chronicle, type Ref } from './chronicle';
+import { Chronicle, type Ref, type Moment } from './chronicle';
 import { onDeath, story } from './social';
 import { settle, strays, villageThink, type Village } from './villages';
 import { ARMOR, countLoss, warTick, type Army, type War } from './war';
@@ -103,6 +103,8 @@ export class Sim {
   readonly vmood = new Map<string, number>();
   /** Deaths by cause, all of them and those of the last 50 years (Update 2). */
   deaths: { total: Record<string, number>; recent: [number, string][] } = { total: {}, recent: [] };
+  /** Small moments for the cinema narrator (births …), newest last, at most 30, not saved. */
+  moments: Moment[] = [];
   /** The storyteller waits at least until this year before the next push. */
   quietSince = 1;
   /** Leagues, places about to grow together and plots under way (phase D). */
@@ -234,6 +236,7 @@ export class Sim {
     this.nextPlotId = 1;
     this.plotYear = 0;
     this.deaths = { total: {}, recent: [] };
+    this.moments = [];
     this.quietSince = 1;
     this.nextWorkId = 1;
     this.legends = [];

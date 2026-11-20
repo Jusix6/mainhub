@@ -302,7 +302,7 @@ export function start(root: HTMLElement): () => void {
     tmp.innerHTML = panels.text(e);
     return tmp.textContent ?? '';
   };
-  const cinema = new Cinema(sim, cam, cinemaView, { ...(S.cinema as Omit<CinemaStrings, 'peoples'>), peoples: S.peoples }, describe, music, (k) => S.ages?.[k] ?? k);
+  const cinema = new Cinema(sim, cam, cinemaView, { ...(S.cinema as Omit<CinemaStrings, 'peoples' | 'jobs' | 'buildings'>), peoples: S.peoples, jobs: S.jobs, buildings: S.buildings }, describe, music, (k) => S.ages?.[k] ?? k);
   let musicOn = false;
   let musicTouched = false;
   let moodAt = 0;

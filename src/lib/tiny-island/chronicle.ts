@@ -14,6 +14,24 @@ export interface Ref {
   people: People;
 }
 
+/**
+ * A small moment for the cinema narrator (not in the chronicle, not saved):
+ * births of everyone, not only of favourites.
+ */
+export interface Moment {
+  kind: string;
+  /** Sim time it happened. */
+  t: number;
+  x: number;
+  y: number;
+  v?: string;
+  a?: string;
+  b?: string;
+  c?: string;
+  w?: string;
+  n?: number;
+}
+
 export interface ChronicleEntry {
   id: number;
   year: number;

@@ -253,6 +253,11 @@ export function tryBirth(h: Human, sim: Sim) {
   story(p, sim, 'child', baby.name);
   if (sim.favorites.has(h.id) || sim.favorites.has(p.id)) {
     sim.chronicle.add({ year: sim.year, kind: 'birth', a: refOf(baby), b: refOf(h), c: refOf(p), x: h.x, y: h.y });
+  } else {
+    // For the cinema narrator (Update 3)
+    const home = h.village !== undefined ? sim.villages.find((v) => v.id === h.village) : undefined;
+    sim.moments.push({ kind: 'birth', t: sim.time, x: h.x, y: h.y, v: home?.name, a: baby.name, b: h.name, c: p.name });
+    if (sim.moments.length > 30) sim.moments.shift();
   }
 }
 

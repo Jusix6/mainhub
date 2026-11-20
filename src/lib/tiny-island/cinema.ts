@@ -7,8 +7,9 @@
  *   chronicle.ts `TENSION`) and from what is going on right now: battles and
  *   sieges, armies on the march, eruptions, hurricanes, big fires; when nothing
  *   happens, a time-lapse: the years run ten times as fast and the camera
- *   drifts from place to place (5 s each) until something big happens, then
- *   it cuts there at once. Small things (tension under 35) are left out;
+ *   drifts from place to place (5 s each); something big (60+) cuts in at
+ *   once, smaller things wait for the end of the shot. After two scenes in a
+ *   row the residents get a time-lapse shot, unless something big waits. Small things (tension under 35) are left out;
  *   festivals are no scene of their own, the time-lapse likes to drift over
  *   a place that celebrates. A kind of scene seen in the last 45 s counts
  *   20 less, so it does not show five deaths in a row.
@@ -22,13 +23,21 @@
  *   seconds in slow motion (0.3×); a new age opens a chapter card.
  * - One line of narration per scene, from 3–5 variants per kind (ui.ts),
  *   else the chronicle's own line.
+ * - The residents (Update 3): small moments (births, couples, deaths, new
+ *   leaders, new buildings, a place reaching 10/25/50 … inhabitants, works of
+ *   art …) are no scene of their own, the time-lapse goes to them: it flies
+ *   to the place of the most important new moment and tells it with names.
+ *   After 2.6 s a second line: another moment of that place or something
+ *   about its people (how many live there, who leads, the oldest, a couple,
+ *   the children, someone at work). The first death of the island is a scene.
  * - The music follows the scene: peace, war, festival, grief, disaster.
  * - Clean screen: no bars and no subtitles (for recording).
  */
 import type { Camera } from './camera';
-import type { ChronicleEntry } from './chronicle';
+import type { ChronicleEntry, Moment } from './chronicle';
 import { TENSION } from './chronicle';
-import type { Human } from './agents';
+import { ageOf, stage, type Human } from './agents';
+import type { Village } from './villages';
 import type { Music, Mood } from './music';
 import type { Sim } from './sim';
 import { AGES, ageIndex } from './inventions';
@@ -39,8 +48,16 @@ export interface CinemaStrings {
   peoples: Record<string, string>;
   calm: string[];
   calmWild: string[];
+  /** "Year {y}." before a chronicle line. */
+  year: string;
   /** Time-lapse sign: "Year {y}". */
   ff: string;
+  /** Lines for small moments, by kind ({a} {b} {c} people, {v} {w} places or a building, {n} a number). */
+  moments: Record<string, string[]>;
+  /** Lines about the people of a place: pop, leader, oldest, couple, kids, job, youngest. */
+  about: Record<string, string[]>;
+  jobs: Record<string, string>;
+  buildings: Record<string, string>;
   lines: Record<string, string[]>;
 }
 
@@ -58,10 +75,33 @@ interface Scene {
   alive?: () => boolean;
   /** Real time (ms) the candidate is forgotten. */
   expires: number;
+  /** Time-lapse: the moment it tells, the place it shows, its second line already told. */
+  moment?: Moment;
+  place?: Village;
+  second?: boolean;
 }
+
+/** Which small moments matter most (the time-lapse goes to the most important new one). */
+const MOMENT_PRIO: Record<string, number> = {
+  grown: 8,
+  leader: 7,
+  building: 6,
+  birth: 5,
+  died: 5,
+  couple: 4,
+  aid: 4,
+  book: 3,
+  brawl: 3,
+  festival: 3,
+  artwork: 2,
+};
+/** Inhabitants worth a line. */
+const MILESTONES = [10, 25, 50, 75, 100, 150, 200, 300];
 
 /** Below this a chronicle entry is not worth a scene; at least this cuts a time-lapse at once. */
 const WORTH = 35;
+/** At least this interrupts a time-lapse shot (smaller things wait for its end). */
+const BIG = 60;
 /** The time-lapse shot of one place (s). */
 const LAPSE = 5;
 
@@ -69,7 +109,7 @@ const LAPSE = 5;
 const CLIMAX = new Set(['breach', 'eruption', 'fall', 'overthrown', 'conquest']);
 /** Wide shots and close-ups. */
 const WIDE = new Set(['battle', 'battleWon', 'siege', 'war', 'army', 'eruption', 'hurricane', 'fire', 'volcanoWakes', 'seaRises', 'landWon', 'heatwave']);
-const CLOSE = new Set(['royalWedding', 'couple', 'birth', 'died', 'kingdom', 'godCrowned', 'succession', 'prophet', 'fool', 'jester', 'struck', 'firebreaker']);
+const CLOSE = new Set(['firstDeath', 'royalWedding', 'couple', 'birth', 'died', 'kingdom', 'godCrowned', 'succession', 'prophet', 'fool', 'jester', 'struck', 'firebreaker']);
 
 const MOOD_OF: Record<string, Mood> = {
   war: 'war',
@@ -101,6 +141,7 @@ const MOOD_OF: Record<string, Mood> = {
   newAge: 'festival',
   railway: 'festival',
   died: 'grief',
+  firstDeath: 'grief',
   prophetDied: 'grief',
   foolDied: 'grief',
   fall: 'grief',
@@ -172,6 +213,12 @@ export class Cinema {
   private shown: number[] = [];
   /** When each kind of scene was shown last (real time). */
   private recent = new Map<string, number>();
+  /** Small moments waiting to be told (newest last). */
+  private feed: (Moment & { used?: boolean })[] = [];
+  /** Inhabitants per place at the last look (for the milestones). */
+  private pops = new Map<number, number>();
+  /** Scenes in a row without a time-lapse shot. */
+  private streak = 0;
 
   constructor(
     private readonly sim: Sim,
@@ -192,6 +239,10 @@ export class Cinema {
     this.lastKey = '';
     this.candidates = [];
     this.seen = this.sim.chronicle.entries[0]?.id ?? 0;
+    this.feed = [];
+    this.sim.moments.length = 0;
+    this.pops.clear();
+    for (const v of this.sim.villages) this.pops.set(v.id, this.residents(v).length);
     // The chapters so far: one per age the leading people reached
     this.chapter = Math.max(1, ...[...this.sim.tech.keys()].map((p) => 1 + ageIndex(this.sim, p)));
     this.view.hidden = false;
@@ -226,15 +277,25 @@ export class Cinema {
       .sort((a, b) => score(b) - score(a))[0];
     const lapse = !s || s.kind === 'calm';
     const over = !s || age > this.length(s) || (!!s.alive && !s.alive() && age > 1.5);
-    // A time-lapse gives way at once, a scene only to something clearly bigger
-    const better = !!best && (lapse || (age > 4 && score(best) > (s?.tension ?? 0) + 5));
-    if (over || better) this.cut(best ?? this.calm(now), now);
+    // A time-lapse gives way at once to something big, a scene only to something clearly bigger
+    const better = !!best && (lapse ? !s || score(best) >= BIG : age > 4 && score(best) > (s?.tension ?? 0) + 5);
+    // After two scenes in a row the residents get a turn, unless something big is waiting
+    const residents = !lapse && this.streak >= 2 && (!best || score(best) < BIG);
+    if (over || better) this.cut(residents && !better ? this.calm(now) : (best ?? this.calm(now)), now);
     this.move(dt);
     // Nothing big: the years fly by; smaller scenes at 3x, big ones in real time
     const t = this.scene?.tension ?? 0;
     this.sim.speed = this.scene?.kind === 'calm' ? 10 : t < 60 ? 3 : 1;
     const card = this.view.querySelector<HTMLElement>('[data-cine-chapter]');
     if (card) card.hidden = now > this.chapterUntil;
+    // A time-lapse shot tells a second thing about its place
+    const sc = this.scene;
+    if (sc?.kind === 'calm' && !sc.second && (now - this.since) / 1000 > 2.6) {
+      sc.second = true;
+      const next = sc.place ? this.takeMoment(sc.place) : undefined;
+      const line = next ? this.momentLine(next) : sc.place ? this.about(sc.place) : '';
+      if (line) this.render(line);
+    }
     const ff = this.view.querySelector<HTMLElement>('[data-cine-ff]');
     if (ff) {
       ff.hidden = this.scene?.kind !== 'calm' || this.clean;
@@ -255,16 +316,109 @@ export class Cinema {
     const fresh = this.sim.chronicle.entries.filter((e) => e.id > this.seen);
     if (!fresh.length) return;
     this.seen = fresh[0].id;
-    for (const e of fresh) {
+    for (const e of fresh.slice().reverse()) {
       let tension = (TENSION as Record<string, number | undefined>)[e.kind] ?? BASE[e.kind] ?? 15;
+      // The first death of the island
+      let kind: string = e.kind;
+      if (e.kind === 'died' && Object.values(this.sim.deaths.total).reduce((n, x) => n + x, 0) <= 1) {
+        kind = 'firstDeath';
+        tension = 60;
+      }
       // Own characters and favourites (+20)
       if ([e.a, e.b, e.c].some((r) => r?.id && (this.sim.favorites.has(r.id) || this.sim.registry.get(r.id)?.custom))) tension += 20;
-      if (tension < WORTH) continue;
+      if (tension < WORTH) {
+        if (this.S.moments[e.kind]) {
+          this.addMoment({
+            kind: e.kind,
+            t: this.sim.time,
+            x: e.x,
+            y: e.y,
+            v: e.v,
+            a: e.a.id || e.kind !== 'building' ? e.a.name : undefined,
+            b: e.b?.name,
+            c: e.c?.name,
+            w: e.kind === 'building' ? (this.S.buildings[e.w ?? ''] ?? e.w) : e.w,
+            n: e.n,
+          });
+        }
+        continue;
+      }
       const at = this.placeOf(e);
       if (!at) continue;
-      this.candidates.push({ key: `e${e.id}`, kind: e.kind, tension, x: at.x, y: at.y, zoom: this.zoomFor(e.kind), entry: e, expires: now + 15000 });
+      this.candidates.push({ key: `e${e.id}`, kind, tension, x: at.x, y: at.y, zoom: this.zoomFor(kind), entry: e, expires: now + 15000 });
       if (e.kind === 'newAge') this.chapterCard(e, now);
     }
+  }
+
+  private addMoment(m: Moment) {
+    this.feed.push(m);
+    // Only the last 3 years and at most 30
+    this.feed = this.feed.filter((x) => x.t > this.sim.time - 90).slice(-30);
+  }
+
+  /** The most important untold moment (of one place, or anywhere); marks it told. */
+  private takeMoment(place?: Village): Moment | undefined {
+    const m = this.feed
+      .filter((x) => !x.used && (!place || this.placeOfMoment(x) === place))
+      .sort((a, b) => (MOMENT_PRIO[b.kind] ?? 1) - (MOMENT_PRIO[a.kind] ?? 1) || b.t - a.t)[0];
+    if (m) m.used = true;
+    return m;
+  }
+
+  /** The place a moment belongs to: named in it, else the nearest within 12 tiles. */
+  private placeOfMoment(m: Moment): Village | undefined {
+    const live = this.sim.villages.filter((v) => !v.ruin && !v.merged);
+    return live.find((v) => v.name === m.v) ?? live.filter((v) => Math.hypot(v.x - m.x, v.y - m.y) < 12).sort((a, b) => Math.hypot(a.x - m.x, a.y - m.y) - Math.hypot(b.x - m.x, b.y - m.y))[0];
+  }
+
+  private residents(v: Village) {
+    return this.sim.humans.filter((h) => h.village === v.id && !h.dead);
+  }
+
+  /** A moment as a sentence. */
+  private momentLine(m: Moment): string {
+    const lines = this.S.moments[m.kind];
+    if (!lines?.length) return '';
+    const v = m.v ?? this.placeOfMoment(m)?.name ?? '';
+    const pick = lines[Math.floor(Math.abs(m.t * 7 + m.x)) % lines.length];
+    return pick
+      .replace('{a}', m.a ?? v)
+      .replace('{b}', m.b ?? '')
+      .replace('{c}', m.c ?? '')
+      .replace(/\{v\}/g, v)
+      .replace('{w}', m.w ?? '')
+      .replace('{n}', String(m.n ?? ''));
+  }
+
+  /** Something about the people of a place: how many, who leads, the oldest, a couple, the children, someone at work. */
+  private about(v: Village): string {
+    const sim = this.sim;
+    const people = this.residents(v);
+    const adults = people.filter((h) => stage(h, sim.time) !== 'child');
+    const kids = people.filter((h) => stage(h, sim.time) === 'child');
+    const options: [string, Record<string, string>][] = [];
+    if (people.length) options.push(['pop', { n: String(people.length) }]);
+    const leader = v.leader !== undefined ? (sim.byId(v.leader) as Human | undefined) : undefined;
+    if (leader && !leader.dead) options.push(['leader', { a: leader.name }]);
+    const oldest = adults.slice().sort((a, b) => a.born - b.born)[0];
+    if (oldest) options.push(['oldest', { a: oldest.name, n: String(Math.floor(ageOf(oldest, sim.time))) }]);
+    const pair = v.houses.map((h) => h.owners.map((id) => sim.byId(id) as Human | undefined).filter((x): x is Human => !!x && !x.dead)).find((o) => o.length === 2);
+    if (pair) options.push(['couple', { a: pair[0].name, b: pair[1].name }]);
+    if (kids.length >= 2) options.push(['kids', { a: kids.slice(0, 3).map((h) => h.name).join(', '), n: String(kids.length) }]);
+    const worker = adults.filter((h) => h.job && this.S.jobs[h.job]);
+    if (worker.length) {
+      const h = worker[Math.floor(Math.random() * worker.length)];
+      options.push(['job', { a: h.name, w: this.S.jobs[h.job as string].toLowerCase() }]);
+    }
+    const youngest = kids.slice().sort((a, b) => b.born - a.born)[0];
+    if (youngest) options.push(['youngest', { a: youngest.name }]);
+    if (!options.length) return '';
+    const [key, vals] = options[Math.floor(Math.random() * options.length)];
+    const lines = this.S.about[key];
+    if (!lines?.length) return '';
+    let line = lines[Math.floor(Math.random() * lines.length)].replace(/\{v\}/g, v.name);
+    for (const [k, val] of Object.entries(vals)) line = line.replace(`{${k}}`, val);
+    return line;
   }
 
   /** Where it happened: its tile, else the place named in it, else the capital of its people. */
@@ -309,6 +463,17 @@ export class Cinema {
       const erupting = sim.time >= v.erupts;
       add(`volcano${v.x}:${v.y}:${erupting}`, erupting ? 'eruption' : 'volcanoWakes', erupting ? 95 : 55, v.x, v.y, () => sim.volcanoes.includes(v));
     }
+    // A place reached 10, 25, 50 … inhabitants
+    for (const v of sim.villages) {
+      if (v.ruin || v.merged) continue;
+      const n = this.residents(v).length;
+      const before = this.pops.get(v.id) ?? n;
+      const passed = MILESTONES.filter((m) => before < m && n >= m).pop();
+      if (passed) this.addMoment({ kind: 'grown', t: sim.time, x: v.x, y: v.y, v: v.name, n: passed });
+      this.pops.set(v.id, n);
+    }
+    // Births from the simulation
+    for (const m of sim.moments.splice(0)) this.addMoment(m);
     const hu = sim.hurricane;
     if (hu) add(`hurricane${hu.name}`, 'hurricane', 95, hu.x, hu.y, () => sim.hurricane === hu, () => (sim.hurricane ? { x: sim.hurricane.x, y: sim.hurricane.y } : null));
     if (sim.fireEvent && sim.fires.size >= 5) add(`fire${sim.fireEvent.name}`, 'fire', 80, sim.fireEvent.x, sim.fireEvent.y, () => sim.fires.size > 0);
@@ -325,6 +490,10 @@ export class Cinema {
       const h = fav[Math.floor(Math.random() * fav.length)] as Human;
       return { key: `calm${now}`, kind: 'calm', tension: 10, x: h.x, y: h.y, zoom: 3.4, follow: () => (sim.byId(h.id) as Human | undefined) ?? null, expires: now + 20000 };
     }
+    // Something new among the residents: fly there and tell it
+    const m = this.takeMoment();
+    const home = m && this.placeOfMoment(m);
+    if (m) return this.drift(now, home ? home.x : m.x, home ? home.y : m.y, home, m);
     const places = sim.villages.filter((v) => !v.ruin && !v.merged);
     // Half the time a place that celebrates, if there is one
     const fest = places.filter((v) => (v.festivalUntil ?? 0) > sim.time && !this.shown.includes(v.id));
@@ -334,9 +503,11 @@ export class Cinema {
     let roll = Math.random() * pool.reduce((n, v) => n + weight(v), 0);
     const v = pool.find((p) => (roll -= weight(p)) <= 0) ?? pool[0];
     if (v) this.shown = [v.id, ...this.shown].slice(0, Math.max(1, Math.min(6, places.length - 1)));
-    const cx = v ? v.x : this.cam.x / TILE;
-    const cy = v ? v.y : this.cam.y / TILE;
-    // A slow drift across the place
+    return this.drift(now, v ? v.x : this.cam.x / TILE, v ? v.y : this.cam.y / TILE, v);
+  }
+
+  /** A time-lapse shot: a slow drift across a place. */
+  private drift(now: number, cx: number, cy: number, place?: Village, moment?: Moment): Scene {
     const a = Math.random() * Math.PI * 2;
     const start = now;
     return {
@@ -346,6 +517,8 @@ export class Cinema {
       x: cx - Math.cos(a) * 4,
       y: cy - Math.sin(a) * 4,
       zoom: 2.4 + Math.random() * 0.8,
+      place,
+      moment,
       follow: () => {
         const k = Math.min(1, (performance.now() - start) / (LAPSE * 1000));
         return { x: cx + Math.cos(a) * (k * 8 - 4), y: cy + Math.sin(a) * (k * 8 - 4) };
@@ -360,6 +533,7 @@ export class Cinema {
     this.scene = s;
     this.since = now;
     this.recent.set(s.kind, now);
+    this.streak = s.kind === 'calm' ? 0 : this.streak + 1;
     this.candidates = this.candidates.filter((c) => c !== s);
     if (CLIMAX.has(s.kind)) this.slowUntil = now + 2000;
     const party = s.kind === 'calm' && this.sim.villages.some((v) => (v.festivalUntil ?? 0) > this.sim.time && Math.hypot(v.x - s.x, v.y - s.y) < 6);
@@ -372,6 +546,14 @@ export class Cinema {
     const sim = this.sim;
     const pick = (list: string[], seed: number) => list[Math.abs(seed) % list.length];
     if (s.kind === 'calm') {
+      if (s.moment) {
+        const line = this.momentLine(s.moment);
+        if (line) return line;
+      }
+      if (s.place && Math.random() < 0.6) {
+        const line = this.about(s.place);
+        if (line) return line;
+      }
       const v = sim.villages.filter((x) => !x.ruin).sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y))[0];
       const fest = v && (v.festivalUntil ?? 0) > sim.time ? this.S.lines.live_festival : undefined;
       // Before the first place there is only the island
@@ -390,11 +572,12 @@ export class Cinema {
         .replace('{b}', e.b?.name ?? '')
         .replace('{v}', e.v ?? '')
         .replace('{w}', e.w ?? '')
+        .replace('{n}', e.n !== undefined ? String(e.n) : '')
         .replace('{u}', (e.u ?? '').replace(/^faith:\d+$/, ''))
         .replace('{p}', this.S.peoples[foe ? e.a.people : (e.p ?? e.a.people)] ?? '')
         .replace('{q}', this.S.peoples[foe ? (e.p ?? '') : (e.q ?? '')] ?? '');
     }
-    if (e) return `${e.year}. ${this.describe(e)}`;
+    if (e) return `${this.S.year.replace('{y}', String(e.year))} ${this.describe(e)}`;
     // Live scenes without an entry
     const live = this.S.lines[`live_${s.kind}`];
     const v = sim.villages.filter((x) => !x.ruin).sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y))[0];
