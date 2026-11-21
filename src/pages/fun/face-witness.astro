@@ -1,0 +1,778 @@
+---
+/**
+ * Face Witness: a daily police sketch game in the window of a 1996 police
+ * composite program (teal desktop, grey bevelled window, navy title bar).
+ * Read the witness statement, build the face from the parts library, submit
+ * and compare with the suspect. Same suspect for everyone each day.
+ *
+ * Layout: a 16:9 window that fits the screen (picture left, witness
+ * statement and library right). On phones held upright the window becomes a
+ * stacked column instead (a 16:9 window would be about 210 px tall there).
+ * The × in the title bar goes back to the games. Code in src/lib/face-witness/.
+ * Short link: jxsi.ch/face-witness (worker.js).
+ */
+import Fun from '@/layouts/Fun.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import og from '@/assets/fun/face-witness-og.png';
+
+const T = UI.fun.faceWitness;
+const M = T.menus;
+const ogImage = new URL(og.src, SITE.fun.url).href;
+---
+
+<Fun title={T.title} description={T.description} path="/face-witness" indexHref="./" image={ogImage} bare>
+  <div class="fw" data-fw data-strings={JSON.stringify(T)}>
+    <h1 class="visually-hidden">{T.title}</h1>
+    <div class="fw-win" data-win>
+      <div class="fw-title">
+        <span class="fw-title__ic" aria-hidden="true">W</span>
+        <span class="fw-title__t">{T.window}</span>
+        <span class="fw-wb" aria-hidden="true"><i class="fw-bev">_</i><i class="fw-bev">□</i></span>
+        <a class="fw-bev fw-x" href="./" aria-label={T.back} title={T.back}>×</a>
+      </div>
+      <div class="fw-menu" data-menu>
+        <button type="button" data-m="file" aria-haspopup="menu" aria-expanded="false">{M.file}</button>
+        <button type="button" data-m="edit" aria-haspopup="menu" aria-expanded="false">{M.edit}</button>
+        <button type="button" data-m="view" aria-haspopup="menu" aria-expanded="false">{M.view}</button>
+        <button type="button" data-m="help" aria-haspopup="menu" aria-expanded="false">{M.help}</button>
+      </div>
+      <div class="fw-tools">
+        <button type="button" class="fw-btn fw-bev" data-save>
+          <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" fill="#00107f"></rect><rect x="5" y="2" width="12" height="7" fill="#fff"></rect><rect x="4" y="12" width="14" height="8" fill="#fff"></rect></svg>
+          {T.tools.save}
+        </button>
+        <button type="button" class="fw-btn fw-bev" data-undo aria-label={T.tools.undo} title={T.tools.undo} disabled>↶</button>
+        <button type="button" class="fw-btn fw-bev" data-redo aria-label={T.tools.redo} title={T.tools.redo} disabled>↷</button>
+        <button type="button" class="fw-btn fw-bev" data-del disabled>{T.tools.deletePart}</button>
+        <button type="button" class="fw-btn fw-bev fw-btn--go" data-submit>{T.tools.submit}</button>
+        <button type="button" class="fw-btn fw-bev" data-open aria-label={T.tools.open} title={T.tools.open}>
+          <svg width="28" height="20" viewBox="0 0 30 22" aria-hidden="true"><path d="M1 4h10l3 3h15v14H1z" fill="#f2c94c" stroke="#000"></path></svg>
+        </button>
+      </div>
+      <div class="fw-main">
+        <div class="fw-stage fw-in"><canvas data-cv width="1000" height="1200" aria-label={T.save.alt}></canvas></div>
+        <div class="fw-side">
+          <div class="fw-case fw-in" data-case></div>
+          <div class="fw-tabs" role="tablist">
+            <button type="button" class="fw-tab fw-bev is-on" role="tab" aria-selected="true" data-t="lib">{T.tabs.library}</button>
+            <button type="button" class="fw-tab fw-bev" role="tab" aria-selected="false" data-t="set">{T.tabs.settings}</button>
+          </div>
+          <div class="fw-panel fw-in" data-plib>
+            <div class="fw-cats" data-cats></div>
+            <div class="fw-grid" data-grid></div>
+          </div>
+          <div class="fw-panel fw-in" data-pset hidden></div>
+        </div>
+      </div>
+      <div class="fw-status"><span class="fw-in" data-st1></span><span class="fw-in" data-st2></span></div>
+    </div>
+  </div>
+</Fun>
+
+<style>
+  /* Windows-95-style police software: teal desktop, grey bevels, navy title bar, Arial bold */
+  .fw {
+    --desk: #0f7d7a;
+    --g: #c3c3c3;
+    --hi: #fff;
+    --sh: #7b7b7b;
+    --dk: #0a0a0a;
+    --navy: #00107f;
+    --paper: #f1f0ed;
+    display: grid;
+    place-items: center;
+    min-height: 100dvh;
+    padding: 12px;
+    background: var(--desk);
+    color: #111;
+    font: 15px/1.4 Arial, Helvetica, sans-serif;
+  }
+
+  .fw :global(button) {
+    font: inherit;
+    color: #111;
+  }
+
+  /* 16:9, as big as the screen allows */
+  .fw-win {
+    position: relative;
+    display: grid;
+    /* --w: the window width; the statement box is sized from it */
+    --w: min(1440px, calc(100vw - 24px), calc((100dvh - 24px) * 16 / 9));
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    width: var(--w);
+    aspect-ratio: 16 / 9;
+    padding: 3px;
+    background: var(--g);
+    border: 2px solid;
+    border-color: #dfdfdf var(--dk) var(--dk) #dfdfdf;
+    box-shadow:
+      inset -1px -1px var(--sh),
+      inset 1px 1px var(--hi),
+      0 18px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  .fw :global(.fw-bev) {
+    background: var(--g);
+    border: 2px solid;
+    border-color: var(--hi) var(--dk) var(--dk) var(--hi);
+    box-shadow:
+      inset -1px -1px var(--sh),
+      inset 1px 1px #dfdfdf;
+  }
+
+  .fw :global(.fw-in) {
+    border: 2px solid;
+    border-color: var(--sh) var(--hi) var(--hi) var(--sh);
+    box-shadow: inset 1px 1px var(--dk);
+  }
+
+  .fw :global(.fw-title) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 3px 3px 6px;
+    background: linear-gradient(90deg, var(--navy), #1a3fae);
+    color: #fff;
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+  }
+
+  .fw-title__ic {
+    padding: 1px 4px;
+    background: #e9f23a;
+    color: #000;
+    font-size: 12px;
+  }
+
+  .fw :global(.fw-title__t) {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fw :global(.fw-wb) {
+    display: flex;
+    gap: 2px;
+  }
+
+  .fw-wb i,
+  .fw :global(.fw-x) {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 20px;
+    padding: 0;
+    color: #000;
+    font: bold 12px/1 Arial, sans-serif;
+    font-style: normal;
+    text-decoration: none;
+  }
+
+  .fw :global(.fw-x) {
+    cursor: pointer;
+  }
+
+  .fw-menu {
+    display: flex;
+    gap: 2px;
+    padding: 1px 0;
+  }
+
+  .fw-menu button {
+    min-height: 28px;
+    padding: 2px 12px;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .fw-menu button:hover,
+  .fw-menu :global(button.is-on) {
+    background: var(--navy);
+    color: #fff;
+  }
+
+  .fw :global(.fw-drop) {
+    position: absolute;
+    z-index: 20;
+    min-width: 220px;
+    padding: 2px;
+  }
+
+  .fw :global(.fw-drop button) {
+    display: block;
+    width: 100%;
+    padding: 8px 14px;
+    background: none;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .fw :global(.fw-drop button:hover),
+  .fw :global(.fw-drop button:focus-visible) {
+    background: var(--navy);
+    color: #fff;
+    outline: none;
+  }
+
+  .fw-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 2px;
+    border-top: 1px solid var(--sh);
+    border-bottom: 1px solid var(--hi);
+  }
+
+  .fw :global(.fw-btn) {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 0 12px;
+    font-weight: 700;
+    font-size: 15px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .fw :global(.fw-btn:active:not(:disabled)) {
+    border-color: var(--dk) var(--hi) var(--hi) var(--dk);
+    box-shadow: inset 1px 1px var(--sh);
+  }
+
+  .fw :global(.fw-btn:disabled) {
+    color: #8a8a8a;
+    text-shadow: 1px 1px #fff;
+    cursor: default;
+  }
+
+  .fw :global(.fw-btn:focus-visible),
+  .fw :global(.fw-cat:focus-visible),
+  .fw :global(.fw-th:focus-visible),
+  .fw-tab:focus-visible {
+    outline: 2px dotted #000;
+    outline-offset: -6px;
+  }
+
+  .fw-btn--go {
+    background: #d8d8d8;
+  }
+
+  .fw :global(.fw-btn[hidden]) {
+    display: none;
+  }
+
+  /* Picture left (5:6, full height), statement and library right */
+  .fw-main {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px;
+    min-height: 0;
+    padding: 4px 2px;
+  }
+
+  /* The picture takes the full height; its width follows (5:6). The canvas is laid on top,
+     so its 1000 × 1200 pixels never decide the size. */
+  .fw-stage {
+    position: relative;
+    height: 100%;
+    aspect-ratio: 5 / 6;
+    background: var(--paper);
+  }
+
+  .fw-stage canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .fw-stage :global(canvas.is-dragging) {
+    cursor: grabbing;
+  }
+
+  .fw-side {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .fw-case {
+    max-height: calc(var(--w) * 9 / 16 * 0.32);
+    overflow: auto;
+    margin-bottom: 6px;
+    padding: 6px 12px;
+    background: #fffef6;
+    font: 14px/1.4 'Courier New', Courier, monospace;
+  }
+
+  .fw-case[hidden] {
+    display: none;
+  }
+
+  .fw-case :global(h2) {
+    display: inline;
+    margin: 0;
+    font: 900 13px Arial, sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  .fw-case :global(summary) {
+    cursor: pointer;
+  }
+
+
+  .fw-case :global(li) {
+    margin: 1px 0;
+  }
+
+  /* Lines of the statement can be ticked off: a 95 checkbox, the text struck through */
+  .fw-case :global(ul) {
+    margin: 4px 0 0;
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .fw-case :global(.fw-tick) {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 6px;
+    padding: 1px 2px;
+    cursor: pointer;
+  }
+
+  .fw-case :global(.fw-tick:hover) {
+    background: #f1eed9;
+  }
+
+  .fw-case :global(.fw-tick input) {
+    appearance: none;
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    margin: 2px 0 0;
+    background: #fff;
+    border: 2px solid;
+    border-color: var(--sh) var(--hi) var(--hi) var(--sh);
+    box-shadow: inset 1px 1px var(--dk);
+    cursor: pointer;
+  }
+
+  .fw-case :global(.fw-tick input:checked::after) {
+    content: '✓';
+    color: #000;
+    font: 900 11px/1 Arial, sans-serif;
+  }
+
+  .fw-case :global(.fw-tick input:focus-visible) {
+    outline: 1px dotted #000;
+    outline-offset: 2px;
+  }
+
+  .fw-case :global(.fw-tick.is-done span) {
+    color: #7a7a7a;
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+    text-decoration-color: #b0121b;
+  }
+
+  .fw-case :global(q) {
+    font-style: italic;
+  }
+
+  .fw-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  .fw-tab {
+    min-height: 36px;
+    font: 900 14px Arial, sans-serif;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+  }
+
+  .fw-tab.is-on {
+    background: #d6d6d6;
+    border-bottom-color: #d6d6d6;
+  }
+
+  .fw-panel {
+    min-height: 0;
+    overflow: auto;
+    padding: 8px;
+    background: #d6d6d6;
+  }
+
+  .fw-panel[hidden] {
+    display: none;
+  }
+
+  .fw-cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-bottom: 6px;
+  }
+
+  .fw :global(.fw-cat) {
+    flex: none;
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .fw :global(.fw-cat.is-on) {
+    background: var(--navy);
+    color: #fff;
+  }
+
+  .fw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(120px, 30%), 1fr));
+    gap: 5px;
+  }
+
+  .fw :global(.fw-th) {
+    position: relative;
+    aspect-ratio: 6 / 5;
+    padding: 0;
+    background: #c9c9c9;
+    cursor: pointer;
+  }
+
+  .fw :global(.fw-th canvas) {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .fw :global(.fw-th b) {
+    position: absolute;
+    right: 6px;
+    bottom: 3px;
+    font: 700 12px Arial, sans-serif;
+  }
+
+  .fw :global(.fw-th small) {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    color: #333;
+    font-size: 12px;
+  }
+
+  .fw :global(.fw-th.is-on) {
+    background: #fff;
+    outline: 3px solid var(--navy);
+    outline-offset: -3px;
+  }
+
+  .fw :global(.fw-set__head) {
+    margin: 0 0 4px;
+    font-weight: 900;
+  }
+
+  .fw :global(.fw-row) {
+    display: grid;
+    grid-template-columns: 7.5em minmax(0, 1fr) 3.6em;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+  }
+
+  .fw :global(.fw-row input) {
+    width: 100%;
+    height: 30px;
+    accent-color: var(--navy);
+  }
+
+  .fw :global(.fw-row output) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fw :global(.fw-pad) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .fw :global(.fw-pad .fw-btn) {
+    justify-content: center;
+    min-width: 44px;
+  }
+
+  .fw :global(.fw-empty) {
+    padding: 16px 8px;
+    color: #333;
+  }
+
+  .fw-status {
+    display: flex;
+    gap: 4px;
+    padding: 0 2px 1px;
+    font-size: 13px;
+  }
+
+  .fw-status span {
+    flex: 1;
+    padding: 2px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fw-status span:last-child {
+    flex: none;
+  }
+
+  /* Dialogs */
+  .fw :global(.fw-dlgbg) {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  .fw :global(.fw-dlg) {
+    width: min(560px, 100%);
+    max-height: 94dvh;
+    overflow: auto;
+    padding: 3px;
+  }
+
+  /* The verdict: pictures left, score right (stacked on narrow screens) */
+  .fw :global(.fw-dlg--wide) {
+    width: min(920px, 100%);
+  }
+
+  .fw :global(.fw-res) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 18px;
+  }
+
+  @media (max-width: 700px) {
+    .fw :global(.fw-res) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .fw :global(.fw-dlg__body) {
+    padding: 12px 14px;
+  }
+
+  .fw :global(.fw-dlg__body p) {
+    margin: 0 0 8px;
+  }
+
+  .fw :global(.fw-dlg__acts) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0 14px 14px;
+  }
+
+  .fw :global(.fw-cmp) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .fw :global(.fw-cmp figure) {
+    margin: 0;
+  }
+
+  .fw :global(.fw-cmp canvas) {
+    display: block;
+    width: 100%;
+    background: var(--paper);
+  }
+
+  .fw :global(.fw-cmp figcaption) {
+    padding: 4px 0;
+    font: 700 13px Arial, sans-serif;
+  }
+
+  .fw :global(.fw-big) {
+    margin: 0 0 2px;
+    font: 900 clamp(40px, 10vw, 56px) / 1 Arial, sans-serif;
+  }
+
+  .fw :global(.fw-bars) {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+  }
+
+  .fw :global(.fw-bar) {
+    display: grid;
+    grid-template-columns: 6.5em minmax(0, 1fr) 3em;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+  }
+
+  .fw :global(.fw-bar i) {
+    display: block;
+    height: 14px;
+    background: #fff;
+  }
+
+  .fw :global(.fw-bar i s) {
+    display: block;
+    height: 100%;
+    background: var(--navy);
+  }
+
+  .fw :global(.fw-bar em) {
+    font-style: normal;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fw :global(.fw-share) {
+    width: 100%;
+    height: 90px;
+    margin-top: 10px;
+    font: 14px 'Courier New', monospace;
+  }
+
+  .fw :global(.fw-small) {
+    font-size: 13px;
+  }
+
+  .fw :global(.fw-pic) {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  /* Short screens (laptops, phones held sideways): smaller bars and buttons */
+  @media (max-height: 640px) {
+    .fw {
+      padding: 6px;
+      font-size: 13px;
+    }
+
+    .fw-win {
+      --w: min(1440px, calc(100vw - 12px), calc((100dvh - 12px) * 16 / 9));
+    }
+
+    .fw :global(.fw-btn) {
+      min-height: 30px;
+      padding: 0 8px;
+      font-size: 13px;
+    }
+
+    .fw-menu button {
+      min-height: 22px;
+    }
+
+    .fw-tab,
+    .fw :global(.fw-cat) {
+      min-height: 28px;
+      font-size: 12px;
+    }
+
+    .fw-case {
+      max-height: calc(var(--w) * 9 / 16 * 0.24);
+      font-size: 12px;
+    }
+
+    .fw :global(.fw-title) {
+      font-size: 13px;
+    }
+  }
+
+  /* Phones held upright: one column, the picture on top, no fixed ratio */
+  @media (orientation: portrait) and (max-width: 820px) {
+    .fw {
+      display: block;
+      padding: 0;
+    }
+
+    .fw-win {
+      display: block;
+      width: 100%;
+      aspect-ratio: auto;
+      border-width: 0 0 2px;
+    }
+
+    .fw-main {
+      display: block;
+    }
+
+    .fw-stage {
+      width: 100%;
+      height: auto;
+    }
+
+    .fw-stage {
+      aspect-ratio: 5 / 6;
+    }
+
+    .fw-side {
+      display: block;
+      margin-top: 6px;
+    }
+
+    .fw-case {
+      max-height: none;
+    }
+
+    .fw-panel {
+      min-height: 250px;
+      overflow: visible;
+    }
+
+    .fw :global(.fw-btn) {
+      min-height: 44px;
+    }
+
+    .fw-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>
+
+<script>
+  import type { FaceWitnessStrings } from '@/lib/face-witness/game';
+
+  let stop: (() => void) | null = null;
+
+  document.addEventListener('astro:page-load', async () => {
+    const root = document.querySelector<HTMLElement>('[data-fw]');
+    if (!root || root.dataset.js) return;
+    root.dataset.js = 'true';
+    const T = JSON.parse(root.dataset.strings ?? '{}') as FaceWitnessStrings;
+    const { startFaceWitness } = await import('@/lib/face-witness/game');
+    stop = startFaceWitness(root, T);
+  });
+  document.addEventListener('astro:before-swap', () => {
+    stop?.();
+    stop = null;
+  });
+</script>

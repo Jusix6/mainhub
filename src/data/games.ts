@@ -8,6 +8,7 @@ import flagThumb from '@/assets/fun/thumbs/flag.png';
 import tenThumb from '@/assets/fun/thumbs/10s.png';
 import buttonThumb from '@/assets/fun/thumbs/the-button.png';
 import islandThumb from '@/assets/fun/thumbs/tiny-island.png';
+import faceThumb from '@/assets/fun/thumbs/face-witness.png';
 
 const L = UI.fun.list;
 
@@ -30,6 +31,16 @@ export interface Game {
 }
 
 export const GAMES: Game[] = [
+  {
+    href: 'face-witness',
+    title: UI.fun.faceWitness.title,
+    tagline: UI.fun.faceWitness.tagline,
+    thumb: faceThumb,
+    meta: L.meta.faceWitness,
+    added: '2026-11-21',
+    tags: ['daily'],
+    chip: 'daily',
+  },
   {
     href: 'tiny-island',
     title: UI.fun.tinyIsland.title,
