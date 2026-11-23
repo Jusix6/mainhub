@@ -35,7 +35,7 @@ const OUR_HOSTS = [CANONICAL_HOST, APEX_HOST, FUN_HOST, LIBRARY_HOST];
 const OUR_ORIGINS = [`https://${CANONICAL_HOST}`, `https://${FUN_HOST}`];
 
 /** Short links on www and the apex that point at a fun game (jxsi.ch/10s → fun.jxsi.ch/10s). */
-const FUN_SHORT_LINKS = { '/10s': '/10s', '/flag': '/flag', '/colors': '/colors', '/tiny-island': '/tiny-island', '/face-witness': '/face-witness' };
+const FUN_SHORT_LINKS = { '/10s': '/10s', '/flag': '/flag', '/colors': '/colors', '/tiny-island': '/tiny-island', '/face-witness': '/face-witness', '/2-many-notes': '/2-many-notes' };
 
 /** Main YouTube channel. Keep in sync with SITE.youtube.channelId in src/data/site.ts. */
 const YOUTUBE_CHANNEL_ID = 'UCWHDPzJa99zS3XHaetPjdig';

@@ -9,6 +9,7 @@ import tenThumb from '@/assets/fun/thumbs/10s.png';
 import buttonThumb from '@/assets/fun/thumbs/the-button.png';
 import islandThumb from '@/assets/fun/thumbs/tiny-island.png';
 import faceThumb from '@/assets/fun/thumbs/face-witness.png';
+import notesThumb from '@/assets/fun/thumbs/2-many-notes.jpg';
 
 const L = UI.fun.list;
 
@@ -31,6 +32,15 @@ export interface Game {
 }
 
 export const GAMES: Game[] = [
+  {
+    href: '2-many-notes',
+    title: UI.fun.manyNotes.title,
+    tagline: UI.fun.manyNotes.tagline,
+    thumb: notesThumb,
+    meta: L.meta.manyNotes,
+    added: '2026-11-22',
+    tags: [],
+  },
   {
     href: 'face-witness',
     title: UI.fun.faceWitness.title,

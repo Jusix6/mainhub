@@ -1,0 +1,849 @@
+---
+/**
+ * 2 Many Notes (fun.jxsi.ch/2-many-notes): a 3D desk drowning in sticky
+ * notes; clear every one. Plan: Claude Docs "2 Many Notes – Game Design Plan".
+ * Built in six phases, released 2026-11-22. Code in src/lib/many-notes/
+ * (Three.js), loaded when the page opens. Short link: jxsi.ch/2-many-notes
+ * (worker.js).
+ */
+import '@fontsource/caveat/600.css';
+import Fun from '@/layouts/Fun.astro';
+import { SITE } from '@/data/site';
+import { UI } from '@/data/ui';
+import og from '@/assets/fun/2-many-notes-og.jpg';
+
+const T = UI.fun.manyNotes;
+const ogImage = new URL(og.src, SITE.fun.url).href;
+---
+
+<Fun title={T.title} description={T.description} path="/2-many-notes" indexHref="./" image={ogImage} bare>
+  <div class="mn" data-mn data-strings={JSON.stringify(T)}>
+    <h1 class="visually-hidden">{T.title}</h1>
+    <canvas class="mn__cv" data-mn-cv aria-label={T.title}></canvas>
+
+    <div class="mn__top">
+      <div class="mn__side">
+        <a class="mn__btn" href="./" aria-label={T.back}>← FUN</a>
+        <button class="mn__btn mn__btn--back" type="button" data-mn-back hidden>↩ {T.zoomBack}</button>
+      </div>
+      <p class="mn__count" data-mn-count aria-live="polite"></p>
+      <div class="mn__side mn__side--right">
+        <div class="mn__pair">
+          <button class="mn__btn" type="button" data-mn-list aria-expanded="false" aria-controls="mn-list" aria-label={T.list.open}>≡ <span class="mn__lbl">{T.list.open}</span></button>
+          <button class="mn__btn" type="button" data-mn-restart aria-label={T.restart}>↺ <span class="mn__lbl" data-mn-restart-lbl>{T.restart}</span></button>
+          <button class="mn__btn" type="button" data-mn-set aria-expanded="false" aria-controls="mn-panel" aria-label={T.settings.open} title={T.settings.open}>⚙</button>
+        </div>
+        <div class="mn__panel" id="mn-panel" data-mn-panel hidden>
+          <button class="mn__opt" type="button" data-mn-look>
+            <span>{T.settings.look}</span>
+            <b data-mn-val>{T.settings.looks.pixel}</b>
+          </button>
+          {
+            (['sound', 'music', 'effects', 'wobble'] as const).map((k) => (
+              <button class="mn__opt" type="button" data-mn-opt={k} aria-pressed="true">
+                <span>{T.settings[k]}</span>
+                <b data-mn-val>{T.settings.on}</b>
+              </button>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- The list of notes in sight (Tab); the game is paused while it is open -->
+    <div class="mn__card mn__listcard" id="mn-list" data-mn-listbox hidden>
+      <div class="mn__note mn__note--list">
+        <p class="mn__title">{T.list.title}</p>
+        <p class="mn__how" data-mn-paused>{T.list.paused}</p>
+        <ul class="mn__notes" data-mn-items></ul>
+        <p class="mn__how" data-mn-more></p>
+        <button class="mn__go mn__go--small" type="button" data-mn-list-close>{T.list.close}</button>
+      </div>
+    </div>
+
+    <!-- Typing for the computer on the desk (DeskOS): invisible, but phones open their keyboard for it -->
+    <input class="mn__type" data-mn-type type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="16" aria-label={T.os.password} />
+
+    <p class="mn__hint" data-mn-hint aria-live="polite"></p>
+    <p class="mn__toast" data-mn-toast role="status"></p>
+    <button class="mn__flip" type="button" data-mn-flip hidden>↻ {T.flip}</button>
+    <!-- Update 1: what to do while pressing on a thing (follows the thing on screen) -->
+    <div class="mn__guide" data-mn-guide hidden aria-live="polite">
+      <b class="mn__g-icon" data-g-icon></b>
+      <span data-g-text></span>
+      <i class="mn__g-bar" data-g-bar hidden><i class="mn__g-zone" data-g-zone></i><i class="mn__g-fill" data-g-fill></i></i>
+    </div>
+
+    <!-- The top drawer's combination lock -->
+    <div class="mn__lock" data-mn-lock hidden role="dialog" aria-label={T.lock.title}>
+      <p class="mn__lock-title">{T.lock.title}</p>
+      <div class="mn__wheels">
+        {
+          [0, 1, 2, 3].map((i) => (
+            <div class="mn__wheel">
+              <button type="button" data-mn-up data-i={i} aria-label={`${T.lock.up}: ${T.lock.digit.replace('{n}', String(i + 1))}`}>▲</button>
+              <span data-mn-digit aria-label={T.lock.digit.replace('{n}', String(i + 1))}>0</span>
+              <button type="button" data-mn-down data-i={i} aria-label={`${T.lock.down}: ${T.lock.digit.replace('{n}', String(i + 1))}`}>▼</button>
+            </div>
+          ))
+        }
+      </div>
+      <div class="mn__row">
+        <button class="mn__go mn__go--small" type="button" data-mn-lock-open>{T.lock.open}</button>
+        <button class="mn__go mn__go--small mn__go--light" type="button" data-mn-lock-close>{T.lock.close}</button>
+      </div>
+    </div>
+
+    <!-- The finale: fade, credits, a note for tomorrow -->
+    <div class="mn__fade" data-mn-fade hidden></div>
+    <div class="mn__credits" data-mn-credits hidden>
+      <div class="mn__roll">
+        <p class="mn__roll-title">{T.title}</p>
+        {
+          T.finale.credits.map(([role, name]) => (
+            <p class="mn__credit">
+              {role && <span>{role}</span>}
+              <b>{name}</b>
+            </p>
+          ))
+        }
+      </div>
+      <button class="mn__btn mn__skip" type="button" data-mn-skip>{T.finale.skip}</button>
+    </div>
+    <div class="mn__card" data-mn-tomorrow hidden>
+      <div class="mn__note">
+        <p class="mn__title">{T.finale.tomorrowTitle}</p>
+        <p class="mn__how">{T.finale.tomorrowSub}</p>
+        <textarea class="mn__tomorrow" maxlength="60" rows="3" placeholder={T.finale.tomorrowPlaceholder} aria-label={T.finale.tomorrowTitle}></textarea>
+        <div class="mn__row">
+          <button class="mn__go mn__go--small" type="button" data-mn-stick>{T.finale.stick}</button>
+          <button class="mn__go mn__go--small mn__go--light" type="button" data-mn-nonote>{T.finale.noNote}</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mn__card mn__start" data-mn-start>
+      <div class="mn__note">
+        <p class="mn__title">{T.title}</p>
+        <p class="mn__sub">{T.tagline}</p>
+        <p class="mn__how" data-mn-how>{T.loading}</p>
+        <p class="mn__how mn__turn" data-mn-turn>{T.turnPhone}</p>
+        <button class="mn__go" type="button" data-mn-go hidden>{T.start}</button>
+      </div>
+    </div>
+
+    <div class="mn__card" data-mn-done hidden>
+      <div class="mn__note mn__note--pink mn__note--end">
+        <p class="mn__title">{T.done}</p>
+        <p class="mn__sub" data-mn-done-sub></p>
+        <p class="mn__sub" data-mn-done-rank></p>
+        <img class="mn__shot" data-mn-shot alt="" width="1200" height="630" hidden />
+        <div class="mn__row">
+          <a class="mn__go mn__go--small" data-mn-save download="2-many-notes.png">{T.savePic}</a>
+          <button class="mn__go mn__go--small" type="button" data-mn-share>{T.share}</button>
+          <button class="mn__go mn__go--small" type="button" data-mn-again>{T.restart}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</Fun>
+
+<style>
+  .mn {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #1e2228;
+    color: #20232b;
+    font-family: Caveat, 'Comic Sans MS', cursive;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .mn__cv {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  .mn__top {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .mn__btn {
+    padding: 6px 12px;
+    background: rgba(20, 22, 26, 0.7);
+    color: #f3efe4;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    font: 700 13px/1.2 system-ui, sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .mn__side {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    gap: 8px;
+  }
+
+  .mn__btn {
+    white-space: nowrap;
+  }
+
+  /* Narrow phones: symbols only in the top bar */
+  @media (max-width: 520px) {
+    .mn__lbl {
+      display: none;
+    }
+
+    .mn__btn {
+      padding: 6px 9px;
+    }
+
+    .mn__count {
+      padding: 5px 12px 7px;
+      font-size: 21px;
+    }
+  }
+
+  .mn__btn:global(.is-sure) {
+    background: #b3261e;
+  }
+
+  .mn__btn:global(.is-sure) .mn__lbl {
+    display: inline;
+  }
+
+  .mn__side--right {
+    align-items: end;
+  }
+
+  .mn__pair {
+    display: flex;
+    gap: 6px;
+  }
+
+  .mn__panel {
+    display: grid;
+    gap: 4px;
+    min-width: 210px;
+    padding: 8px;
+    background: rgba(20, 22, 26, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    pointer-events: auto;
+  }
+
+  .mn__panel[hidden] {
+    display: none;
+  }
+
+  .mn__opt {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 7px 10px;
+    background: transparent;
+    color: #f3efe4;
+    border: 0;
+    border-radius: 5px;
+    font: 600 13px/1.2 system-ui, sans-serif;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mn__opt:hover,
+  .mn__opt:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+  }
+
+  .mn__opt b {
+    color: #ffe76a;
+  }
+
+  .mn__opt[aria-pressed='false'] b {
+    color: #9a9a9a;
+  }
+
+  .mn__btn[hidden] {
+    display: none;
+  }
+
+  .mn__btn--back {
+    padding: 8px 16px;
+    background: #ff9fc6;
+    color: #20232b;
+    border-color: rgba(0, 0, 0, 0.3);
+    font-size: 15px;
+  }
+
+  /* Off screen but focusable; 16px so iPhones do not zoom in */
+  .mn__type {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    font-size: 16px;
+    pointer-events: none;
+  }
+
+  .mn__btn:hover,
+  .mn__btn:focus-visible {
+    background: rgba(20, 22, 26, 0.92);
+    outline: 2px solid #ffe76a;
+    outline-offset: 1px;
+  }
+
+  /* The counter is a sticky note too */
+  .mn__count {
+    pointer-events: auto;
+    cursor: pointer;
+    margin: 0;
+    padding: 6px 18px 8px;
+    background: #ffe76a;
+    border-radius: 2px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 600;
+    line-height: 1;
+    transform: rotate(-2deg);
+  }
+
+  .mn__count:global(.is-pop) {
+    animation: mn-pop 0.4s cubic-bezier(0.3, 1.8, 0.5, 1);
+  }
+
+  @keyframes mn-pop {
+    40% {
+      transform: rotate(3deg) scale(1.18);
+    }
+  }
+
+  .mn__hint {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    max-width: min(720px, calc(100vw - 32px));
+    margin: 0;
+    padding: 6px 14px;
+    background: rgba(20, 22, 26, 0.72);
+    color: #f3efe4;
+    border-radius: 6px;
+    font: 600 14px/1.35 system-ui, sans-serif;
+    text-align: center;
+    translate: -50% 0;
+    pointer-events: none;
+  }
+
+  .mn__hint:empty {
+    display: none;
+  }
+
+  .mn__toast {
+    position: absolute;
+    left: 50%;
+    top: 30%;
+    margin: 0;
+    padding: 4px 16px;
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    font-size: 28px;
+    font-weight: 600;
+    opacity: 0;
+    translate: -50% 0;
+    pointer-events: none;
+  }
+
+  .mn__toast:global(.is-on) {
+    animation: mn-toast 1.9s ease both;
+  }
+
+  @keyframes mn-toast {
+    0% {
+      opacity: 0;
+      translate: -50% 10px;
+    }
+    10%,
+    80% {
+      opacity: 1;
+      translate: -50% 0;
+    }
+    100% {
+      opacity: 0;
+      translate: -50% -10px;
+    }
+  }
+
+  /* Start and end: a big sticky note in the middle */
+  .mn__card {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(10, 12, 15, 0.45);
+  }
+
+  .mn__card[hidden] {
+    display: none;
+  }
+
+  .mn__note {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    width: min(380px, 100%);
+    padding: 34px 28px 28px;
+    background: linear-gradient(#ffe76a, #f5d84e);
+    border-radius: 2px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    text-align: center;
+    transform: rotate(-1.5deg);
+  }
+
+  .mn__note--pink {
+    background: linear-gradient(#ffb0d2, #ff9fc6);
+  }
+
+  .mn__title {
+    margin: 0;
+    font-size: 52px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .mn__sub {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.1;
+  }
+
+  .mn__how {
+    margin: 6px 0 0;
+    font: 500 14px/1.4 system-ui, sans-serif;
+  }
+
+  .mn__go {
+    margin-top: 10px;
+    padding: 8px 28px;
+    background: #20232b;
+    color: #ffe76a;
+    border: 0;
+    border-radius: 4px;
+    font: 600 28px/1.1 Caveat, cursive;
+    cursor: pointer;
+  }
+
+  .mn__note--end {
+    width: min(560px, 100%);
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+  }
+
+  .mn__shot {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-top: 6px;
+    border-radius: 2px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .mn__shot[hidden] {
+    display: none;
+  }
+
+  .mn__row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .mn__go--small {
+    padding: 6px 18px;
+    font-size: 24px;
+    text-decoration: none;
+  }
+
+  .mn__turn {
+    display: none;
+    font-weight: 700;
+  }
+
+  @media (pointer: coarse) and (orientation: portrait) {
+    .mn__turn {
+      display: block;
+    }
+  }
+
+  .mn__note--list {
+    width: min(520px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .mn__note--list .mn__title,
+  .mn__note--list .mn__how {
+    text-align: center;
+  }
+
+  .mn__notes {
+    display: grid;
+    gap: 6px;
+    margin: 4px 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mn__notes :global(button) {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.45);
+    color: #20232b;
+    border: 0;
+    border-radius: 4px;
+    font: 600 21px/1.1 Caveat, cursive;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mn__notes :global(button:hover),
+  .mn__notes :global(button:focus-visible) {
+    background: rgba(255, 255, 255, 0.85);
+    outline: 2px solid #20232b;
+  }
+
+  .mn__notes :global(i) {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+  }
+
+  .mn__guide {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 4px 8px;
+    max-width: 260px;
+    padding: 6px 12px 8px;
+    background: rgba(20, 22, 26, 0.85);
+    color: #f3efe4;
+    border-radius: 8px;
+    font: 600 14px/1.25 system-ui, sans-serif;
+    translate: -50% calc(-100% - 26px);
+    pointer-events: none;
+  }
+
+  .mn__guide:global(.is-below) {
+    translate: -50% 40px;
+  }
+
+  .mn__guide:global(.is-dock) {
+    translate: -50% 0;
+  }
+
+  .mn__guide[hidden] {
+    display: none;
+  }
+
+  .mn__g-icon {
+    color: #ffe76a;
+    font-size: 20px;
+  }
+
+  .mn__g-bar {
+    position: relative;
+    grid-column: 1 / -1;
+    height: 10px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+  }
+
+  .mn__g-bar[hidden] {
+    display: none;
+  }
+
+  .mn__g-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(90, 195, 90, 0.55);
+  }
+
+  .mn__g-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: #ffe76a;
+    border-radius: 5px;
+  }
+
+  /* A marker instead of a fill (the spirit level) */
+  .mn__g-bar:global(.is-marker) .mn__g-fill {
+    width: 10px !important;
+    border-radius: 50%;
+    background: #8fd0ff;
+    translate: -50% 0;
+  }
+
+  .mn__go--light {
+    background: transparent;
+    color: #20232b;
+    box-shadow: inset 0 0 0 2px #20232b;
+  }
+
+  .mn__flip {
+    position: absolute;
+    left: 50%;
+    bottom: 64px;
+    padding: 8px 20px;
+    background: #8fd0ff;
+    color: #20232b;
+    border: 0;
+    border-radius: 6px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+    font: 600 24px/1 Caveat, cursive;
+    translate: -50% 0;
+    cursor: pointer;
+  }
+
+  .mn__flip[hidden],
+  .mn__lock[hidden],
+  .mn__fade[hidden],
+  .mn__credits[hidden] {
+    display: none;
+  }
+
+  .mn__lock {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    padding: 18px 22px;
+    background: #3a3d42;
+    color: #f3efe4;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+    translate: -50% -50%;
+  }
+
+  .mn__lock:global(.is-wrong) {
+    animation: mn-shake 0.35s;
+  }
+
+  @keyframes mn-shake {
+    25% {
+      translate: calc(-50% - 8px) -50%;
+    }
+    75% {
+      translate: calc(-50% + 8px) -50%;
+    }
+  }
+
+  .mn__lock-title {
+    margin: 0;
+    font: 700 14px/1.2 system-ui, sans-serif;
+  }
+
+  .mn__wheels {
+    display: flex;
+    gap: 8px;
+  }
+
+  .mn__wheel {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+  }
+
+  .mn__wheel button {
+    width: 48px;
+    height: 34px;
+    background: #55595f;
+    color: #f3efe4;
+    border: 0;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .mn__wheel button:hover,
+  .mn__wheel button:focus-visible {
+    background: #6b7077;
+    outline: 2px solid #ffe76a;
+  }
+
+  .mn__wheel span {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 56px;
+    background: #d8d4c8;
+    color: #1d1d1d;
+    border-radius: 4px;
+    font: 700 32px/1 ui-monospace, monospace;
+  }
+
+  .mn__lock .mn__go {
+    background: #ffe76a;
+    color: #20232b;
+  }
+
+  .mn__lock .mn__go--light {
+    background: transparent;
+    color: #f3efe4;
+    box-shadow: inset 0 0 0 2px #f3efe4;
+  }
+
+  .mn__fade {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    transition: opacity 1.4s ease;
+    pointer-events: none;
+  }
+
+  .mn__fade:global(.is-on) {
+    opacity: 1;
+  }
+
+  .mn__credits {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    color: #f3efe4;
+    text-align: center;
+  }
+
+  .mn__roll {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    display: grid;
+    justify-items: center;
+    gap: 22px;
+    text-align: center;
+    animation: mn-roll 18s linear forwards;
+  }
+
+  @keyframes mn-roll {
+    to {
+      transform: translateY(calc(-100% - 100vh));
+    }
+  }
+
+  .mn__roll-title {
+    margin: 0 0 30px;
+    color: #ffe76a;
+    font-size: 64px;
+    font-weight: 600;
+  }
+
+  .mn__credit {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    margin: 0;
+    font-size: 30px;
+  }
+
+  .mn__credit span {
+    color: #9a9aa6;
+    font: 600 13px/1.2 system-ui, sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mn__credit b {
+    font-weight: 600;
+  }
+
+  .mn__skip {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .mn__tomorrow {
+    width: 100%;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.55);
+    color: #20232b;
+    border: 2px solid #20232b;
+    border-radius: 4px;
+    font: 600 26px/1.15 Caveat, cursive;
+    resize: none;
+  }
+
+  .mn__go[hidden] {
+    display: none;
+  }
+
+  .mn__go:hover,
+  .mn__go:focus-visible {
+    background: #000;
+    outline: 3px solid #20232b;
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import type { ManyNotesStrings } from '@/lib/many-notes/game';
+
+  let stop: (() => void) | null = null;
+
+  document.addEventListener('astro:page-load', async () => {
+    const root = document.querySelector<HTMLElement>('[data-mn]');
+    if (!root || root.dataset.js) return;
+    root.dataset.js = 'true';
+    const T = JSON.parse(root.dataset.strings ?? '{}') as ManyNotesStrings;
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    // The handwriting must be there before the notes are drawn
+    await Promise.all([import('@/lib/many-notes/game'), document.fonts.load('600 40px Caveat').catch(() => [])]).then(([{ startManyNotes }]) => {
+      stop = startManyNotes(root, T);
+    });
+    const how = root.querySelector<HTMLElement>('[data-mn-how]')!;
+    if (how.textContent === T.loading) how.textContent = root.dataset.resume ? T.resumeSub : touch ? T.howTouch : T.howDesk;
+    const go = root.querySelector<HTMLButtonElement>('[data-mn-go]')!;
+    if (how.textContent !== T.noWebgl) go.hidden = false;
+    go.focus();
+  });
+  document.addEventListener('astro:before-swap', () => {
+    stop?.();
+    stop = null;
+  });
+</script>
