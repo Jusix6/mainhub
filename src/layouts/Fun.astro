@@ -10,6 +10,8 @@ import Icon from '@/components/Icon.astro';
 import Sticker from '@/components/Sticker.astro';
 import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
+import { GAMES } from '@/data/games';
+import { breadcrumbs, game, type JsonLd } from '@/lib/schema';
 
 interface Props {
   title: string;
@@ -28,12 +30,27 @@ interface Props {
 
 const { title, description, path, indexHref, image, bare = false, noIndex = false } = Astro.props;
 const canonical = new URL(path, SITE.fun.url).href;
+const funHome = new URL('/', SITE.fun.url).href;
+const slug = path.replace(/^\//, '');
+// What search engines learn about the page: a game (with the way back to the list), or the list of games
+const jsonLd: JsonLd[] = slug
+  ? [game({ name: title, description, url: canonical, image }), breadcrumbs([[UI.fun.title, funHome], [title, canonical]])]
+  : [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        name: UI.fun.indexTitle,
+        itemListElement: GAMES.map((g, i) => ({ '@type': 'ListItem', position: i + 1, url: new URL(`/${g.href}`, SITE.fun.url).href, name: g.title })),
+      },
+    ];
+// A few lines about the game, under it (full-window games: for screen readers and search engines only)
+const about = (UI.fun.about as Record<string, readonly string[]>)[slug];
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title={`${title} · ${UI.fun.title}`} description={description} canonical={canonical} image={image} noIndex={noIndex} />
+    <Head title={`${title} · ${UI.fun.title}`} description={description} canonical={canonical} image={image} noIndex={noIndex} jsonLd={jsonLd} />
   </head>
   <body>
     <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>
@@ -60,6 +77,14 @@ const canonical = new URL(path, SITE.fun.url).href;
     )}
     <main id="main" tabindex="-1" class:list={[{ 'is-bare': bare }]}>
       <slot />
+      {
+        about && (
+          <section class:list={['fun-about', { 'container': !bare, 'visually-hidden': bare }]} aria-labelledby="fun-about-title">
+            <h2 id="fun-about-title">{UI.fun.aboutTitle}</h2>
+            {about.map((p) => <p>{p}</p>)}
+          </section>
+        )
+      }
     </main>
     {!bare && (
     <footer class="fun-footer">
@@ -120,6 +145,21 @@ const canonical = new URL(path, SITE.fun.url).href;
 
   main {
     padding-block: var(--space-5) var(--space-6);
+  }
+
+  /* As wide as most games (centred under them like the games are) */
+  .fun-about {
+    max-width: 720px;
+    margin-top: var(--space-6);
+  }
+
+  .fun-about h2 {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-lg);
+  }
+
+  .fun-about p + p {
+    margin-top: var(--space-2);
   }
 
   .fun-footer {

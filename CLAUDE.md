@@ -909,3 +909,10 @@ Zeichen-Whitelist); wer das braucht, hängt eine Wortliste in `cleanName` an.
       hosttech wieder eingeschaltet werden.
 - [ ] **Später / offen**: deutsche Sprachversion mit Umschalter, Twitch-Live-Status,
       Cloudflare Web Analytics.
+
+## SEO (2026-11-23)
+
+- Sitemap: auch die Seiten unter /fun und /library, mit ihren Subdomain-Adressen (`serialize` in astro.config.mjs); die robots.txt der Subdomains zeigt auf dieselbe Sitemap.
+- Strukturierte Daten: `src/lib/schema.ts` (person, breadcrumbs, article, game), Head.astro nimmt `jsonLd` (ein Block oder mehrere) und `ogType`. Update-Posts: BlogPosting + Brotkrumen, og:type article. Spiele (Fun-Layout, automatisch): VideoGame + Brotkrumen; Spielübersicht: ItemList. Projekte und Library-Bücher: Brotkrumen. Startseite: Person (wie bisher).
+- Startseite hat eine unsichtbare H1. /hub und /updates haben eigene Titel und Beschreibungen (`UI.hubTitle` …). Beschreibungen ≤ 160 Zeichen halten.
+- „About this game“: `UI.fun.about[slug]` (zwei kurze Absätze); das Fun-Layout zeigt es unter Spielen mit Kopf/Fuss sichtbar, bei Vollbild-Spielen (`bare`) nur für Screenreader/Suchmaschinen (visually-hidden), damit die Seite nicht scrollt. Neues Spiel = Text dort ergänzen.

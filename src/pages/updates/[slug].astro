@@ -11,6 +11,8 @@ import { getUpdateType } from '@/data/updateTypes';
 import { UI } from '@/data/ui';
 import { formatDate, isoDate } from '@/lib/format';
 import { getPublishedUpdates, updateExcerpt, updateSlug, updateUrl } from '@/lib/updates';
+import { article, breadcrumbs } from '@/lib/schema';
+import { SITE } from '@/data/site';
 
 export async function getStaticPaths() {
   const updates = await getPublishedUpdates();
@@ -28,9 +30,18 @@ const project = update.data.project ? await getEntry(update.data.project) : unde
 
 const ogUrl = cover ? new URL((await getImage({ src: cover, width: 1200, format: 'jpg' })).src, Astro.site).href : undefined;
 const description = updateExcerpt(update) || undefined;
+const url = new URL(`/updates/${updateSlug(update)}`, SITE.url).href;
+const jsonLd = [
+  article({ title, description, url, date, image: ogUrl }),
+  breadcrumbs([
+    [SITE.title, new URL('/hub', SITE.url).href],
+    [UI.nav.updates, new URL('/updates', SITE.url).href],
+    [title, url],
+  ]),
+];
 ---
 
-<Base title={title} description={description} image={ogUrl}>
+<Base title={title} description={description} image={ogUrl} jsonLd={jsonLd} ogType="article">
   <article class="container entry" style={`--type: var(${typeDef.color})`}>
     <a class="back" href="/updates">← {UI.nav.updates}</a>
 

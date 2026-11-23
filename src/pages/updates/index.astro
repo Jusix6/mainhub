@@ -16,7 +16,7 @@ const projectById = new Map(projects.map((p) => [p.id, p]));
 const referenced = projects.filter((p) => updates.some((u) => u.data.project?.id === p.id));
 ---
 
-<Base title={UI.nav.updates} description="Devlog, releases and news.">
+<Base title={UI.updatesTitle} description={UI.updatesDescription}>
   <section class="container updates">
     <div class="updates__head">
       <h1>

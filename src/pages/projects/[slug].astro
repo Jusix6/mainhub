@@ -40,9 +40,20 @@ const ogUrl = new URL(og.src, Astro.site).href;
 const more = (await getCollection('projects', (p) => p.id !== project.id))
   .sort((a, b) => (a.data.category === category ? -1 : 0) - (b.data.category === category ? -1 : 0) || b.data.date.valueOf() - a.data.date.valueOf())
   .slice(0, 3);
+import { breadcrumbs } from '@/lib/schema';
+import { SITE } from '@/data/site';
 ---
 
-<Base title={title} description={tagline} image={ogUrl}>
+<Base
+  title={title}
+  description={tagline}
+  image={ogUrl}
+  jsonLd={breadcrumbs([
+    [SITE.title, new URL('/hub', SITE.url).href],
+    [UI.sections.projects, new URL('/projects', SITE.url).href],
+    [title, new URL(Astro.url.pathname.replace(/\.html$/, ''), SITE.url).href],
+  ])}
+>
   <article class="container project" style={`--accent: var(${cat.color})`}>
     <a class="back" href="/projects">← {UI.actions.backToProjects}</a>
 

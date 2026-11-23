@@ -31,12 +31,15 @@ interface Props {
 
 const { title, description, path, indexHref, image, room = false } = Astro.props;
 const canonical = new URL(path, SITE.library.url).href;
+const libHome = new URL('/', SITE.library.url).href;
+const jsonLd = path.replace(/^\//, '') ? breadcrumbs([[UI.library.brand, libHome], [title, canonical]]) : undefined;
+import { breadcrumbs } from '@/lib/schema';
 ---
 
 <!doctype html>
 <html lang="en" class="library">
   <head>
-    <Head title={title.toLowerCase() === UI.library.brand.toLowerCase() ? UI.library.brand : `${title} · ${UI.library.brand}`} description={description} canonical={canonical} image={image} />
+    <Head title={title.toLowerCase() === UI.library.brand.toLowerCase() ? UI.library.brand : `${title} · ${UI.library.brand}`} description={description} canonical={canonical} image={image} jsonLd={jsonLd} />
   </head>
   <body class:list={{ 'is-room': room }}>
     <a class="skip-link" href="#main">{UI.actions.skipToContent}</a>

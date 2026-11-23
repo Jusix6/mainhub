@@ -11,9 +11,21 @@ export default defineConfig({
   trailingSlash: 'never',
   integrations: [
     sitemap({
-      // Pages under /fun/ and /library/ are served on fun.jxsi.ch and library.jxsi.ch
-      // (see worker.js); www redirects there. /creative/tiles only holds templates.
-      filter: (page) => !/\/(fun|library|creative)(\/|$)/.test(new URL(page).pathname),
+      // /creative/tiles only holds templates
+      filter: (page) => !/\/creative(\/|$)/.test(new URL(page).pathname),
+      // Pages under /fun/ and /library/ are served at the root of fun.jxsi.ch and
+      // library.jxsi.ch (see worker.js): list them with those addresses. The
+      // subdomains' robots.txt points at this sitemap, so that is allowed.
+      serialize(item) {
+        const url = new URL(item.url);
+        for (const [prefix, host] of [
+          ['/fun', 'https://fun.jxsi.ch'],
+          ['/library', 'https://library.jxsi.ch'],
+        ]) {
+          if (url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) item.url = host + (url.pathname.slice(prefix.length) || '/');
+        }
+        return item;
+      },
     }),
   ],
   build: {

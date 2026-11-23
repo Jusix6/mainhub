@@ -4,6 +4,11 @@
  * later without touching components.
  */
 export const UI = {
+  /** The hub page (/hub): its own title and description for search results. */
+  hubTitle: 'Apps, games, music and videos by Jusi',
+  hubDescription: 'Everything Jusi makes in one place: the newest video, apps, browser games, music and the devlog. Made by a creative from Switzerland.',
+  updatesTitle: 'Updates and devlog',
+  updatesDescription: 'The MAINHUB devlog: new browser games and features, releases and how they were built, with screenshots. Written by Jusi from Switzerland.',
   nav: {
     home: 'Home',
     projects: 'Projects',
@@ -245,6 +250,38 @@ export const UI = {
   fun: {
     title: 'FUN',
     backToSite: 'Main site',
+    aboutTitle: 'About this game',
+    /** A few lines under each game (by its path), for people and search engines. */
+    about: {
+      '10s': [
+        'How long is 10 seconds? is a tiny timing game in your browser. Press start, then press stop when you think exactly ten seconds have passed.',
+        'There is no clock on the screen, only your gut feeling. Afterwards you see how far off you were. Free, no download, no account, on a phone or a computer.',
+      ],
+      flag: [
+        'Paint the Flag is a daily flag game. Every day there are four new flags, one per level. You only get the name of the country and the outline of its flag.',
+        'Paint the colours in from memory, then compare your flag with the real one and get a score for colour and area. Free in the browser, a new set every day.',
+      ],
+      colors: [
+        'Color Hunter is a colour mixing game. Drag colours onto the board and drop one onto another to mix them like real paint.',
+        'Get close enough to one of the named colours of the xkcd colour survey and it goes into your collection. Common colours are easy, rare ones need a precise mix. Your collection stays in your browser.',
+      ],
+      'the-button': [
+        'The Button is one red button and one number. The number counts every click by everyone who has ever pressed it.',
+        'It never resets and it never goes down, so your click stays part of the count for good. Free, in the browser, no account.',
+      ],
+      'tiny-island': [
+        'Tiny Island is a small god game in the browser. Shape a pixel island with beaches, forests and mountains, put a few people on it, then lean back and watch.',
+        'They build villages, found kingdoms, make friends and enemies, invent things and write their own history. Speed time up or pause it, and read the chronicle of everything that happened.',
+      ],
+      'face-witness': [
+        'Face Witness is a daily police sketch game. Read the witness statement, then build the face of the suspect from parts: face shape, hair, eyes, nose, mouth and more.',
+        'When you are done, you see the real suspect next to your sketch and how close you got. A new case every day, the same one for everyone.',
+      ],
+      '2-many-notes': [
+        '2 Many Notes is a 3D game about an office desk covered in 100 sticky notes. Every note is a small job: tear off old calendar pages, straighten the picture, water Gerald the plant, answer emails on the old DeskOS computer, kick the stuck filing cabinet.',
+        'Do the job and the note flies into the bin. Your progress is saved, and a full run takes about 40 minutes to an hour. Free in the browser, no download.',
+      ],
+    },
     indexTitle: 'Fun & games',
     indexIntro: 'Small games that live in the browser. No accounts, no downloads, no point. Enjoy.',
     play: 'Play',
@@ -2270,7 +2307,7 @@ export const UI = {
       title: 'Flags of the World',
       spine: 'Flags',
       tagline: 'Every country, 203 flags. Learn them, then prove it.',
-      description: 'The flags of every country in the world plus a few famous others, 203 in all: browse, learn with flashcards that bring back what you forget, then test yourself with multiple choice or by typing the name.',
+      description: '203 flags, every country plus a few famous others: browse them, learn with flashcards that bring back what you forget, then test yourself.',
       progress: { known: 'Known', learning: 'Learning', fresh: 'Not seen yet', of: 'of' },
       scopeLabel: 'Which flags',
       scopes: {
