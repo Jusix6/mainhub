@@ -347,6 +347,14 @@ const monthDay = (iso: string) =>
 </style>
 
 <script>
+  import { scrollFade } from '@/lib/scrollFade';
+  document.addEventListener('astro:page-load', () => {
+    const row = document.querySelector<HTMLElement>('[data-filters]');
+    if (row) scrollFade(row);
+  });
+</script>
+
+<script>
   /** "3 days ago" from an ISO day, in Swiss time so it flips at local midnight. */
   function ago(iso: string): string {
     const day = (d: Date) => {

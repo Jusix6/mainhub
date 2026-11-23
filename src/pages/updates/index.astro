@@ -54,7 +54,6 @@ const referenced = projects.filter((p) => updates.some((u) => u.data.project?.id
   .updates {
     display: grid;
     gap: var(--space-4);
-    max-width: 800px;
   }
 
   .updates__head {
@@ -106,10 +105,38 @@ const referenced = projects.filter((p) => updates.some((u) => u.data.project?.id
 
   .updates__list {
     display: grid;
-    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+    gap: var(--space-4);
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  /* List items are capped to a reading width elsewhere; here the grid decides */
+  .updates__list > :global(.ucard) {
+    max-width: none;
+  }
+
+  /* The newest one (or the first one left after filtering) leads, over the whole width, with a big picture */
+  .updates__list > :global(.ucard:first-child),
+  .updates__list > :global(.ucard.is-lead) {
+    grid-column: 1 / -1;
+  }
+
+  @media (min-width: 760px) {
+    .updates__list > :global(:is(.ucard:first-child, .ucard.is-lead) .ucard__link.has-cover) {
+      grid-template-columns: 1fr 1.15fr;
+      gap: var(--space-4);
+      align-items: center;
+    }
+
+    .updates__list > :global(:is(.ucard:first-child, .ucard.is-lead) .ucard__thumb) {
+      aspect-ratio: 16 / 9;
+    }
+
+    .updates__list > :global(:is(.ucard:first-child, .ucard.is-lead) .ucard__title) {
+      font-size: var(--text-2xl);
+    }
   }
 
   .updates__empty {
@@ -139,6 +166,8 @@ const referenced = projects.filter((p) => updates.some((u) => u.data.project?.id
       for (const item of items) {
         const show = !current || item.dataset.project === current;
         item.hidden = !show;
+        // The first one shown leads (big, over the whole width)
+        item.classList.toggle('is-lead', show && visible === 0);
         if (show) visible++;
       }
       if (empty) empty.hidden = visible > 0;

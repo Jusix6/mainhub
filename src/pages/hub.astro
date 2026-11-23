@@ -61,7 +61,7 @@ const nextStream = upcoming.find((e) => e.data.type === 'stream');
       <h2 id="featured-heading">{UI.sections.featured}</h2>
       <Button href="/projects" color="--surface" iconAfter="arrow">{UI.actions.allProjects}</Button>
     </div>
-    <ProjectGrid projects={featured} />
+    <ProjectGrid projects={featured} class="grid--rows" />
   </section>
 
   <section class="container section" aria-labelledby="fun-heading">

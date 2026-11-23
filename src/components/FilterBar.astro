@@ -14,7 +14,7 @@ import Icon from './Icon.astro';
 <div class="filters" data-filter-bar>
   <fieldset class="filters__group" data-filter-group="cat">
     <legend class="meta">{UI.filters.category}</legend>
-    <div class="filters__chips">
+    <div class="filters__chips" data-chip-row>
       <button type="button" class="fchip" data-value="all" aria-pressed="true" style="--chip: var(--c-yellow)">
         {UI.filters.all}
       </button>
@@ -31,7 +31,7 @@ import Icon from './Icon.astro';
 
   <fieldset class="filters__group" data-filter-group="status">
     <legend class="meta">{UI.filters.status}</legend>
-    <div class="filters__chips">
+    <div class="filters__chips" data-chip-row>
       <button type="button" class="fchip" data-value="all" aria-pressed="true" style="--chip: var(--c-yellow)">
         {UI.filters.all}
       </button>
@@ -112,12 +112,8 @@ import Icon from './Icon.astro';
     box-shadow: var(--shadow-sm);
   }
 
+  /* Wide screens: each group gets the whole row, so the chips don't break into three lines */
   @media (min-width: 640px) {
-    .filters {
-      grid-template-columns: 1fr auto;
-      align-items: start;
-    }
-
     .filters__chips {
       flex-wrap: wrap;
       overflow: visible;
@@ -126,6 +122,8 @@ import Icon from './Icon.astro';
 </style>
 
 <script>
+  import { scrollFade } from '@/lib/scrollFade';
+  document.addEventListener('astro:page-load', () => document.querySelectorAll<HTMLElement>('[data-chip-row]').forEach(scrollFade));
   const PARAM_KEYS = { cat: 'cat', status: 'status' } as const;
   type Group = keyof typeof PARAM_KEYS;
 

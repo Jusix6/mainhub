@@ -8,6 +8,7 @@ import Base from '@/layouts/Base.astro';
 import Button from '@/components/Button.astro';
 import LinkButton from '@/components/LinkButton.astro';
 import CategoryChip from '@/components/CategoryChip.astro';
+import BusinessCard from '@/components/BusinessCard.astro';
 import { SITE } from '@/data/site';
 import { UI } from '@/data/ui';
 
@@ -17,7 +18,8 @@ const projects = (await getCollection('projects', ({ data }) => data.links.lengt
 ---
 
 <Base title={UI.nav.links} description={`All the places to find ${SITE.name}: socials, stores and platforms.`}>
-  <div class="container links">
+  <div class="container links-page">
+  <div class="links">
     <header class="links__head">
       <p class="meta">{SITE.tagline}</p>
       <h1>
@@ -65,13 +67,41 @@ const projects = (await getCollection('projects', ({ data }) => data.links.lengt
       )
     }
   </div>
+  <aside class="links__aside" aria-label={UI.card.frontLabel}>
+    <BusinessCard />
+  </aside>
+  </div>
 </Base>
 
 <style>
+  .links-page {
+    display: grid;
+    gap: var(--space-6);
+  }
+
   .links {
     display: grid;
     gap: var(--space-5);
     max-width: 720px;
+  }
+
+  /* Phones: the links come first, the card is not needed */
+  .links__aside {
+    display: none;
+  }
+
+  /* Wide screens: the card stands beside the links (instead of an empty half page) */
+  @media (min-width: 1000px) {
+    .links-page {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+      align-items: start;
+    }
+
+    .links__aside {
+      display: block;
+      position: sticky;
+      top: var(--space-6);
+    }
   }
 
   .links__head {

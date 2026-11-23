@@ -9,19 +9,21 @@ import { Image } from 'astro:assets';
 import Icon from './Icon.astro';
 import logo from '@/assets/logo.png';
 
+// `more`: on a phone these sit under "More" (the bottom bar only has room for five)
 const navItems = [
-  { href: '/hub', label: UI.nav.home, icon: 'home' },
-  { href: '/projects', label: UI.nav.projects, icon: 'grid' },
-  { href: '/updates', label: UI.nav.updates, icon: 'sparkle' },
-  { href: '/schedule', label: UI.nav.schedule, icon: 'calendar' },
-  { href: '/links', label: UI.nav.links, icon: 'link' },
+  { href: '/hub', label: UI.nav.home, icon: 'home', more: false },
+  { href: '/projects', label: UI.nav.projects, icon: 'grid', more: false },
+  { href: '/updates', label: UI.nav.updates, icon: 'sparkle', more: false },
+  { href: '/schedule', label: UI.nav.schedule, icon: 'calendar', more: true },
+  { href: '/links', label: UI.nav.links, icon: 'link', more: true },
   // Fun games and the library live on their own subdomains (see worker.js)
-  { href: SITE.fun.url, label: UI.nav.fun, icon: 'games' },
-  { href: SITE.library.url, label: UI.nav.library, icon: 'book' },
+  { href: SITE.fun.url, label: UI.nav.fun, icon: 'games', more: false },
+  { href: SITE.library.url, label: UI.nav.library, icon: 'book', more: true },
 ];
 
 const current = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
 const isActive = (href: string) => current.startsWith(href);
+const moreActive = navItems.some((item) => item.more && isActive(item.href));
 ---
 
 <header
@@ -45,7 +47,7 @@ const isActive = (href: string) => current.startsWith(href);
       <ul>
         {
           navItems.map((item) => (
-            <li>
+            <li class:list={{ 'nav__extra': item.more }}>
               <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
                 <Icon name={item.icon} size={20} class="nav__icon" />
                 <span>{item.label}</span>
@@ -53,7 +55,25 @@ const isActive = (href: string) => current.startsWith(href);
             </li>
           ))
         }
+        <li class="nav__more-item">
+          <button type="button" class:list={['nav__more-btn', { 'is-current': moreActive }]} popovertarget="nav-more" aria-label={UI.nav.more}>
+            <Icon name="more" size={20} class="nav__icon" />
+            <span>{UI.nav.more}</span>
+          </button>
+        </li>
       </ul>
+      <div id="nav-more" class="nav__sheet" popover>
+        {
+          navItems
+            .filter((item) => item.more)
+            .map((item) => (
+              <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+                <Icon name={item.icon} size={20} />
+                <span>{item.label}</span>
+              </a>
+            ))
+        }
+      </div>
     </nav>
   </div>
 </header>
@@ -273,6 +293,66 @@ const isActive = (href: string) => current.startsWith(href);
       box-shadow var(--t-fast) var(--ease-pop);
   }
 
+  .nav__more-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    min-height: 48px;
+    padding: var(--space-1) 2px;
+    font: inherit;
+    font-size: clamp(0.6rem, 2.8vw, 0.8rem);
+    font-weight: 700;
+    color: inherit;
+    background: none;
+    border: var(--line) solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .nav__more-btn.is-current,
+  .nav__more-btn:hover {
+    border-color: var(--ink);
+  }
+
+  .nav__more-btn.is-current {
+    background: var(--c-yellow);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Phones: the extras live in a sheet above the bar */
+  .nav__extra {
+    display: none;
+  }
+
+  .nav__sheet {
+    position: fixed;
+    inset: auto var(--space-2) calc(80px + env(safe-area-inset-bottom)) auto;
+    margin: 0;
+    padding: var(--space-2);
+    min-width: 200px;
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--line) solid var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+
+  .nav__sheet:popover-open {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .nav__sheet a {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-base);
+  }
+
   .nav a[aria-current='page'] {
     background: var(--c-yellow);
     border-color: var(--ink);
@@ -296,6 +376,16 @@ const isActive = (href: string) => current.startsWith(href);
 
     .nav li {
       flex: none;
+    }
+
+    /* Wide screens: everything in one row, no "More" */
+    .nav__extra {
+      display: block;
+    }
+
+    .nav__more-item,
+    .nav__sheet {
+      display: none;
     }
 
     .nav a {

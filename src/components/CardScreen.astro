@@ -8,11 +8,13 @@ import BusinessCard from './BusinessCard.astro';
 import CardGames from './CardGames.astro';
 import CreativeMode from './CreativeMode.astro';
 import { UI } from '@/data/ui';
+import Icon from './Icon.astro';
 ---
 
 <div class="card-page">
   <BusinessCard standalone />
   <p class="card-page__note meta" data-print-note hidden>{UI.card.scanned}</p>
+  <a class="card-page__hub" href="/hub">{UI.card.toHub} <Icon name="arrow" size={14} /></a>
 </div>
 {/* Outside .card-page: they also serve the creative start page, which hides the card (MyStartPage.astro) */}
 <CardGames />
@@ -32,6 +34,35 @@ import { UI } from '@/data/ui';
 
   .card-page__note[hidden] {
     display: none;
+  }
+
+  /* A quiet way into the site for those who don't turn the card over */
+  .card-page__hub {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    transition: color var(--t-fast), border-color var(--t-fast);
+  }
+
+  .card-page__hub:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+
+  /* Dotted paper behind the card */
+  :global(main:has(> .card-page)) {
+    background-image: radial-gradient(circle, color-mix(in srgb, var(--ink) 13%, transparent) 1.2px, transparent 1.6px);
+    background-size: 22px 22px;
+    background-position: center;
   }
 </style>
 

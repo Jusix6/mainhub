@@ -10,6 +10,7 @@ export const UI = {
   updatesTitle: 'Updates and devlog',
   updatesDescription: 'The MAINHUB devlog: new browser games and features, releases and how they were built, with screenshots. Written by Jusi from Switzerland.',
   nav: {
+    more: 'More',
     home: 'Home',
     projects: 'Projects',
     updates: 'Updates',
@@ -65,6 +66,7 @@ export const UI = {
     updated: 'Updated',
   },
   card: {
+    toHub: 'Or go straight to the site',
     flip: 'Flip the card',
     flipBack: 'Flip back',
     /** The standalone card (/ and /card): grab a corner to turn it, the middle to move it. */

@@ -916,3 +916,12 @@ Zeichen-Whitelist); wer das braucht, hängt eine Wortliste in `cleanName` an.
 - Strukturierte Daten: `src/lib/schema.ts` (person, breadcrumbs, article, game), Head.astro nimmt `jsonLd` (ein Block oder mehrere) und `ogType`. Update-Posts: BlogPosting + Brotkrumen, og:type article. Spiele (Fun-Layout, automatisch): VideoGame + Brotkrumen; Spielübersicht: ItemList. Projekte und Library-Bücher: Brotkrumen. Startseite: Person (wie bisher).
 - Startseite hat eine unsichtbare H1. /hub und /updates haben eigene Titel und Beschreibungen (`UI.hubTitle` …). Beschreibungen ≤ 160 Zeichen halten.
 - „About this game“: `UI.fun.about[slug]` (zwei kurze Absätze); das Fun-Layout zeigt es unter Spielen mit Kopf/Fuss sichtbar, bei Vollbild-Spielen (`bare`) nur für Screenreader/Suchmaschinen (visually-hidden), damit die Seite nicht scrollt. Neues Spiel = Text dort ergänzen.
+
+## Optik-Feinschliff (2026-11-23)
+
+- Startseite: die Karte (standalone) wächst auf grossen Bildschirmen bis 880 px (begrenzt durch die Fensterhöhe); die Schriftgrössen der Karte skalieren über `--cap` (alle `clamp(…, …cqw, Npx)` in BusinessCard.astro haben `calc(Npx * var(--cap, 1))` als Obergrenze; nur die Standalone-Karte setzt `--cap: 1.3`). Punktraster hinter der Karte, darunter der Link „Or go straight to the site“ (`UI.card.toHub`).
+- Updates: volle Containerbreite, Raster mit 2 Spalten; der neueste (bzw. nach dem Filtern erste sichtbare) Post führt über die ganze Breite (`.is-lead`, per Skript gesetzt). Achtung: `li` haben global `max-width: 65ch`, im Raster mit `max-width: none` aufheben.
+- Hub-Highlights: `ProjectGrid class="grid--rows"` zeigt ab 900 px nur volle Dreierreihen.
+- Projekte-Filter: jede Gruppe eine eigene Zeile. Wischbare Chip-Reihen (Projekte, Spiele) blenden am Rand aus: `scrollFade()` in src/lib/scrollFade.ts setzt `data-fade`, CSS in global.css.
+- Links-Seite: ab 1000 px die Ausweis-Karte rechts (sticky).
+- Handy-Navigation: unten nur Home, Projects, Updates, Fun und „More“ (Popover `#nav-more` mit Schedule, Links, Library; `more: true` in navItems); am Desktop unverändert alle sieben.

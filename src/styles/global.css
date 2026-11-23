@@ -236,3 +236,16 @@ pre {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Chip rows that scroll sideways: fade where there is more (src/lib/scrollFade.ts) */
+[data-fade='end'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+}
+
+[data-fade='start'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent);
+}
+
+[data-fade='both'] {
+  mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+}

@@ -46,6 +46,11 @@ const { projects, eagerCount = 1, heading = 'h3', class: className } = Astro.pro
     .grid {
       grid-template-columns: repeat(3, 1fr);
     }
+
+    /* A short list (the hub): only full rows, no card alone in the last row */
+    .grid--rows .grid > :global(li:nth-child(n + 4)) {
+      display: none;
+    }
   }
 
   .empty {
