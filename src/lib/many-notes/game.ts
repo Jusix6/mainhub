@@ -68,7 +68,8 @@ export type ManyNotesStrings = (typeof UI)['fun']['manyNotes'];
 const EYE = new THREE.Vector3(0, 1.22, 0.42);
 const YAW_MAX = 1.4; // about 160° in all
 const PITCH_MIN = -1.0;
-const PITCH_MAX = 0.4;
+// High enough to see the note on the ceiling (0.4 was not: it stayed above the top edge)
+const PITCH_MAX = 0.9;
 const PITCH_REST = -0.36;
 const GLOW = new THREE.Color('#3b3112');
 /** Where a held object sits in view, and where a note is read (camera space). */
