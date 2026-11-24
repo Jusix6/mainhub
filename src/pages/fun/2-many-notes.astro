@@ -356,8 +356,10 @@ const ogImage = new URL(og.src, SITE.fun.url).href;
     display: none;
   }
 
+  /* Above the cards too (the end card covers the screen; "Copied!" was hidden behind it) */
   .mn__toast {
     position: absolute;
+    z-index: 30;
     left: 50%;
     top: 30%;
     margin: 0;

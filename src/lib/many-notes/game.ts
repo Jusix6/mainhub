@@ -3937,6 +3937,16 @@ export function startManyNotes(root: HTMLElement, S: ManyNotesStrings): () => vo
     });
   }
 
+  /** A data URL (the result card) as a file to share. */
+  function dataUrlFile(url: string, name: string) {
+    const [head, data] = url.split(',');
+    const type = /^data:([^;,]+)/.exec(head)?.[1] ?? 'image/png';
+    const bin = atob(data);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], `${name}.${type.split('/')[1] ?? 'png'}`, { type });
+  }
+
   async function showDone(after: string) {
     const secs = Math.round(playTime);
     const t = fmt(secs);
@@ -3966,25 +3976,24 @@ export function startManyNotes(root: HTMLElement, S: ManyNotesStrings): () => vo
     box.querySelector('[data-mn-share]')!.addEventListener(
       'click',
       async () => {
-        try {
-          const blob = await (await fetch(card)).blob();
-          const file = new File([blob], '2-many-notes.png', { type: 'image/png' });
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], text });
+        // The picture as a file, made straight from its data URL: fetch() of a data: URL
+        // is blocked by the site's CSP (connect-src 'self'), which broke sharing live
+        const file = dataUrlFile(card, '2-many-notes');
+        if (navigator.share) {
+          try {
+            if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], text });
+            else await navigator.share({ text, url: URL });
             return;
+          } catch (e) {
+            // Closed the share sheet: that was the answer, nothing to copy
+            if ((e as Error).name === 'AbortError') return;
           }
-          if (navigator.share) {
-            await navigator.share({ text, url: URL });
-            return;
-          }
-        } catch {
-          /* cancelled or not possible: copy instead */
         }
         try {
           await navigator.clipboard.writeText(text);
           toast(S.copied);
         } catch {
-          /* nothing more to try */
+          toast(S.shareFailed);
         }
       },
       { signal: ac.signal },

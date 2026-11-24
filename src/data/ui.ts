@@ -364,6 +364,7 @@ export const UI = {
       savePic: 'Save picture',
       share: 'Share',
       copied: 'Copied! Paste it anywhere.',
+      shareFailed: 'Sharing did not work here. Save the picture instead.',
       shareText: 'I cleared {n} sticky notes in {t}. Rank: {rank}.',
       noWebgl: 'This game needs WebGL, which your browser has switched off.',
       zoomDesk: 'Click the screen to use the computer · right-click or Esc to sit back.',
