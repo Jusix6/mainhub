@@ -400,6 +400,10 @@ Verantwortlichen; hier gilt die Jusi-Regel nicht.
 
 - `forgot` → `/privacy/forgot`, DE + EN, Kontakt jxsisupport@gmail.com.
   Diese URL gehört ins App-Store-Listing als Privacy Policy.
+- `desktop-whiteboard` → `/privacy/desktop-whiteboard`, DE + EN, Windows-App (Hintergrund-Dashboard,
+  liegt nicht in diesem Repo). Diese URL steht im Google-Cloud-OAuth-Zustimmungsbildschirm der App;
+  sie muss die gelesenen YouTube-Daten, den „Limited Use“-Satz und die Links zu den YouTube-ToS und der
+  Google-Datenschutzerklärung enthalten.
 
 ### Erste Projekte
 
